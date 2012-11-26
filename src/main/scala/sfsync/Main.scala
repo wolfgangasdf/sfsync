@@ -65,13 +65,34 @@ object Main extends JFXApp with Logging {
     menus.add(menu)
   }
 
+  class tfHBox(labeltext: String, tftext: String) {
+    var afterUpdate: Unit = null
+    var serverfield: String => Unit = null
+    var tf = new TextField() {
+      text = tftext
+    }
+    def tfHbox = {
+      val res = new HBox { content = List(new Label {text = labeltext}, tf)}
+      tf.onAction = { (ae: ActionEvent) => {
+        serverfield(tf.text.value)
+        Store.save
+        afterUpdate
+      }}
+      res
+    }
+    // give ref like server.name_= (no spaces in between, this is the getter method name!)
+    def setServerField(sf: String => Unit, text: String, afterUpdate: Unit = null) {
+      this.afterUpdate = afterUpdate
+      serverfield = sf
+      tf.text = text
+    }
+  }
+
   val serverView = new BorderPane() {
     var serverList  = new ObservableBuffer[Server]
-    var server: Server = null // the current server
-    var tfServerName = new TextField() {
-      id="servername"; text = "server1"
-    }
-    var tfLocalFolder = new TextField() {id="localfolder"; text = "/tmp/testlocal"}
+    var server: Server = null // the current server, also db4o object!
+    var tfhbServerName = new tfHBox("Name: ", "...")
+    var tfhbLocalFolder = new tfHBox("Local folder: ", "...")
     var lbStatusCache = new Label {text = "Status of cache file"}
     var lvServers = new control.ListView[Server]() {
       items = serverList
@@ -79,11 +100,8 @@ object Main extends JFXApp with Logging {
       selectionModel().getSelectedItems.onChange(
         (aaa,bbb) => {
           val newidx = Store.config.servers.indexOf(aaa.head)
-          if (Store.config.currentServer != newidx) { // avoid loop
-            Store.config.currentServer = newidx
-            showServer
-          }
-          println("aaa=" + aaa + "," + bbb + " new index = " + Store.config.currentServer)
+          Store.config.currentServer = newidx
+          showServer
         }
       )
     }
@@ -92,14 +110,15 @@ object Main extends JFXApp with Logging {
       println("----------update!")
       serverList.clear()
       Store.config.servers.foreach(ss => serverList += ss)
+      // TODO: select correct line       lvServers.selectionModel().clearAndSelect(Store.config.currentServer)
       println("----------/update len=" + Store.config.servers.length)
     }
 
     def showServer {
       if (-1 < Store.config.currentServer) {
         server = Store.config.servers(Store.config.currentServer)
-        tfServerName.text = server.name
-        tfLocalFolder.text = server.localFolder
+        tfhbLocalFolder.setServerField(server.localFolder_=, server.localFolder)
+        tfhbServerName.setServerField(server.name_=, server.name, updateList)
       }
 //      protocolView.showProtocols(newserver.protocols.toList,newserver.currentProtocol)
     }
@@ -130,10 +149,11 @@ object Main extends JFXApp with Logging {
         )
       })
     }
+
     right = new VBox() {
       content = List(
-        new HBox { content = List(new Label {text = "Name:"}, tfServerName)},
-        new HBox { content = List(new Label {text = "Local base folder:"}, tfLocalFolder)},
+        tfhbServerName.tfHbox,
+        tfhbLocalFolder.tfHbox,
         new HBox { content = List(lbStatusCache)}
       )
     }
@@ -143,14 +163,6 @@ object Main extends JFXApp with Logging {
       lvServers.selectionModel().clearAndSelect(Store.config.currentServer)
       showServer
     }
-
-    // add events, must be after init???????
-    tfServerName.onAction = { (ae: ActionEvent) => {
-      server.name = tfServerName.text.value
-      Store.save
-      updateList
-      println("event: " + ae.eventType + " : " + ae)
-    }}
   }
 
   val protocolView = new BorderPane() {
@@ -224,8 +236,8 @@ object Main extends JFXApp with Logging {
 //        profileView.profiles.add("asdf")
 //        println("tft=" + lookupTextField("#subfolder").text.value)
         val ppp = new Profile (
-          name = serverView.tfServerName.text.value,
-          localFolder = serverView.tfLocalFolder.text.value,
+          name = serverView.tfhbServerName.tf.text.value,
+          localFolder = serverView.tfhbLocalFolder.tf.text.value,
           protocol = new TransferProtocol(
             name = protocolView.tfProtocolName.text.value,
             conntype = ConnType.withName(protocolView.cbProtocol.value.get),
