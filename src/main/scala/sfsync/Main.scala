@@ -15,6 +15,7 @@ import util.Logging
 import scalafx.event.ActionEvent
 import store._
 import java.io.File
+import collection.mutable.ArrayBuffer
 
 //import store.MyImplicits._
 import synchro._
@@ -65,13 +66,13 @@ object Main extends JFXApp with Logging {
     menus.add(menu)
   }
 
-  class tfHBox(labeltext: String, tftext: String) {
+  class TFHBox(labeltext: String, tftext: String) {
     var afterUpdate: Unit = null
     var serverfield: String => Unit = null
     var tf = new TextField() {
       text = tftext
     }
-    def tfHbox = {
+    def getTFHbox = {
       val res = new HBox { content = List(new Label {text = labeltext}, tf)}
       tf.onAction = { (ae: ActionEvent) => {
         serverfield(tf.text.value)
@@ -88,81 +89,99 @@ object Main extends JFXApp with Logging {
     }
   }
 
-  val serverView = new BorderPane() {
-    var serverList  = new ObservableBuffer[Server]
-    var server: Server = null // the current server, also db4o object!
-    var tfhbServerName = new tfHBox("Name: ", "...")
-    var tfhbLocalFolder = new tfHBox("Local folder: ", "...")
-    var lbStatusCache = new Label {text = "Status of cache file"}
-    var lvServers = new control.ListView[Server]() {
+  class MyListView[T](val factory: () => T = null, val onUpdate: () => Int, what: String) {
+    var serverList  = new ObservableBuffer[T] // local cache needed for ListView
+//    var serverField: String => Unit = null//  = new ObservableBuffer[Server]
+    var lvServers = new control.ListView[T]() {
       items = serverList
       selectionModel().setSelectionMode(jscsm.SINGLE)
       selectionModel().getSelectedItems.onChange(
         (aaa,bbb) => {
-          val newidx = Store.config.servers.indexOf(aaa.head)
-          Store.config.currentServer = newidx
-          showServer
+          currIdx = arrayBuf.indexOf(aaa.head)
+          currIdxField(currIdx)
+          println("list: getSelOnChange!" + currIdx)
+          onUpdate()
         }
       )
     }
-
+//    var onUpdate : () => Unit = () => {} // the method will be called if other server selected
+    var currIdxField: Int => Unit = null
+    var currIdx: Int = -1
+    var arrayBuf: ArrayBuffer[T] = null// => Unit
+    def getContent = {
+      new VBox() {
+        content = List(
+          lvServers,
+          new HBox {
+            content = List(
+              new Button("add " + what) {
+                onAction = (ae: ActionEvent) => {
+                  val snew = factory()
+                  arrayBuf += snew
+                  Store.save
+                  updateList
+                  println("added " + what)
+                }
+              },
+              new Button("delete " + what) {
+                onAction = (ae: ActionEvent) => {
+                  arrayBuf.remove(currIdx)
+                  currIdx -= 1
+                  currIdxField(currIdx)
+                  Store.save
+                  updateList
+                  println("deleted " + what)
+                }
+              }
+            )
+          })
+      }
+    }
+    def setData(currIdxField: Int => Unit, currIdx: Int, arrayBuf: ArrayBuffer[T]) {
+      this.arrayBuf = arrayBuf
+      this.currIdxField = currIdxField
+      this.currIdx = currIdx
+    }
     def updateList {
       println("----------update!")
       serverList.clear()
-      Store.config.servers.foreach(ss => serverList += ss)
+      if (arrayBuf != null) arrayBuf.foreach(ss => serverList += ss)
       // TODO: select correct line       lvServers.selectionModel().clearAndSelect(Store.config.currentServer)
       println("----------/update len=" + Store.config.servers.length)
     }
+  }
 
-    def showServer {
-      if (-1 < Store.config.currentServer) {
+  val serverView = new BorderPane() {
+    var server: Server = null // the current server, also db4o object!
+    var tfhbServerName = new TFHBox("Name: ", "...")
+    var tfhbLocalFolder = new TFHBox("Local folder: ", "...")
+    var lbStatusCache = new Label {text = "Status of cache file"}
+
+    def showServer(): Int = {
+      println("showserver: " + Store.config.currentServer)
+      if (-1 < Store.config.currentServer && lvs != null) {
         server = Store.config.servers(Store.config.currentServer)
         tfhbLocalFolder.setServerField(server.localFolder_=, server.localFolder)
-        tfhbServerName.setServerField(server.name_=, server.name, updateList)
+        tfhbServerName.setServerField(server.name_=, server.name, lvs.updateList)
       }
 //      protocolView.showProtocols(newserver.protocols.toList,newserver.currentProtocol)
+      1
     }
 
-    left = new VBox() {
-      content = List(
-        lvServers,
-      new HBox {
-        content = List(
-          new Button("add server") {
-            onAction = (ae: ActionEvent) => {
-              val snew = new Server
-              Store.config.servers += snew
-              Store.save
-              updateList
-              println("added server")
-            }
-          },
-          new Button("delete server") {
-            onAction = (ae: ActionEvent) => {
-              Store.config.servers.remove(Store.config.currentServer)
-              Store.config.currentServer = -1
-              Store.save
-              updateList
-              println("deleted")
-            }
-          }
-        )
-      })
-    }
+    var lvs = new MyListView[Server](() => new Server,this.showServer, "Server")
+
+    lvs.setData(Store.config.currentServer_=, Store.config.currentServer, Store.config.servers)
+    left = lvs.getContent
 
     right = new VBox() {
       content = List(
-        tfhbServerName.tfHbox,
-        tfhbLocalFolder.tfHbox,
+        tfhbServerName.getTFHbox,
+        tfhbLocalFolder.getTFHbox,
         new HBox { content = List(lbStatusCache)}
       )
     }
     // initialize
-    updateList
-    if (-1 < Store.config.currentServer) {
-      lvServers.selectionModel().clearAndSelect(Store.config.currentServer)
-      showServer
-    }
+    lvs.updateList
   }
 
   val protocolView = new BorderPane() {
