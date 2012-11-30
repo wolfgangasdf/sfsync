@@ -53,7 +53,7 @@ class Protocol {
   var username : String = ""
   var password: String = ""
   var basefolder: String = ""
-  override def toString: String = "proto: name = " + name
+  override def toString: String = name
 }
 
 object Store {
@@ -73,10 +73,11 @@ object Store {
 
   def save {
     println("-----------save " + config)
+//    scala.sys.error("asdf")
     dumpConfig
     db.store(config)
     db.commit()
-    println("-----------save fini")
+    println("-----------/save")
   }
 
   def dumpConfig {

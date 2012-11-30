@@ -31,9 +31,7 @@ object TestSynchro extends App  with Logging {
     protocol = new TransferProtocol (
       name = "protlocalfolder",
       conntype = ConnType.Local,
-      basefolder = "/tmp/testremote",
-      username = "",
-      password = ""
+      basefolder = "/tmp/testremote"
     ),
     subfolder = "."
 
@@ -67,7 +65,7 @@ object Main extends JFXApp with Logging {
   }
 
   class TFHBox(labeltext: String, tftext: String) {
-    var afterUpdate: Unit = null
+    var afterUpdate: () => Unit = null
     var serverfield: String => Unit = null
     var tf = new TextField() {
       text = tftext
@@ -75,25 +73,26 @@ object Main extends JFXApp with Logging {
     def getTFHbox = {
       val res = new HBox { content = List(new Label {text = labeltext}, tf)}
       tf.onAction = { (ae: ActionEvent) => {
+        println("tfhbox changed!" + labeltext)
         serverfield(tf.text.value)
         Store.save
-        afterUpdate
+        afterUpdate()
       }}
       res
     }
     // give ref like server.name_= (no spaces in between, this is the getter method name!)
-    def setServerField(sf: String => Unit, text: String, afterUpdate: Unit = null) {
+    def setServerField(sf: String => Unit, text: String, afterUpdate: () => Unit = () => {}) {
+      println("setServerField " + text)
       this.afterUpdate = afterUpdate
       serverfield = sf
       tf.text = text
     }
   }
 
-  class MyListView[T](val factory: () => T = null, val onUpdate: () => Int, what: String) {
-    var serverList  = new ObservableBuffer[T] // local cache needed for ListView
-//    var serverField: String => Unit = null//  = new ObservableBuffer[Server]
-    var lvServers = new control.ListView[T]() {
-      items = serverList
+  class MyListView[T](val factory: () => T = null, val onUpdate: () => Unit, what: String) {
+    var obsList  = new ObservableBuffer[T] // local cache needed for ListView
+    var listview = new control.ListView[T]() {
+      items = obsList
       selectionModel().setSelectionMode(jscsm.SINGLE)
       selectionModel().getSelectedItems.onChange(
         (aaa,bbb) => {
@@ -104,14 +103,14 @@ object Main extends JFXApp with Logging {
         }
       )
     }
-//    var onUpdate : () => Unit = () => {} // the method will be called if other server selected
     var currIdxField: Int => Unit = null
     var currIdx: Int = -1
-    var arrayBuf: ArrayBuffer[T] = null// => Unit
+    var arrayBuf: ArrayBuffer[T] = null // This works, it's an object...
+
     def getContent = {
       new VBox() {
         content = List(
-          lvServers,
+          listview,
           new HBox {
             content = List(
               new Button("add " + what) {
@@ -119,7 +118,7 @@ object Main extends JFXApp with Logging {
                   val snew = factory()
                   arrayBuf += snew
                   Store.save
-                  updateList
+                  updateList(0)
                   println("added " + what)
                 }
               },
@@ -129,7 +128,7 @@ object Main extends JFXApp with Logging {
                   currIdx -= 1
                   currIdxField(currIdx)
                   Store.save
-                  updateList
+                  updateList(1)
                   println("deleted " + what)
                 }
               }
@@ -142,12 +141,18 @@ object Main extends JFXApp with Logging {
       this.currIdxField = currIdxField
       this.currIdx = currIdx
     }
-    def updateList {
-      println("----------update!")
-      serverList.clear()
-      if (arrayBuf != null) arrayBuf.foreach(ss => serverList += ss)
-      // TODO: select correct line       lvServers.selectionModel().clearAndSelect(Store.config.currentServer)
-      println("----------/update len=" + Store.config.servers.length)
+    def updateList(reload: Int = 0) = {
+      println("----------update! reload=" + reload)
+      if (reload==1) { // elements changed!
+        obsList.clear()
+        if (arrayBuf != null) arrayBuf.foreach(ss => obsList += ss)
+      } else { // element only changed...
+//        println("info idx="+currIdx + " ab=" + arrayBuf + " ol=" + obsList)
+//        obsList.set(currIdx, arrayBuf(currIdx))
+      }
+
+//      listview.selectionModel().clearAndSelect(currIdx)
+      println("----------/update idx=" + currIdx)
     }
   }
 
@@ -157,19 +162,17 @@ object Main extends JFXApp with Logging {
     var tfhbLocalFolder = new TFHBox("Local folder: ", "...")
     var lbStatusCache = new Label {text = "Status of cache file"}
 
-    def showServer(): Int = {
+    def showServer(): Unit = {
       println("showserver: " + Store.config.currentServer)
       if (-1 < Store.config.currentServer && lvs != null) {
         server = Store.config.servers(Store.config.currentServer)
         tfhbLocalFolder.setServerField(server.localFolder_=, server.localFolder)
-        tfhbServerName.setServerField(server.name_=, server.name, lvs.updateList)
+        tfhbServerName.setServerField(server.name_=, server.name, () => lvs.updateList(0))
       }
-//      protocolView.showProtocols(newserver.protocols.toList,newserver.currentProtocol)
-      1
+      protocolView.showProtocols(server)
     }
 
     var lvs = new MyListView[Server](() => new Server,this.showServer, "Server")
-
     lvs.setData(Store.config.currentServer_=, Store.config.currentServer, Store.config.servers)
     left = lvs.getContent
 
@@ -181,36 +184,45 @@ object Main extends JFXApp with Logging {
       )
     }
     // initialize
-    lvs.updateList
+    lvs.updateList(1)
   }
 
   val protocolView = new BorderPane() {
-    var protocols: List[Protocol] = null
-    var protocolsList = new ObservableBuffer[String]()
+    var server: Server = null // current server, db4o!
+    var protocol: Protocol = null // current protocol, db4o object!
     var connTypeList = new ObservableBuffer[String]()
     ConnType.values.foreach(ctv => connTypeList.add(ctv.toString))//("local", "sftp")
 
-    var tfProtocolName = new TextField() {id="protocolname"; text = "proto1"}
-    var tfProtocol = new TextField() {id="protocol"; text = "local"}
+    var tfProtocolName = new TFHBox("protocolname: ","...")
+    var tfProtocol = new TFHBox("Protocol: ", "...")
     var cbProtocol = new ComboBox(connTypeList)
-    var tfUserName = new TextField
-    var tfPassword = new TextField
-    var tfBaseFolder = new TextField() {id="basefolder"; text = "/tmp/testremote"}
+//    var tfServerURL = new TFHBox("Server URL: ", "...")
+//    var tfPassword = new TFHBox("Password: ", "...")
+    var tfBaseFolder = new TFHBox("Base Folder: ", "...")
 
-    def showProtocols(newprotocols: List[Protocol], currProt: Int) {
-      protocols = newprotocols
-      // TODO
+    def showProtocol(): Unit = {
+      if (-1 < server.currentProtocol && lvp != null) {
+        protocol = server.protocols(server.currentProtocol)
+        tfProtocolName.setServerField(protocol.name_=, protocol.name,() => lvp.updateList(0))
+        tfBaseFolder.setServerField(protocol.basefolder_=, protocol.basefolder)
+        tfProtocol.setServerField(protocol.protocol_=, protocol.protocol)
+      }
     }
-    left = new ListView[String]() {
-      items = protocolsList
-      selectionModel().setSelectionMode(jscsm.SINGLE)
+    var lvp = new MyListView[Protocol](() => new Protocol,this.showProtocol, "Protocol")
+    def showProtocols(server: Server) = {
+      this.server = server
+      lvp.setData(server.currentProtocol_=, server.currentProtocol, server.protocols)
+      // initialize
+      lvp.updateList(1)
     }
+
+    left = lvp.getContent
     right = new VBox() {
       content = List(
-        new HBox { content = List(new Label {text = "Name:"}, tfProtocolName)},
-        new HBox{ content = List(new Label {text = "Connection Type: "}, cbProtocol)},
-        new HBox { content = List(new Label {text = "Remote base folder:"}, tfBaseFolder)},
-        new HBox { content = List(new Label {text = "Username:"}, tfUserName, new Label {text = "Password:"}, tfPassword)}
+        tfProtocolName.getTFHbox,
+        tfProtocol.getTFHbox,
+        tfBaseFolder.getTFHbox,
+        new HBox{ content = List(new Label {text = "Connection Type: "}, cbProtocol)}
       )
     }
   }
@@ -258,11 +270,9 @@ object Main extends JFXApp with Logging {
           name = serverView.tfhbServerName.tf.text.value,
           localFolder = serverView.tfhbLocalFolder.tf.text.value,
           protocol = new TransferProtocol(
-            name = protocolView.tfProtocolName.text.value,
+            name = protocolView.tfProtocolName.tf.text.value,
             conntype = ConnType.withName(protocolView.cbProtocol.value.get),
-            basefolder = protocolView.tfBaseFolder.text.value,
-            username = protocolView.tfUserName.text.value,
-            password = protocolView.tfPassword.text.value
+            basefolder = protocolView.tfBaseFolder.tf.text.value
           ),
           subfolder = subfolderView.tfSubFolder.text.value
         )
@@ -292,23 +302,16 @@ object Main extends JFXApp with Logging {
     scene = new Scene {
       //      fill = Color.LIGHTGRAY
       content = maincontent
-//      content = mainContent
       onCloseRequest =  {
-        Store.dumpConfig
-        Store.save
+        // TODO: why are these methods called on startup??? disabled for now.
+//        Store.dumpConfig
+//        Store.save
         println("close requested" + Store)
       }
     }
   }
   maincontent.prefHeight <== stage.scene.height
   maincontent.prefWidth <== stage.scene.width
-
-
-
-
-
-
-
 
 //  mainContent.prefHeight <== stage.scene.height
 //  mainContent.prefWidth <== stage.scene.width
@@ -321,12 +324,6 @@ object Main extends JFXApp with Logging {
 //  //  centerPane.prefHeight <== stage.scene.height
 //  //  centerPane.prefWidth <== stage.scene.width * 0.6
 
-//  debug("load plugins...")
-//  // get access to loaded scene! HOW? I think only via javafx....
-//  // is scalafx a one-way street?
-//  // RIGHT NOW: nearly no scalafx, could remove it.
-//  val scontent = mycontent.getChildren.asScala
-//  scontent.foreach(ccc => println(ccc.getClass + ": " + ccc))
 
 }
 

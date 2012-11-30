@@ -3,9 +3,7 @@ package sfsync.synchro
 class TransferProtocol (
   var name: String,
   var conntype: ConnType.Value,
-  var basefolder: String,
-  var username: String,
-  var password: String
+  var basefolder: String
 
 )
 
