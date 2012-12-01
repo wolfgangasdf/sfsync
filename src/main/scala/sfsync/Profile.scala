@@ -2,9 +2,8 @@ package sfsync.synchro
 
 class TransferProtocol (
   var name: String,
-  var conntype: ConnType.Value,
+  var uri: String,
   var basefolder: String
-
 )
 
 class ComparedFile(flocal: VirtualFile, fremote: VirtualFile, fcache: VirtualFile) {
@@ -13,7 +12,9 @@ class ComparedFile(flocal: VirtualFile, fremote: VirtualFile, fcache: VirtualFil
   val A_USELOCAL = 1
   val A_USEREMOTE = 2
   val A_MERGE = 3
-  var action: Int = A_UNKNOWN
+  val A_RMLOCAL = 4
+  val A_RMREMOTE = 5
+  var action: Int = -9
 
   def isSynced() = flocal.equals(fremote)
   def isLocalModified = {}
@@ -23,26 +24,39 @@ class ComparedFile(flocal: VirtualFile, fremote: VirtualFile, fcache: VirtualFil
   // init with best guess
   if (flocal == fremote) { // just equal?
     action = A_NOTHING
-  } else if (flocal == fcache && fcache != null) { // no local modification
-    if (fremote.modTime > fcache.modTime) { // if remote not newer, leave unknown!
+  } else if (flocal == null || fremote == null) { // one was deleted, which?
+    if (fcache==null) {
+      action = A_UNKNOWN // unknown which was deleted
+    } else {
+      if (flocal==null && fremote==fcache) {
+        action = A_RMREMOTE
+      } else if (fremote==null && flocal==fcache) {
+        action = A_RMLOCAL
+      } else {
+        action = A_UNKNOWN // one was deleted and the other modified: don't know
+      }
+    }
+  } else { // both present, one is modified
+    action = A_UNKNOWN
+    if (flocal == fcache && fcache != null) { // no local modification
+      if (fremote.modTime>fcache.modTime)
+        action = A_USEREMOTE // only if remote newer than cache, else unknown
+    } else if (fremote == fcache && fcache != null) { // local mod, remote not modified
+      if (flocal.modTime > fcache.modTime)  // only if local newer than cache, else unknown
+        action = A_USELOCAL
+    } else { // item not in cache but both present
+      if (flocal.modTime>fremote.modTime)
+        action = A_USELOCAL
+      else
       action = A_USEREMOTE
     }
-  } else if (fremote == fcache && fcache != null) { // local mod, remote not modified
-    if (flocal.modTime > fcache.modTime) { // if local not newer, leave unknown!
-      action = A_USELOCAL
-    }
-  } else { // item not in cache
-    if (fremote != null) {
-      action = A_USEREMOTE // since flocal has to be null
-    } else {
-      action = A_USELOCAL // since fremote has to be null
-    }
   }
-
+  assert(action != -9)
 }
 
 import util.Logging
 import collection.mutable.ListBuffer
+import sfsync.store.Cache
 
 class Profile  (
                 val name: String,
@@ -50,9 +64,9 @@ class Profile  (
                 protocol: TransferProtocol,
                 subfolder: String
                 ) extends Logging {
-  def synchronize() : List[ComparedFile] = {
-    var comparedfiles = ListBuffer[ComparedFile]()
-    var cache = ListBuffer[VirtualFile]()
+  def compare() : scalafx.collections.ObservableBuffer[ComparedFile] = {
+    var comparedfiles = scalafx.collections.ObservableBuffer[ComparedFile]()
+    var cache = Cache.loadCache(name)
     // test local conn
     var local = new LocalConnection {
       basePath = localFolder
@@ -66,9 +80,11 @@ class Profile  (
     debug("***********************remote")
     var remotel = remote.listRecursively(subfolder)
     remotel.foreach(vf => debug(vf))
+    debug("***********************cache")
+    cache.foreach(vf => debug(vf))
+    debug("***********************")
 
     locall.foreach(lf => {
-      debug("lf=" + lf)
       val cachef = cache.find(x => x.path == lf.path).getOrElse(null)
       val remotef = remotel.find(x => x.path == lf.path).getOrElse(null)
       remotel -= remotef
@@ -81,11 +97,21 @@ class Profile  (
     })
     debug("***********************compfiles")
     comparedfiles.foreach(cf => println(cf))
-    comparedfiles.toList
+    comparedfiles
     // TODO: let user decide what to do and update comparedfiles
 
     // TODO: do action and update cache (also delete not anymore existing files for this subfolder!)
     // or do this in GUI? then nice update possible
+  }
+
+  def synchronize(cfs: scalafx.collections.ObservableBuffer[ComparedFile]) {
+    for (cf <- cfs) {
+      println("***** cf:" + cf)
+      if (cf.action == cf.A_USELOCAL) {
+
+      }
+
+    }
   }
 }
 

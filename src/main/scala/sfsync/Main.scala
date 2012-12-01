@@ -22,19 +22,19 @@ object TestSynchro extends App  with Logging {
   debug("asdf")
 
 
-  var ppp = new Profile (
-    name = "testprofile",
-    localFolder = "/tmp/testlocal",
-    protocol = new TransferProtocol (
-      name = "protlocalfolder",
-      conntype = ConnType.Local,
-      basefolder = "/tmp/testremote"
-    ),
-    subfolder = "."
-
-  )
-
-  ppp.synchronize()
+//  var ppp = new Profile (
+//    name = "testprofile",
+//    localFolder = "/tmp/testlocal",
+//    protocol = new TransferProtocol (
+//      name = "protlocalfolder",
+//      conntype = ConnType.Local,
+//      basefolder = "/tmp/testremote"
+//    ),
+//    subfolder = "."
+//
+//  )
+//
+//  ppp.synchronize()
 
 
 }
@@ -48,9 +48,9 @@ class MyListView[T](val factory: () => T = null, newitems: sfxc.ObservableBuffer
     minHeight = 100
     selectionModel.get().clearSelection()
     selectionModel.get().select(currIdx)
-    selectionModel.get().getSelectedItems.onChange()
+    println("AAAA")
   }
-//  println("sel: " + lvs.selectionModel.get().getSelectedItems.head)
+  lvs.getSelectionModel.getSelectedIndices.onChange( (aaa,bbb) => onChange() )
   content = List(
     lvs,
     new HBox {
@@ -68,36 +68,52 @@ class MyListView[T](val factory: () => T = null, newitems: sfxc.ObservableBuffer
           }
         }
       )
-    })
+    }
+  )
 }
 
-class MyTextField(labelText: String) extends HBox {
+
+class MyTextField(labelText: String, fileChooserMode: Int = 0) extends HBox {
   var tf = new TextField() {
     prefWidth = 500
     text = "..."
   }
   content = List(
     new Label() { text = labelText },
-    tf
-  )
+    tf)
+  if (fileChooserMode>0) {
+    val butt = new Button("file...") {
+      onAction = (ae: ActionEvent) => {
+        val fileChooser = new FileChooser
+        val jf = new java.io.File(tf.text.value)
+        if (jf.exists() && jf.canRead) {
+          fileChooser.setInitialDirectory(jf)
+        } else {
+          fileChooser.setInitialDirectory(new java.io.File("/"))
+        }
+        val res = fileChooser.showOpenDialog(Main.stage)
+        if (res != null) tf.text = res.toString
+      }
+    }
+    content.add(butt)
+  }
 }
 
 abstract class ServerView(val config: Config) extends BorderPane {
   def onServerChange()
   var server: Server = null
-  var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer)
-  var tfName = new MyTextField("Name: ") { tf.onAction = (ae: ActionEvent) => { server.name = tf.text.value} }
-  var tfLocalFolder = new MyTextField("Local folder: ") { tf.onAction = (ae: ActionEvent) => { server.localFolder = tf.text.value} }
-//  lvs.lvs.getSelectionModel.getSelectedItems.onChange( (aaa,bbb) => {
-  lvs.lvs.getSelectionModel.getSelectedIndices.onChange( (aaa,bbb) => {
-    // show server details
-    server=lvs.lvs.items.get.get(aaa.head)
-    config.currentServer = lvs.lvs.items.get().indexOf(server)
+  def serverChanged() : Unit = {
+    val idx = lvs.lvs.getSelectionModel.getSelectedIndices.head
+    server=lvs.lvs.items.get.get(idx)
+    config.currentServer = idx//lvs.lvs.items.get().indexOf(server)
     tfName.tf.text = server.name
     tfLocalFolder.tf.text = server.localFolder
     onServerChange()
     println("lvs changed")
-  })
+  }
+  var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer, () => serverChanged)
+  var tfName = new MyTextField("Name: ") { tf.onAction = (ae: ActionEvent) => { server.name = tf.text.value } }
+  var tfLocalFolder = new MyTextField("Local folder: ",1) { tf.onAction = (ae: ActionEvent) => { server.localFolder = tf.text.value} }
 
   top = new Label() { text = "Servers:" }
   left = lvs
@@ -108,13 +124,9 @@ class ProtocolView(val server: Server) extends BorderPane {
   var protocol: Protocol = null
   val protocols = if (server!=null) server.protocols else new sfxc.ObservableBuffer[Protocol]
   val currprotocol = if (server!=null) server.currentProtocol else -1
-  var lvp = new MyListView[Protocol](() => new Protocol,protocols, currprotocol)
-  var tfName = new MyTextField("Name: ") { tf.onAction = (ae: ActionEvent) => { protocol.name = tf.text.value} }
-  var tfBaseFolder = new MyTextField("Base folder: ") { tf.onAction = (ae: ActionEvent) => { protocol.protocolbasefolder = tf.text.value} }
-  var tfURI = new MyTextField("Protocol URI: ") { tf.onAction = (ae: ActionEvent) => { protocol.protocoluri = tf.text.value} }
-  lvp.lvs.getSelectionModel.getSelectedItems.onChange( (aaa,bbb) => {
-    // show protocol details
-    protocol=aaa.head
+  def protocolChanged() : Unit = {
+    val idx = lvp.lvs.getSelectionModel.getSelectedIndices.head
+    protocol=protocols(idx)
     if (protocol!=null) {
       println("protocol=" + protocol)
       server.currentProtocol = lvp.lvs.items.get().indexOf(protocol)
@@ -128,7 +140,11 @@ class ProtocolView(val server: Server) extends BorderPane {
       tfBaseFolder.tf.text = "..."
       tfURI.tf.text = "..."
     }
-  })
+  }
+  var lvp = new MyListView[Protocol](() => new Protocol,protocols, currprotocol, () => protocolChanged())
+  var tfName = new MyTextField("Name: ") { tf.onAction = (ae: ActionEvent) => { protocol.name = tf.text.value} }
+  var tfBaseFolder = new MyTextField("Base folder: ") { tf.onAction = (ae: ActionEvent) => { protocol.protocolbasefolder = tf.text.value} }
+  var tfURI = new MyTextField("Protocol URI: ") { tf.onAction = (ae: ActionEvent) => { protocol.protocoluri = tf.text.value} }
   top = new Label() { text = "Protocols:" }
   left = lvp
   right = new VBox() { content = List(tfName, tfURI, tfBaseFolder) }
@@ -138,12 +154,9 @@ class SubFolderView(val server: Server) extends BorderPane {
   var subfolder: SubFolder = null
   val subfolders = if (server!=null) server.subfolders else new sfxc.ObservableBuffer[SubFolder]
   val currsubfolder = if (server != null) server.currentSubFolder else -1
-  var lvp = new MyListView[SubFolder](() => new SubFolder,subfolders, currsubfolder)
-  var tfName = new MyTextField("Name: ") { tf.onAction = (ae: ActionEvent) => { subfolder.name = tf.text.value} }
-  var tfSubFolder = new MyTextField("Subfolder: ") { tf.onAction = (ae: ActionEvent) => { subfolder.subfolder = tf.text.value} }
-  lvp.lvs.getSelectionModel.getSelectedItems.onChange( (aaa,bbb) => {
-    // show protocol details
-    subfolder=aaa.head
+  def subfolderChanged() : Unit = {
+    val idx = lvp.lvs.getSelectionModel.getSelectedIndices.head
+    subfolder=subfolders(idx)
     if (subfolder!=null) {
       server.currentSubFolder = lvp.lvs.items.get().indexOf(subfolder)
       tfName.tf.text = subfolder.name
@@ -153,17 +166,53 @@ class SubFolderView(val server: Server) extends BorderPane {
       tfName.tf.text = "..."
       tfSubFolder.tf.text = "..."
     }
-  })
+  }
+  var lvp = new MyListView[SubFolder](() => new SubFolder,subfolders, currsubfolder, () => subfolderChanged())
+  var tfName = new MyTextField("Name: ") { tf.onAction = (ae: ActionEvent) => { subfolder.name = tf.text.value} }
+  var tfSubFolder = new MyTextField("Subfolder: ",5) { tf.onAction = (ae: ActionEvent) => { subfolder.subfolder = tf.text.value} }
   top = new Label() { text = "Subfolders:" }
   left = lvp
   right = new VBox() { content = List(tfName, tfSubFolder) }
 }
 
+class CompareWindow(var compfiles: sfxc.ObservableBuffer[ComparedFile]) extends VBox {
+  var lv = new ListView[String]()
+  var slist = new sfxc.ObservableBuffer[String]()
+  compfiles.foreach(cf => slist.add(cf.toString))
+  lv.items = slist
+  lv.selectionModel.get().setSelectionMode(javafx.scene.control.SelectionMode.MULTIPLE)
+  lv.prefWidth <== this.width
+  val bottom = new HBox {
+    content = List(
+      new Button("Synchronize") {
+        onAction = (ae: ActionEvent) => {
+          compfiles.foreach(cf => println(cf))
+          //            profile.synchronize(compfiles) // TODO test if this is modified
+        }
+      },
+      new Button("uselocal") {
+        onAction = (ae: ActionEvent) => {
+          val iiis = lv.selectionModel.get().getSelectedIndices
+          for (idx <- iiis) {
+            var cf = compfiles.get(idx)
+            cf.action = cf.A_USELOCAL
+            lv.items.get().update(idx,cf.toString)
+          }
+
+        }
+      },
+      new Button("Back") {
+        onAction = (ae: ActionEvent) => {
+          this.finalize()
+          Main.showContent
+        }
+      }
+    )
+  }
+  content = List(lv,bottom)
+}
 
 object Main extends JFXApp with Logging {
-
-  // to empty DB
-//  new File(DBSettings.dbpath).delete()
 
   val menu = new Menu("File") {
 
@@ -172,18 +221,12 @@ object Main extends JFXApp with Logging {
 
   }
 
-
-  var profile = null
-
   val menuBar = new MenuBar {
     useSystemMenuBar = true
     minWidth = 100
     menus.add(menu)
   }
 
-  val logView = new TextArea() {
-    text = "huhu"
-  }
   var spv : SplitPane = null
   var serverView = new ServerView(Store.config) {
     def onServerChange {
@@ -191,6 +234,12 @@ object Main extends JFXApp with Logging {
       subfolderView = new SubFolderView(server)
       spv.items(1) = protocolView
       spv.items(2) = subfolderView
+      if (protocolView.currprotocol > -1) {
+        protocolView.protocolChanged()
+      }
+      if (subfolderView.currsubfolder > -1) {
+        subfolderView.subfolderChanged()
+      }
       println("huhuhuhu" + protocolView)
     }
   }
@@ -200,7 +249,7 @@ object Main extends JFXApp with Logging {
   spv = new SplitPane {
     orientation = jgo.VERTICAL
     dividerPositions = (0.3)
-    items += (serverView, protocolView, subfolderView)//, logView)
+    items += (serverView, protocolView, subfolderView)
   }
 
   def lookupTextField(id: String) : TextField = {
@@ -210,25 +259,37 @@ object Main extends JFXApp with Logging {
     tf
   }
 
+  var profile: Profile = null
   val toolBar = new ToolBar {
-    content = List(new Button("sync") {
+    content = List(new Button("Compare") {
       onAction = (ae: ActionEvent) => {
-//        profileView.profiles.add("asdf")
-//        println("tft=" + lookupTextField("#subfolder").text.value)
-//        val ppp = new Profile (
-//          name = serverView.tfhbServerName.tf.text.value,
-//          localFolder = serverView.tfhbLocalFolder.tf.text.value,
-//          protocol = new TransferProtocol(
-//            name = protocolView.tfProtocolName.tf.text.value,
-//            conntype = ConnType.withName(protocolView.cbProtocol.value.get),
-//            basefolder = protocolView.tfBaseFolder.tf.text.value
-//          ),
-//          subfolder = subfolderView.tfSubFolder.text.value
-//        )
-//        val cl = ppp.synchronize()
+        profile = new Profile (
+          name = serverView.tfName.tf.text.value,
+          localFolder = serverView.tfLocalFolder.tf.text.value,
+          protocol = new TransferProtocol(
+            name = protocolView.tfName.tf.text.value,
+            uri = protocolView.tfURI.tf.text.value,
+            basefolder = protocolView.tfBaseFolder.tf.text.value
+          ),
+          subfolder = subfolderView.tfSubFolder.tf.text.value
+        )
+        val cl = profile.compare()
+        // this gives horrible JRE errors...
+//        var st2 = new Stage {
+//          scene = new Scene() {
+//            content = new BorderPane() {
+//              center = new Button("asdf")
+//            }
+//          }
+//        }
+//        st2.show
+        val cw = new CompareWindow(cl)
+        Main.stage.scene().content = cw
+        cw.prefWidth <== Main.stage.scene.width
+
       }
     },
-    new Button("save settings") {
+    new Button("Save settings") {
       onAction = (ae: ActionEvent) => {
         Store.save
         println("store saved!")
@@ -256,15 +317,19 @@ object Main extends JFXApp with Logging {
     content += statusBar
   }
 
+  def showContent {
+    Main.stage.scene().content = maincontent
+  }
+
   stage = new Stage{
-    title = "CheckBox Test"
+    title = "SFSynchro"
     width = 800
     height = 600
     scene = new Scene {
       //      fill = Color.LIGHTGRAY
       content = maincontent
       onCloseRequest =  {
-        // TODO: why are these methods called on startup??? disabled for now.
+        // why are these methods called on startup??? disabled for now.
 //        Store.save
 //        println("close requested" + Store)
       }
@@ -275,8 +340,15 @@ object Main extends JFXApp with Logging {
 
   // init
   if (Store.config.currentServer > -1) {
-    serverView.onServerChange
+    serverView.serverChanged()
+//    if (protocolView.currprotocol > -1) {
+//      protocolView.protocolChanged()
+//    }
+//    if (subfolderView.currsubfolder > -1) {
+//      subfolderView.protocolChanged()
+//    }
   }
+
 
 
 //  mainContent.prefHeight <== stage.scene.height

@@ -6,12 +6,13 @@ import collection.mutable
 import scalafx.beans.property.StringProperty
 import scalax.file.Path
 import scalax.io.Line
+import Tools._
 
 
 object DBSettings {
-  def dbpath = "/tmp/sfsyncsettings.txt"
+  def dbpath = "/tmp/sfsyncsettings"
   def getLines = {
-    val fff = Path.fromString(DBSettings.dbpath)
+    val fff = Path.fromString(DBSettings.dbpath + ".txt")
     if (!fff.exists) {
       fff.doCreateFile()
     }
@@ -19,6 +20,16 @@ object DBSettings {
   }
 }
 
+object Tools {
+  // splits safely: at first comma
+  def splitsetting(ss: String) : List[String] = {
+    val commapos = ss.indexOf(",")
+    val tag = ss.substring(0,commapos)
+    val content = ss.substring(commapos+1).trim
+    //    println(tag+" , " + content)
+    List(tag,content)
+  }
+}
 
 class Config {
   var servers = new sfxc.ObservableBuffer[Server] // THIS does not work :-( if the servers is used by ListView, it crashes the DB.....
@@ -146,14 +157,6 @@ object Store {
     println("--------------/dumpconfig")
   }
 
-  def splitsetting(ss: String) : List[String] = {
-    val commapos = ss.indexOf(",")
-    val tag = ss.substring(0,commapos)
-    val content = ss.substring(commapos+1).trim
-//    println(tag+" , " + content)
-    List(tag,content)
-  }
-
   // Load config
   load
 
@@ -161,3 +164,36 @@ object Store {
 
 }
 
+object Cache {
+  import collection.mutable.ListBuffer
+  def getCacheFilename(name: String) = DBSettings.dbpath + "-cache" + name + ".txt"
+  def loadCache(name: String) : ListBuffer[VirtualFile] = {
+    var res = new ListBuffer[VirtualFile]()
+    val fff = Path.fromString(getCacheFilename(name))
+    if (!fff.exists) {
+      fff.doCreateFile()
+    }
+    val lines = fff.lines(Line.Terminators.NewLine,true)
+    lines.foreach(lll => {
+      var sett = splitsetting(lll.toString)
+      var vf = new VirtualFile
+      vf.modTime = sett(0).toLong
+      sett = splitsetting(sett(1))
+      vf.isDir = sett(0).toInt
+      sett = splitsetting(sett(1))
+      vf.size = sett(0).toLong
+      vf.path = sett(1) // this is safe, also commas in filename ok
+    })
+    res
+  }
+  def saveCache(name: String, cache: ListBuffer[VirtualFile]) = {
+    val fff = Path.fromString(getCacheFilename(name))
+    if (!fff.exists) {
+      fff.doCreateFile()
+    }
+    for (cf <- cache) {
+      fff.append("" + cf.modTime + "," + cf.isDir + "," + cf.size + "," + cf.path + "\n")
+    }
+  }
+
+}

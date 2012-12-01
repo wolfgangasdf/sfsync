@@ -1,14 +1,10 @@
 package sfsync.synchro
 
-object ConnType extends Enumeration {
-  val Local, Sftp = Value
-}
-import sfsync.synchro.ConnType._
-
 import java.io.File
 import scala.util.matching.Regex
 import scala.collection.mutable._
 import collection.mutable
+
 
 class cachedFile(path: String, modTime: Long, size: Long) {
 
@@ -42,7 +38,7 @@ class LocalConnection extends GeneralConnection {
         path=fff.getAbsolutePath.substring((basePath+"/").length+2)
         modTime = fff.lastModified()
         size = fff.length()
-        isDir = fff.isDirectory
+        isDir = if (fff.isDirectory) 1 else 0
       }
     })
     vfl.sorted.toList
@@ -69,14 +65,14 @@ class VirtualFile extends Ordered[VirtualFile] {
   var path: String = ""
   var modTime: Long = 0
   var size: Long = 0
-  var isDir: Boolean = false
+  var isDir: Int = 0
   override def toString: String = "["+path+"]:"+modTime+","+size
 
   override def equals(that: Any): Boolean = {
     that.isInstanceOf[VirtualFile] && (this.hashCode() == that.asInstanceOf[VirtualFile].hashCode())
   }
   override def hashCode = {
-    if (isDir)
+    if (isDir==1)
       path.hashCode + isDir.hashCode
     else
       path.hashCode + isDir.hashCode + modTime.hashCode + size.hashCode
