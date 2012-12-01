@@ -5,6 +5,7 @@ import scalafx.scene._
 import scalafx.stage._
 import scalafx.scene.layout._
 import scalafx.scene.control._
+import cell.TextFieldListCell
 import scalafx. {collections => sfxc}
 
 import javafx.geometry. {Orientation=>jgo}
@@ -19,7 +20,10 @@ class MyListView[T](val factory: () => T = null, var obsBuffer: sfxc.ObservableB
   println("create lv(" + factory.getClass + "): " + currIdx)
   obsBuffer.foreach(cf => slist.add(cf.toString))
   var lvs = new control.ListView[String]() {
+    editable = true
     items = slist
+    cellFactory = TextFieldListCell.forListView()
+
     minHeight = 100
     selectionModel.get().clearSelection()
     selectionModel.get().select(currIdx)
@@ -84,60 +88,57 @@ abstract class ServerView(val config: Config) extends BorderPane {
   var server: Server = null
   def serverChanged() : Unit = {
     val idx = lvs.lvs.getSelectionModel.getSelectedIndices.head
-    println("************ serverChanged: idx=" + idx)
-    server=config.servers.get(idx)
-    config.currentServer = idx//lvs.lvs.items.get().indexOf(server)
-    tfName.tf.text = server.name
-    tfLocalFolder.tf.text = server.localFolder
-    println("*********** currprot=" + server.currentProtocol)
-    onServerChange()
-    println("*********** /serverChanged currserv=" + config.currentServer + " currprot=" + server.currentProtocol)
+    val itm = lvs.lvs.getSelectionModel.getSelectedItem
+    if (idx > -1) {
+      server=config.servers.get(idx)
+      if (!server.name.equals(itm)) server.name = itm // then it was edited!
+      config.currentServer = idx//lvs.lvs.items.get().indexOf(server)
+      tfLocalFolder.tf.text = server.localFolder
+      tfID.tf.text = server.id
+      onServerChange()
+    }
   }
   var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer, () => serverChanged)
-  var tfName = new MyTextField("Name: ") { tf.onAction = (ae: ActionEvent) => { server.name = tf.text.value }}//; lvs.updateItem(config.currentServer) } }
   var tfLocalFolder = new MyTextField("Local folder: ",1) { tf.onAction = (ae: ActionEvent) => { server.localFolder = tf.text.value} }
+  var tfID = new MyTextField("Server ID (for cache): ",1) { tf.onAction = (ae: ActionEvent) => { server.id = tf.text.value} }
 
   top = new Label() { text = "Servers:" }
   left = lvs
-  right = new VBox() { content = List(tfName, tfLocalFolder) }
+  right = new VBox() { content = List(tfLocalFolder,tfID) }
 }
 
 class ProtocolView(val server: Server) extends BorderPane {
   var protocol: Protocol = null
-  println("protocolView: " + server.currentProtocol)
   def protocolChanged() : Unit = {
-    println("protocolChanged")
     val idx = lvp.lvs.getSelectionModel.getSelectedIndex
+    val itm = lvp.lvs.getSelectionModel.getSelectedItem
     protocol=server.protocols(idx)
-    println("protocol=" + protocol)
+    if (!protocol.name.equals(itm)) protocol.name = itm // then it was edited!
     server.currentProtocol = idx
-    tfName.tf.text = protocol.name
     tfBaseFolder.tf.text = protocol.protocolbasefolder
     tfURI.tf.text = protocol.protocoluri
   }
   var lvp = new MyListView[Protocol](() => new Protocol,server.protocols, server.currentProtocol, () => protocolChanged())
-  var tfName = new MyTextField("Name: ") { tf.onAction = (ae: ActionEvent) => { protocol.name = tf.text.value} }
   var tfBaseFolder = new MyTextField("Base folder: ") { tf.onAction = (ae: ActionEvent) => { protocol.protocolbasefolder = tf.text.value} }
   var tfURI = new MyTextField("Protocol URI: ") { tf.onAction = (ae: ActionEvent) => { protocol.protocoluri = tf.text.value} }
   top = new Label() { text = "Protocols:" }
   left = lvp
-  right = new VBox() { content = List(tfName, tfURI, tfBaseFolder) }
+  right = new VBox() { content = List(tfURI, tfBaseFolder) }
 }
 
 class SubFolderView(val server: Server) extends BorderPane {
   var subfolder: SubFolder= null
-  val currsubfolder = if (server != null) server.currentSubFolder else -1
   def subfolderChanged() : Unit = {
     val idx = lvp.lvs.getSelectionModel.getSelectedIndex
+    val itm = lvp.lvs.getSelectionModel.getSelectedItem
     subfolder=server.subfolders(idx)
+    if (!subfolder.name.equals(itm)) subfolder.name = itm // then it was edited!
     server.currentSubFolder = idx
-    tfName.tf.text = subfolder.name
     tfSubFolder.tf.text = subfolder.subfolder
   }
-  var lvp = new MyListView[SubFolder](() => new SubFolder,server.subfolders, currsubfolder, () => subfolderChanged())
-  var tfName = new MyTextField("Name: ") { tf.onAction = (ae: ActionEvent) => { subfolder.name = tf.text.value } }
+  var lvp = new MyListView[SubFolder](() => new SubFolder,server.subfolders, server.currentSubFolder, () => subfolderChanged())
   var tfSubFolder = new MyTextField("Subfolder: ",5) { tf.onAction = (ae: ActionEvent) => { subfolder.subfolder = tf.text.value} }
   top = new Label() { text = "Subfolders:" }
   left = lvp
-  right = new VBox() { content = List(tfName, tfSubFolder) }
+  right = new VBox() { content = List(tfSubFolder) }
 }

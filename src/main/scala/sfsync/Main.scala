@@ -46,7 +46,7 @@ object Main extends JFXApp with Logging {
         protocolView.protocolChanged()
         println("****  " + server.currentProtocol)
       }
-      if (subfolderView.currsubfolder > -1) {
+      if (server.currentSubFolder > -1) {
         subfolderView.subfolderChanged()
       }
       println("**** /onServerchange: " + server.currentProtocol)
@@ -73,10 +73,9 @@ object Main extends JFXApp with Logging {
     content = List(new Button("Compare") {
       onAction = (ae: ActionEvent) => {
         profile = new Profile (
-          name = serverView.tfName.tf.text.value,
+          id = serverView.server.id,
           localFolder = serverView.tfLocalFolder.tf.text.value,
           protocol = new TransferProtocol(
-            name = protocolView.tfName.tf.text.value,
             uri = protocolView.tfURI.tf.text.value,
             basefolder = protocolView.tfBaseFolder.tf.text.value
           ),
@@ -100,8 +99,8 @@ object Main extends JFXApp with Logging {
     },
     new Button("Save settings") {
       onAction = (ae: ActionEvent) => {
-        Store.dumpConfig
-//        println("store saved!")
+        Store.save
+        println("store saved!")
       }
     },
     new Button("test") {

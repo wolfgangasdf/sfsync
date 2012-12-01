@@ -32,6 +32,9 @@ object Tools {
   }
 }
 
+// list types:
+// sfxc.ObservableBuffer[Server] needed for ListView. turns out to be useless since need [String].....
+// mutable.ArrayBuffer[Server] is needed for db4o
 class Config {
   var servers = new sfxc.ObservableBuffer[Server] // THIS does not work :-( if the servers is used by ListView, it crashes the DB.....
 //  var servers = new mutable.ArrayBuffer[Server] //
@@ -40,13 +43,12 @@ class Config {
 
 class Server {
   var name: String = "<new>"
+  var id: String = new java.util.Date().getTime.toString
   var localFolder: String = ""
   var protocols = new sfxc.ObservableBuffer[Protocol]
   var currentProtocol = -1;
   var subfolders = new sfxc.ObservableBuffer[SubFolder]
   var currentSubFolder = -1;
-//  var cache = new mutable.ArrayBuffer[VirtualFile]
-
   override def toString: String = name // used for listview
 }
 
@@ -63,21 +65,6 @@ class SubFolder {
   override def toString: String = name
 }
 
-/*
-things are just added to last server!
-sfsyncsettingsversion,1
-servercurr,2
-server,servname1
-protocolcurr,2
-protocol,protname1
-protocol,protname2
-subdir,subdir1
-subdir,subdir2
-server,servname2
-protocolcurr,1
-protocol,protname1
-subdir,subdir1
- */
 
 object Store {
   var config : Config = null
@@ -91,6 +78,7 @@ object Store {
       println("server: " + server)
       fff.append("server," + server.name + "\n")
       fff.append("localfolder," + server.localFolder + "\n")
+      fff.append("id," + server.id + "\n")
       fff.append("protocolcurr," + server.currentProtocol + "\n")
       for (proto <- server.protocols) {
         fff.append("protocol," + proto.name + "\n")
@@ -131,6 +119,7 @@ object Store {
             println("added server " + lastserver)
           }
           case "localfolder" => { lastserver.localFolder = sett(1) }
+          case "id" => { lastserver.id = sett(1) }
           case "protocolcurr" => { lastserver.currentProtocol = sett(1).toInt }
           case "protocol" => {
             lastprotocol = new Protocol { name = sett(1) }

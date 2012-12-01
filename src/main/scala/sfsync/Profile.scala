@@ -1,7 +1,6 @@
 package sfsync.synchro
 
 class TransferProtocol (
-  var name: String,
   var uri: String,
   var basefolder: String
 )
@@ -55,18 +54,17 @@ class ComparedFile(flocal: VirtualFile, fremote: VirtualFile, fcache: VirtualFil
 }
 
 import util.Logging
-import collection.mutable.ListBuffer
 import sfsync.store.Cache
 
 class Profile  (
-                val name: String,
                 localFolder: String,
                 protocol: TransferProtocol,
-                subfolder: String
+                subfolder: String,
+                id: String
                 ) extends Logging {
   def compare() : scalafx.collections.ObservableBuffer[ComparedFile] = {
     var comparedfiles = scalafx.collections.ObservableBuffer[ComparedFile]()
-    var cache = Cache.loadCache(name)
+    var cache = Cache.loadCache(id)
     // test local conn
     var local = new LocalConnection {
       basePath = localFolder
@@ -98,10 +96,6 @@ class Profile  (
     debug("***********************compfiles")
     comparedfiles.foreach(cf => println(cf))
     comparedfiles
-    // TODO: let user decide what to do and update comparedfiles
-
-    // TODO: do action and update cache (also delete not anymore existing files for this subfolder!)
-    // or do this in GUI? then nice update possible
   }
 
   def synchronize(cfs: scalafx.collections.ObservableBuffer[ComparedFile]) {

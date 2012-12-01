@@ -33,7 +33,6 @@ class LocalConnection extends GeneralConnection {
   def listRecursively(path: String): List[VirtualFile] = {
     var fa = recursiveListLocalFiles(new File(basePath+"/"+path), filterregex)
     var vfl = new ListBuffer[VirtualFile]()
-//    vfl += new VirtualFile("adf",1,2)
     fa.foreach(fff => {vfl += new VirtualFile {
         path=fff.getAbsolutePath.substring((basePath+"/").length+2)
         modTime = fff.lastModified()

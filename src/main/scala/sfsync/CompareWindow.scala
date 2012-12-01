@@ -24,7 +24,7 @@ class CompareWindow(var compfiles: sfxc.ObservableBuffer[ComparedFile]) extends 
       new Button("Synchronize") {
         onAction = (ae: ActionEvent) => {
           compfiles.foreach(cf => println(cf))
-          //            profile.synchronize(compfiles) // TODO test if this is modified
+          //            profile.synchronize(compfiles) // TODO
         }
       },
       new Button("uselocal") {
