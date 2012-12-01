@@ -11,8 +11,9 @@ import Tools._
 
 object DBSettings {
   def dbpath = "/tmp/sfsyncsettings"
+  def getSettingPath = DBSettings.dbpath + ".txt"
   def getLines = {
-    val fff = Path.fromString(DBSettings.dbpath + ".txt")
+    val fff = Path.fromString(getSettingPath)
     if (!fff.exists) {
       fff.doCreateFile()
     }
@@ -83,10 +84,11 @@ object Store {
 
   def save {
     println("-----------save " + config)
-    val fff = Path.fromString(DBSettings.dbpath)
+    val fff = Path.fromString(DBSettings.getSettingPath)
     fff.write("sfsyncsettingsversion,1\n")
     fff.append("servercurr," + config.currentServer + "\n")
     for (server <- config.servers) {
+      println("server: " + server)
       fff.append("server," + server.name + "\n")
       fff.append("localfolder," + server.localFolder + "\n")
       fff.append("protocolcurr," + server.currentProtocol + "\n")
@@ -126,6 +128,7 @@ object Store {
           case "server" => {
             lastserver = new Server { name = sett(1) }
             config.servers.add(lastserver)
+            println("added server " + lastserver)
           }
           case "localfolder" => { lastserver.localFolder = sett(1) }
           case "protocolcurr" => { lastserver.currentProtocol = sett(1).toInt }
@@ -150,9 +153,9 @@ object Store {
   def dumpConfig {
     println("--------------dumpconfig")
     for (server <- config.servers) {
-      println("server: " + server)
-//      server.protocols.foreach( proto => println(proto))
-//      server.subfolders.foreach( sf => println(sf) )
+      println("server: " + server + " currprot=" + server.currentProtocol + " currsf=" + server.currentSubFolder)
+      server.protocols.foreach( proto => println("  proto: " + proto))
+      server.subfolders.foreach( sf => println("  subfolder: " + sf) )
     }
     println("--------------/dumpconfig")
   }
