@@ -24,3 +24,10 @@ libraryDependencies += "fr.janalyse" %% "janalyse-ssh" % "0.9.5-b2" % "compile"
 externalResolvers += "source.db4o" at "http://source.db4o.com/maven/"
 
 libraryDependencies += "com.db4o" % "db4o-full-java5" % "8.1-SNAPSHOT"
+
+
+// file io
+
+libraryDependencies += "com.github.scala-incubator.io" %% "scala-io-core" % "0.4.1-seq"
+
+libraryDependencies += "com.github.scala-incubator.io" %% "scala-io-file" % "0.4.1-seq"

@@ -1,83 +1,139 @@
 package sfsync.store
 
-import com.db4o.config.EmbeddedConfiguration
-import com.db4o.Db4oEmbedded
-import com.db4o.ObjectSet
-import com.db4o.config.annotations.Indexed
-import com.db4o.ObjectContainer
-import com.db4o.query.Predicate
-import java.io.File
-import collection.mutable.{ArrayBuffer, ListBuffer}
-import com.db4o.diagnostic.{Diagnostic, DiagnosticListener}
 import sfsync.synchro.VirtualFile
 import scalafx.{collections => sfxc}
 import collection.mutable
+import scalafx.beans.property.StringProperty
+import scalax.file.Path
+import scalax.io.Line
+
 
 object DBSettings {
-  def dbpath = "/tmp/sfsyncdb4otest.db4o"
+  def dbpath = "/tmp/sfsyncsettings.txt"
+  def getLines = {
+    val fff = Path.fromString(DBSettings.dbpath)
+    if (!fff.exists) {
+      fff.doCreateFile()
+    }
+    fff.lines(Line.Terminators.NewLine,true)
+  }
 }
-
-//object MyImplicits {
-//  // attempt to wrap OAB to OB
-//  implicit def wrapObsBuf[T](value: ObsArrBuff[T]) = {
-//    value.asInstanceOf[ObservableBuffer[T]]
-//  }
-//}
-//class ObsArrBuff[T] extends ArrayBuffer[T] with ObservableBuffer[T] {
-//  def toObsBuff = this.asInstanceOf[ObservableBuffer[T]]
-//}
-
 
 
 class Config {
-  //  var servers = new sfxc.ObservableBuffer[Server] // THIS does not work :-( if the servers is used by ListView, it crashes the DB.....
-  var servers = new mutable.ArrayBuffer[Server] //
+  var servers = new sfxc.ObservableBuffer[Server] // THIS does not work :-( if the servers is used by ListView, it crashes the DB.....
+//  var servers = new mutable.ArrayBuffer[Server] //
   var currentServer = -1;
 }
 
 class Server {
-  @Indexed var name: String = "<new>"
+  var name: String = "<new>"
   var localFolder: String = ""
-  var protocols = new mutable.ArrayBuffer[Protocol]
+  var protocols = new sfxc.ObservableBuffer[Protocol]
   var currentProtocol = -1;
-  var subfolders = new mutable.ArrayBuffer[String]
+  var subfolders = new sfxc.ObservableBuffer[SubFolder]
   var currentSubFolder = -1;
-  var cache = new mutable.ArrayBuffer[VirtualFile]
+//  var cache = new mutable.ArrayBuffer[VirtualFile]
 
   override def toString: String = name // used for listview
 }
 
 class Protocol {
-  @Indexed var name: String = "<new>"
-  var protocol: String = ""
-  var username : String = ""
-  var password: String = ""
-  var basefolder: String = ""
+  var name: String = "<new>"
+  var protocoluri: String = ""
+  var protocolbasefolder: String = ""
   override def toString: String = name
 }
 
-object Store {
-  // from http://www.matthewtodd.info/?p=68
-  implicit def toPredicate[T](predicate: T => Boolean) =
-    new Predicate[T]() { def `match`(entry: T): Boolean = { predicate(entry) } }
-  // to iterate over objects
-  class RichObjectSet[T](objectSet: ObjectSet[T]) extends Iterator[T] {
-    def hasNext: Boolean = objectSet.hasNext()
-    def next: T = objectSet.next()
-  }
-  implicit def toRichObjectSet[T](objectSet: ObjectSet[T]) =
-    new RichObjectSet[T](objectSet)
+class SubFolder {
+  var name: String = "<new>"
+  var subfolder: String = ""
+  override def toString: String = name
+}
 
+/*
+things are just added to last server!
+sfsyncsettingsversion,1
+servercurr,2
+server,servname1
+protocolcurr,2
+protocol,protname1
+protocol,protname2
+subdir,subdir1
+subdir,subdir2
+server,servname2
+protocolcurr,1
+protocol,protname1
+subdir,subdir1
+ */
+
+object Store {
   var config : Config = null
-  val db = DB.getsession
 
   def save {
     println("-----------save " + config)
-//    scala.sys.error("asdf")
-    dumpConfig
-    db.store(config)
-    db.commit()
+    val fff = Path.fromString(DBSettings.dbpath)
+    fff.write("sfsyncsettingsversion,1\n")
+    fff.append("servercurr," + config.currentServer + "\n")
+    for (server <- config.servers) {
+      fff.append("server," + server.name + "\n")
+      fff.append("localfolder," + server.localFolder + "\n")
+      fff.append("protocolcurr," + server.currentProtocol + "\n")
+      for (proto <- server.protocols) {
+        fff.append("protocol," + proto.name + "\n")
+        fff.append("protocoluri," + proto.protocoluri + "\n")
+        fff.append("protocolbasefolder," + proto.protocolbasefolder+ "\n")
+      }
+      fff.append("subfoldercurr," + server.currentSubFolder + "\n")
+      for (subf <- server.subfolders) {
+        fff.append("subfolder," + subf.name + "\n")
+        fff.append("subfolderfolder," + subf.subfolder + "\n")
+      }
+    }
     println("-----------/save")
+  }
+
+  def load {
+    var lastserver: Server = null
+    var lastprotocol: Protocol = null
+    var lastsubfolder: SubFolder = null
+    println("Store ini!!!!!!!!!!!!")
+    val lines = DBSettings.getLines
+    if (lines.size == 0) {
+      println("no config file...")
+      config = new Config
+    } else {
+      lines.foreach(lll => {
+        val sett = splitsetting(lll.toString)
+        sett(0) match {
+          case "sfsyncsettingsversion" => {
+            println("sett=<" + sett(1) + ">")
+            if (!sett(1).equals("1")) sys.error("wrong settings version")
+            config = new Config()
+          }
+          case "servercurr" => { config.currentServer = sett(1).toInt }
+          case "server" => {
+            lastserver = new Server { name = sett(1) }
+            config.servers.add(lastserver)
+          }
+          case "localfolder" => { lastserver.localFolder = sett(1) }
+          case "protocolcurr" => { lastserver.currentProtocol = sett(1).toInt }
+          case "protocol" => {
+            lastprotocol = new Protocol { name = sett(1) }
+            lastserver.protocols.add(lastprotocol)
+          }
+          case "protocoluri" => {lastprotocol.protocoluri = sett(1)}
+          case "protocolbasefolder" => {lastprotocol.protocolbasefolder = sett(1)}
+          case "subfoldercurr" => { lastserver.currentSubFolder = sett(1).toInt }
+          case "subfolder" => {
+            lastsubfolder = new SubFolder { name = sett(1) }
+            lastserver.subfolders.add(lastsubfolder)
+          }
+          case "subfolderfolder" => {lastsubfolder.subfolder = sett(1)}
+          case _ => {println("unknown tag in config file: <" + sett(0) + ">")}
+        }
+      })
+    }
   }
 
   def dumpConfig {
@@ -90,131 +146,18 @@ object Store {
     println("--------------/dumpconfig")
   }
 
+  def splitsetting(ss: String) : List[String] = {
+    val commapos = ss.indexOf(",")
+    val tag = ss.substring(0,commapos)
+    val content = ss.substring(commapos+1).trim
+//    println(tag+" , " + content)
+    List(tag,content)
+  }
+
   // Load config
-  println("Store ini!!!!!!!!!!!!")
-  val tmp = (db query { classOf[Config] })
-  println("  configs in db: " + tmp.size() )
-  if (tmp.size() > 0)
-    config = tmp.get(0)
-  else {
-    println("       but store is empty!" + tmp)
-    config = new Config {
-      currentServer = -1
-    }
-  }
+  load
+
+
+
 }
 
-
-object DB {
-  val cfg : EmbeddedConfiguration = Db4oEmbedded.newConfiguration()
-  cfg.common().objectClass(classOf[Server]).cascadeOnDelete(true);
-  cfg.common().objectClass(classOf[Protocol]).cascadeOnDelete(true);
-  cfg.common().activationDepth(20); // important! or do it right (see transparent activation....)
-  cfg.common().updateDepth(20); // VERY important
-//  cfg.common().objectClass(classOf[Config]).cascadeOnUpdate(true);
-//  cfg.common().objectClass(classOf[Server]).cascadeOnUpdate(true);
-//  cfg.common().exceptionsOnNotStorable(false) // TODO: dangerous
-
-  // debug DB
-//  cfg.common.diagnostic.addListener(new DiagnosticListener {
-//    override def onDiagnostic(diagnostic : Diagnostic) {
-//      println(diagnostic)
-//    }
-//  })
-
-  val rootc = Db4oEmbedded.openFile(cfg,DBSettings.dbpath)
-  private val session = rootc.ext.openSession // NEVER CLOSE THIS until app quit!!!! objects are forgotten that they are stored
-  def getsession(): ObjectContainer = {
-    assert(!session.ext().isClosed)
-    session
-  }
-
-  override def finalize() {
-    session.close
-    rootc.close
-  }
-}
-
-// test it
-object TestStore extends App {
-
-  // from http://www.matthewtodd.info/?p=68
-  implicit def toPredicate[T](predicate: T => Boolean) =
-    new Predicate[T]() { def `match`(entry: T): Boolean = { predicate(entry) } }
-  // to iterate over objects
-  class RichObjectSet[T](objectSet: ObjectSet[T]) extends Iterator[T] {
-    def hasNext: Boolean = objectSet.hasNext()
-    def next: T = objectSet.next()
-  }
-  implicit def toRichObjectSet[T](objectSet: ObjectSet[T]) =
-    new RichObjectSet[T](objectSet)
-
-
-    // test it
-  1 match {
-    case 1 => {
-      println("---------------- delete DB")
-      new File(DBSettings.dbpath).delete()
-    }
-    case 2 => {
-//      Store
-      val snew = new Server {
-        name = "serverXXXYZA"
-        localFolder = "/tmp/testlocal/"
-        protocols += new Protocol { name = "prot1" }
-        protocols += new Protocol { name = "prot2" }
-        subfolders += ("sf1","sf2")
-      }
-//      val db = DB.getsession
-//      db.store(snew)
-      Store.config.servers += snew
-      Store.save
-//      db.store(Store.config)
-//      db.commit()
-//      db.close()
-    }
-    case 5 => {
-      Store.dumpConfig
-    }
-    case 10 => {
-      new File(DBSettings.dbpath).delete()
-      val cc = new Config {
-        servers += new Server { name = "serva" }
-        servers += new Server { name = "servb" }
-      }
-      val db = DB.getsession
-      db.store(cc)
-      db.close()
-    }
-    case 11 => {
-      var db = DB.getsession
-      val tmp = (db query { classOf[Config] })
-      println("configlen=" + tmp.size())
-      val cc: Config = tmp.get(0)
-      println("config=" + cc)
-      // THAT KILLS IT:
-//      db.close()
-//      db = DB.getsession
-      val snew = new Server { name = "servc" }
-      cc.servers += snew
-      db.store(cc)
-//      db.store(snew)
-      db.close()
-    }
-    case 12 => {
-      val db = DB.getsession
-      val tmp = (db query { classOf[Config] })
-      println("configlen=" + tmp.size())
-      val cc: Config = tmp.get(0)
-      println("config=" + cc)
-      cc.servers.foreach(ss => println("server: " + ss))
-      println("all servers=")
-      val tmps = (db query { classOf[Server] })
-      tmps.foreach(ss => println("server: " + ss))
-      db.close()
-    }
-  }
-
-
-  DB.rootc.close()
-}
