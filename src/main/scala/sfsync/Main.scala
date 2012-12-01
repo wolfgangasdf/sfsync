@@ -16,6 +16,7 @@ import scalafx.event.ActionEvent
 import store._
 import java.io.File
 import collection.mutable.ArrayBuffer
+import scalafx.beans.property.StringProperty
 
 //import store.MyImplicits._
 import synchro._
@@ -118,7 +119,7 @@ object Main extends JFXApp with Logging {
                   val snew = factory()
                   arrayBuf += snew
                   Store.save
-                  updateList(0)
+                  updateList(1)
                   println("added " + what)
                 }
               },
@@ -146,9 +147,13 @@ object Main extends JFXApp with Logging {
       if (reload==1) { // elements changed!
         obsList.clear()
         if (arrayBuf != null) arrayBuf.foreach(ss => obsList += ss)
+        if (currIdx > -1) {
+          listview.selectionModel.select(obsList.get(currIdx).toString)
+        }
       } else { // element only changed...
-//        println("info idx="+currIdx + " ab=" + arrayBuf + " ol=" + obsList)
 //        obsList.set(currIdx, arrayBuf(currIdx))
+        obsList.update(currIdx, arrayBuf(currIdx))
+        println("info idx="+currIdx + " ab=" + arrayBuf + " ol=" + obsList)
       }
 
 //      listview.selectionModel().clearAndSelect(currIdx)
@@ -212,8 +217,7 @@ object Main extends JFXApp with Logging {
     def showProtocols(server: Server) = {
       this.server = server
       lvp.setData(server.currentProtocol_=, server.currentProtocol, server.protocols)
-      // initialize
-      lvp.updateList(1)
+      lvp.updateList(1) // initialize
     }
 
     left = lvp.getContent
