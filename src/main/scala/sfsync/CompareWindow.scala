@@ -4,6 +4,9 @@ import scalafx.Includes._
 import scalafx.scene.layout._
 import scalafx.scene.control._
 import scalafx. {collections => sfxc}
+import javafx.{util => jfxu}
+import javafx.beans.{value => jfxbv}
+
 
 import javafx.geometry. {Orientation=>jgo}
 import javafx.scene.control. {SelectionMode => jscsm}
@@ -11,29 +14,63 @@ import javafx.scene.control. {SelectionMode => jscsm}
 import scalafx.event.ActionEvent
 
 import synchro._
+import javafx.scene. {control => jfxsc}
 
-class CompareWindow(var compfiles: sfxc.ObservableBuffer[ComparedFile]) extends VBox {
-  var lv = new ListView[String]() // only string-listview is properly updated!
-  var slist = new sfxc.ObservableBuffer[String]()
-  compfiles.foreach(cf => slist.add(cf.toString))
-  lv.items = slist
-  lv.selectionModel.get().setSelectionMode(javafx.scene.control.SelectionMode.MULTIPLE)
-  lv.prefWidth <== this.width
+import scalafx.beans.property.StringProperty
+
+class CompFile(cf_ : ComparedFile) {
+  val cf = cf_
+  var tmp = ""
+  if (cf.flocal != null) tmp=cf.flocal.path
+  else if (cf.fremote != null) tmp=cf.fremote.path
+  val path = new StringProperty(this, "path", tmp)
+  val status = new StringProperty(this, "status", cf.action.toString)
+  def changeAction() {
+    status.set(cf.action.toString)
+  }
+  override def toString: String = "CompFile: " + path() + " " + status()
+}
+
+
+class CompareWindow(var comparedfiles: sfxc.ObservableBuffer[ComparedFile]) extends VBox {
+
+  var compfiles =  new sfxc.ObservableBuffer[CompFile]()
+  for (cf <- comparedfiles) { compfiles.add(new CompFile(cf)) }
+
+  val colPath = new TableColumn[CompFile, String]("Path") { /*cellValueFactory = _.value.firstName// DOESNT WORK do below*/ }
+  colPath.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[CompFile, String], jfxbv.ObservableValue[String]] {
+    def call(param: jfxsc.TableColumn.CellDataFeatures[CompFile, String]) = param.getValue.path
+  })
+  val colStatus = new TableColumn[CompFile, String]("Status") {prefWidth=100/*cellValueFactory = _.value.firstName// DOESNT WORK do below*/ }
+  colStatus.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[CompFile, String], jfxbv.ObservableValue[String]] {
+    def call(param: jfxsc.TableColumn.CellDataFeatures[CompFile, String]) = param.getValue.status
+  })
+
+  var tv = new TableView[CompFile](compfiles) { // only string-listview is properly updated!
+//    columns ++= List(col1) // doesn't work
+    delegate.getColumns.addAll(
+      colStatus.delegate, colPath.delegate
+    )
+  }
+  tv.selectionModel.get().setSelectionMode(javafx.scene.control.SelectionMode.MULTIPLE)
+  tv.prefWidth <== this.width
+  colPath.prefWidth <== (this.width - colStatus.prefWidth-1)
+
+
   val bottom = new HBox {
     content = List(
       new Button("Synchronize") {
         onAction = (ae: ActionEvent) => {
-          compfiles.foreach(cf => println(cf))
+          comparedfiles.foreach(cf => println(cf))
           //            profile.synchronize(compfiles) // TODO
         }
       },
       new Button("uselocal") {
         onAction = (ae: ActionEvent) => {
-          val iiis = lv.selectionModel.get().getSelectedIndices
+          val iiis = tv.selectionModel.get().getSelectedItems
           for (idx <- iiis) {
-            var cf = compfiles.get(idx)
-            cf.action = cf.A_USELOCAL
-            lv.items.get().update(idx,cf.toString)
+            idx.cf.action = idx.cf.A_USELOCAL // this propagates to comparedfiles!
+            idx.changeAction()
           }
 
         }
@@ -46,6 +83,6 @@ class CompareWindow(var compfiles: sfxc.ObservableBuffer[ComparedFile]) extends 
       }
     )
   }
-  content = List(lv,bottom)
+  content = List(tv,bottom)
 }
 

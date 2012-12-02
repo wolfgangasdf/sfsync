@@ -5,7 +5,7 @@ class TransferProtocol (
   var basefolder: String
 )
 
-class ComparedFile(flocal: VirtualFile, fremote: VirtualFile, fcache: VirtualFile) {
+class ComparedFile(var flocal: VirtualFile, var fremote: VirtualFile, var fcache: VirtualFile) {
   val A_UNKNOWN = -1
   val A_NOTHING = 0
   val A_USELOCAL = 1
@@ -102,7 +102,7 @@ class Profile  (
     for (cf <- cfs) {
       println("***** cf:" + cf)
       if (cf.action == cf.A_USELOCAL) {
-
+//TODO
       }
 
     }
