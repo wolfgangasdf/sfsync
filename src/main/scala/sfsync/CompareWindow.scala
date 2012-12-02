@@ -81,7 +81,6 @@ class CompareWindow() extends VBox with Actor {
       },
       new Button("Back") {
         onAction = (ae: ActionEvent) => {
-          this.finalize()
           Main.showContent
         }
       }
@@ -91,9 +90,10 @@ class CompareWindow() extends VBox with Actor {
 
 
 //  for (cf <- comparedfiles) { compfiles.add(new CompFile(cf)) }
+  // receive compared files!
   def act() {
     var doit = true
-    while (doit) {
+    loopWhile(doit) {
       receive {
         case cf: ComparedFile => {
           comparedfiles.add(cf)
@@ -103,6 +103,7 @@ class CompareWindow() extends VBox with Actor {
         case CompareFinished => {
           doit = false
           println("comparefinished!")
+          exit
         }
       }
     }

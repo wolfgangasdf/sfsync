@@ -56,17 +56,18 @@ class ComparedFile(var flocal: VirtualFile, var fremote: VirtualFile, var fcache
 
 import util.Logging
 import sfsync.store.Cache
-import actors.Actor
+import scala.actors._
+import Actor._
 
 case object CompareFinished
-case object Profile
+//case object Profile
 class Profile  (view: Actor,
                 localFolder: String,
                 protocol: TransferProtocol,
                 subfolder: String,
                 id: String
-                ) extends Logging with Actor {
-  def act() = {
+                ) extends Logging /*with Actor*/ {
+//  def act() = {
     var comparedfiles = scalafx.collections.ObservableBuffer[ComparedFile]()
     var cache = Cache.loadCache(id)
     // test local conn
@@ -80,31 +81,52 @@ class Profile  (view: Actor,
     var locall = local.listRecursively(subfolder)
     locall.foreach(vf => debug(vf))
     debug("***********************remote")
-    var remotel = remote.listRecursively(subfolder)
-    remotel.foreach(vf => debug(vf))
+//    var remotel = remote.listRecursively(subfolder)
+//    remotel.foreach(vf => debug(vf))
     debug("***********************cache")
     cache.foreach(vf => debug(vf))
     debug("***********************")
 
-    locall.foreach(lf => {
-      val cachef = cache.find(x => x.path == lf.path).getOrElse(null)
-      val remotef = remotel.find(x => x.path == lf.path).getOrElse(null)
-      remotel -= remotef
-      val cfnew = new ComparedFile(lf, remotef, cachef)
-      comparedfiles += cfnew
-      view ! cfnew // send it!
-    })
+    debug("***********************receive remote list")
+    val receiveList = actor {
+      var finished = false
+      loop {
+        println("before")
+        receive {
+          case rf: VirtualFile => {
+            val cachef = cache.find(x => x.path == rf.path).getOrElse(null)
+            val localf = locall.find(x => x.path == rf.path).getOrElse(null)
+            locall -= localf
+            val cfnew = new ComparedFile(localf, rf, cachef)
+            comparedfiles += cfnew
+            view ! cfnew // send it to view!
+            debug(cfnew)
+          }
+          case 'done => {
+            finished = true
+            println("remotelistfinished!")
+          }
+          case 'replyWhenDone => if (finished) { reply('done) ; exit }
+        }
+      }
+      println("a2")
+    }
+    remote.listRecursively(subfolder, receiveList)
+    receiveList !? 'replyWhenDone
+//    rec
+    debug("*********************** receive remote finished")
+
     // add remaing remote-only files
-    remotel.foreach(vf => {
+    locall.foreach(vf => {
       val cachef = cache.find(x => x.path == vf.path).getOrElse(null)
-      val cfnew = new ComparedFile(null, vf,cachef)
+      val cfnew = new ComparedFile(vf, null, cachef)
       comparedfiles += cfnew
       view ! cfnew // send it!
     })
     debug("***********************compfiles")
     comparedfiles.foreach(cf => println(cf))
     view ! CompareFinished // send finished!
-  }
+//  }
 
   def synchronize(cfs: scalafx.collections.ObservableBuffer[ComparedFile]) {
     for (cf <- cfs) {

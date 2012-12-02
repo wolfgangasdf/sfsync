@@ -4,6 +4,7 @@ import java.io.File
 import scala.util.matching.Regex
 import scala.collection.mutable._
 import collection.mutable
+import actors.Actor
 
 
 class cachedFile(path: String, modTime: Long, size: Long) {
@@ -30,7 +31,7 @@ class LocalConnection extends GeneralConnection {
       new ArrayBuffer[File]().toArray
     }
   }
-  def listRecursively(path: String): List[VirtualFile] = {
+  def listRecursively(path: String = "", receiver: Actor = null): List[VirtualFile] = {
     var fa = recursiveListLocalFiles(new File(basePath+"/"+path), filterregex)
     var vfl = new ListBuffer[VirtualFile]()
     fa.foreach(fff => {vfl += new VirtualFile {
@@ -40,6 +41,13 @@ class LocalConnection extends GeneralConnection {
         isDir = if (fff.isDirectory) 1 else 0
       }
     })
+//    Actor.actor {
+    if (receiver != null) {
+      vfl.foreach(vf => receiver ! vf)
+      receiver ! 'done
+    }
+
+//    }
     vfl.sorted.toList
   }
 
@@ -48,14 +56,62 @@ class LocalConnection extends GeneralConnection {
   }
 }
 
+class RemoteConnection extends GeneralConnection {
+  def copyFile(from: File, to: String) {
+//    val out = new java.io.BufferedWriter( new java.io.FileWriter(to) )
+//    io.Source.fromFile(from).getLines.foreach(s => out.write(s,0,s.length))
+//    out.close()
+  }
+  def getFile(fromPath: String, toPath: String) = {
+//    copyFile(new java.io.File(basePath+"/"+fromPath), toPath)
+  }
+
+  import scala.util.matching.Regex
+  def recursiveListLocalFiles(f: File, r: Regex): Array[File] = {
+    val these = f.listFiles
+    if (these != null) {
+      val good = these.filter(f => r.findFirstIn(f.getName).isDefined)
+      good ++ these.filter(_.isDirectory).flatMap(recursiveListLocalFiles(_,r))
+    } else {
+      new ArrayBuffer[File]().toArray
+    }
+  }
+  def listRecursively(path: String = "", receiver: Actor = null): List[VirtualFile] = {
+    var fa = recursiveListLocalFiles(new File(basePath+"/"+path), filterregex)
+    var vfl = new ListBuffer[VirtualFile]()
+    fa.foreach(fff => {vfl += new VirtualFile {
+      path=fff.getAbsolutePath.substring((basePath+"/").length+2)
+      modTime = fff.lastModified()
+      size = fff.length()
+      isDir = if (fff.isDirectory) 1 else 0
+    }
+    })
+    //    Actor.actor {
+    if (receiver != null) {
+      vfl.foreach(vf => receiver ! vf)
+      receiver ! 'done
+    }
+
+    //    }
+    vfl.sorted.toList
+  }
+
+  def putFile(fromPath: String, toPath: String) {
+    copyFile(new java.io.File(fromPath), basePath+"/"+toPath)
+  }
+}
+
+
+
 trait GeneralConnection {
 //  var conntype: ConnType.Value
   var cachedList: Array[File] = null
   var basePath: String = ""
   var filterregex: Regex = new Regex(""".*""")
+  var receiver: Actor = null
   def getFile(fromPath: String, toPath: String)
   def putFile(fromPath: String, toPath: String)
-  def listRecursively(path: String): List[VirtualFile]
+  def listRecursively(path: String, receiver: Actor = null): List[VirtualFile]
   // TODO: time diff thing
 
 }

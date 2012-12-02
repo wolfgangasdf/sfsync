@@ -87,7 +87,7 @@ object Main extends JFXApp with Logging {
           ),
           subfolder = subfolderView.tfSubFolder.tf.text.value
         )
-        val cl = profile.start()
+//        val cl = profile.start()
 
       }
     },
@@ -166,4 +166,3 @@ object Main extends JFXApp with Logging {
 
 
 }
-

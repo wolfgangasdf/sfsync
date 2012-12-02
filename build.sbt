@@ -19,7 +19,7 @@ libraryDependencies += "org.scalafx" % "scalafx" % "1.0-SNAPSHOT"
 // sftp
 resolvers += "JAnalyse Repository" at "http://www.janalyse.fr/repository/"
 
-libraryDependencies += "fr.janalyse" %% "janalyse-ssh" % "0.9.5-b2" % "compile"
+libraryDependencies += "fr.janalyse" %% "janalyse-ssh" % "0.9.5-b3" % "compile"
 
 
 //db4o: not anymore
