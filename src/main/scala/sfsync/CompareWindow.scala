@@ -7,7 +7,6 @@ import scalafx. {collections => sfxc}
 import javafx.{util => jfxu}
 import javafx.beans.{value => jfxbv}
 
-
 import javafx.geometry. {Orientation=>jgo}
 import javafx.scene.control. {SelectionMode => jscsm}
 
@@ -17,6 +16,7 @@ import synchro._
 import javafx.scene. {control => jfxsc}
 
 import scalafx.beans.property.StringProperty
+import actors.Actor
 
 class CompFile(cf_ : ComparedFile) {
   val cf = cf_
@@ -31,11 +31,15 @@ class CompFile(cf_ : ComparedFile) {
   override def toString: String = "CompFile: " + path() + " " + status()
 }
 
-
-class CompareWindow(var comparedfiles: sfxc.ObservableBuffer[ComparedFile]) extends VBox {
-
+class CompareWindow() extends VBox with Actor {
+  var comparedfiles = new sfxc.ObservableBuffer[ComparedFile]()
   var compfiles =  new sfxc.ObservableBuffer[CompFile]()
-  for (cf <- comparedfiles) { compfiles.add(new CompFile(cf)) }
+
+//  { // testing
+//    val cf = new ComparedFile(new VirtualFile { path = "/asdf" }, new VirtualFile { path="asdf" }, null)
+//    comparedfiles.add(cf)
+//    compfiles.add(new CompFile(cf))
+//  }
 
   val colPath = new TableColumn[CompFile, String]("Path") { /*cellValueFactory = _.value.firstName// DOESNT WORK do below*/ }
   colPath.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[CompFile, String], jfxbv.ObservableValue[String]] {
@@ -84,5 +88,25 @@ class CompareWindow(var comparedfiles: sfxc.ObservableBuffer[ComparedFile]) exte
     )
   }
   content = List(tv,bottom)
+
+
+//  for (cf <- comparedfiles) { compfiles.add(new CompFile(cf)) }
+  def act() {
+    var doit = true
+    while (doit) {
+      receive {
+        case cf: ComparedFile => {
+          comparedfiles.add(cf)
+          compfiles.add(new CompFile(cf))
+          println("added compfile " + cf)
+        }
+        case CompareFinished => {
+          doit = false
+          println("comparefinished!")
+        }
+      }
+    }
+
+  }
 }
 

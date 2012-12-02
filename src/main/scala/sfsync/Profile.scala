@@ -5,6 +5,7 @@ class TransferProtocol (
   var basefolder: String
 )
 
+case object ComparedFile
 class ComparedFile(var flocal: VirtualFile, var fremote: VirtualFile, var fcache: VirtualFile) {
   val A_UNKNOWN = -1
   val A_NOTHING = 0
@@ -55,14 +56,17 @@ class ComparedFile(var flocal: VirtualFile, var fremote: VirtualFile, var fcache
 
 import util.Logging
 import sfsync.store.Cache
+import actors.Actor
 
-class Profile  (
+case object CompareFinished
+case object Profile
+class Profile  (view: Actor,
                 localFolder: String,
                 protocol: TransferProtocol,
                 subfolder: String,
                 id: String
-                ) extends Logging {
-  def compare() : scalafx.collections.ObservableBuffer[ComparedFile] = {
+                ) extends Logging with Actor {
+  def act() = {
     var comparedfiles = scalafx.collections.ObservableBuffer[ComparedFile]()
     var cache = Cache.loadCache(id)
     // test local conn
@@ -86,16 +90,20 @@ class Profile  (
       val cachef = cache.find(x => x.path == lf.path).getOrElse(null)
       val remotef = remotel.find(x => x.path == lf.path).getOrElse(null)
       remotel -= remotef
-      comparedfiles += new ComparedFile(lf, remotef, cachef)
+      val cfnew = new ComparedFile(lf, remotef, cachef)
+      comparedfiles += cfnew
+      view ! cfnew // send it!
     })
     // add remaing remote-only files
     remotel.foreach(vf => {
       val cachef = cache.find(x => x.path == vf.path).getOrElse(null)
-      comparedfiles += new ComparedFile(null, vf,cachef)
+      val cfnew = new ComparedFile(null, vf,cachef)
+      comparedfiles += cfnew
+      view ! cfnew // send it!
     })
     debug("***********************compfiles")
     comparedfiles.foreach(cf => println(cf))
-    comparedfiles
+    view ! CompareFinished // send finished!
   }
 
   def synchronize(cfs: scalafx.collections.ObservableBuffer[ComparedFile]) {

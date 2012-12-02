@@ -72,7 +72,13 @@ object Main extends JFXApp with Logging {
   val toolBar = new ToolBar {
     content = List(new Button("Compare") {
       onAction = (ae: ActionEvent) => {
-        profile = new Profile (
+
+        val cw = new CompareWindow()
+        Main.stage.scene().content = cw
+        cw.prefWidth <== Main.stage.scene.width
+        cw.start()
+
+        profile = new Profile (cw,
           id = serverView.server.id,
           localFolder = serverView.tfLocalFolder.tf.text.value,
           protocol = new TransferProtocol(
@@ -81,19 +87,7 @@ object Main extends JFXApp with Logging {
           ),
           subfolder = subfolderView.tfSubFolder.tf.text.value
         )
-        val cl = profile.compare()
-        // this gives horrible JRE errors...
-//        var st2 = new Stage {
-//          scene = new Scene() {
-//            content = new BorderPane() {
-//              center = new Button("asdf")
-//            }
-//          }
-//        }
-//        st2.show
-        val cw = new CompareWindow(cl)
-        Main.stage.scene().content = cw
-        cw.prefWidth <== Main.stage.scene.width
+        val cl = profile.start()
 
       }
     },
