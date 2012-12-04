@@ -1,123 +1,99 @@
 package sfsync.synchro
 
-import java.io.File
 import scala.util.matching.Regex
 import scala.collection.mutable._
 import collection.mutable
 import actors.Actor
-
+import actors.Actor._
+import scalax.io._
+import scalax.file.Path
+import scalax.file.PathMatcher.IsFile
 
 class cachedFile(path: String, modTime: Long, size: Long) {
 
 }
 
+
+case class getfile(from: VirtualFile, to: VirtualFile)
+case class putfile(from: VirtualFile, to: VirtualFile)
+case class deletefile(what: VirtualFile)
+case class listrec(where: String, receiver: Actor)
+
 class LocalConnection extends GeneralConnection {
-  def copyFile(from: File, to: String) {
-    val out = new java.io.BufferedWriter( new java.io.FileWriter(to) )
-    io.Source.fromFile(from).getLines.foreach(s => out.write(s,0,s.length))
-    out.close()
+  def deletefile(what: VirtualFile) = {
+    Path.fromString(remoteBasePath + what.path).delete(true)
+    println("deleted " + remoteBasePath + what.path)
   }
-  def getFile(fromPath: String, toPath: String) = {
-    copyFile(new java.io.File(basePath+"/"+fromPath), toPath)
+  def putfile(from: VirtualFile, to: VirtualFile) = {
+    Path.fromString(localBasePath + from.path) copyTo Path.fromString(remoteBasePath + to.path)
   }
-
-  import scala.util.matching.Regex
-  def recursiveListLocalFiles(f: File, r: Regex): Array[File] = {
-    val these = f.listFiles
-    if (these != null) {
-      val good = these.filter(f => r.findFirstIn(f.getName).isDefined)
-      good ++ these.filter(_.isDirectory).flatMap(recursiveListLocalFiles(_,r))
-    } else {
-      new ArrayBuffer[File]().toArray
-    }
-  }
-  def listRecursively(path: String = "", receiver: Actor = null): List[VirtualFile] = {
-    var fa = recursiveListLocalFiles(new File(basePath+"/"+path), filterregex)
-    var vfl = new ListBuffer[VirtualFile]()
-    fa.foreach(fff => {vfl += new VirtualFile {
-        path=fff.getAbsolutePath.substring((basePath+"/").length+2)
-        modTime = fff.lastModified()
-        size = fff.length()
-        isDir = if (fff.isDirectory) 1 else 0
+  def getfile(from: VirtualFile, to: VirtualFile) = {
+    Path.fromString(remoteBasePath + from.path) copyTo Path.fromString(localBasePath + to.path)
+  }  // the main actor
+  def listrec(subfolder: String, receiver: Actor) = {
+    var list = new ListBuffer[VirtualFile]()
+    println("searching " + remoteBasePath + subfolder)
+    // TODO change this to manual search since could be slow smb mount!
+    Path.fromString(remoteBasePath + subfolder) ** "*" foreach { ppp =>
+      val vf = new VirtualFile {
+        path=ppp.path.substring(remoteBasePath.length + 2) // without leading '/'
+        modTime = ppp.lastModified
+        size = ppp.size.get
+        isDir = if (ppp.isDirectory) 1 else 0
       }
-    })
-//    Actor.actor {
-    if (receiver != null) {
-      vfl.foreach(vf => receiver ! vf)
-      receiver ! 'done
+      list += vf
+      if (receiver != null) receiver ! vf
     }
-
-//    }
-    vfl.sorted.toList
-  }
-
-  def putFile(fromPath: String, toPath: String) {
-    copyFile(new java.io.File(fromPath), basePath+"/"+toPath)
+    if (receiver != null) receiver ! 'done
+    list
   }
 }
 
-class RemoteConnection extends GeneralConnection {
-  def copyFile(from: File, to: String) {
-//    val out = new java.io.BufferedWriter( new java.io.FileWriter(to) )
-//    io.Source.fromFile(from).getLines.foreach(s => out.write(s,0,s.length))
-//    out.close()
+// TODO: change this to sftp!
+class SftpConnection extends GeneralConnection {
+  def deletefile(what: VirtualFile) = {
+    Path.fromString(remoteBasePath + what.path).delete(true)
+    println("deleted " + remoteBasePath + what.path)
   }
-  def getFile(fromPath: String, toPath: String) = {
-//    copyFile(new java.io.File(basePath+"/"+fromPath), toPath)
+  def putfile(from: VirtualFile, to: VirtualFile) = {
+    Path.fromString(localBasePath + from.path) copyTo Path.fromString(remoteBasePath + to.path)
   }
-
-  import scala.util.matching.Regex
-  def recursiveListLocalFiles(f: File, r: Regex): Array[File] = {
-    val these = f.listFiles
-    if (these != null) {
-      val good = these.filter(f => r.findFirstIn(f.getName).isDefined)
-      good ++ these.filter(_.isDirectory).flatMap(recursiveListLocalFiles(_,r))
-    } else {
-      new ArrayBuffer[File]().toArray
+  def getfile(from: VirtualFile, to: VirtualFile) = {
+    Path.fromString(remoteBasePath + from.path) copyTo Path.fromString(localBasePath + to.path)
+  }  // the main actor
+  def listrec(subfolder: String, receiver: Actor) = {
+    var list = new ListBuffer[VirtualFile]()
+    println("searching " + remoteBasePath + subfolder)
+    Path.fromString(remoteBasePath + subfolder) ** "*" foreach { ppp =>
+      val vf = new VirtualFile {
+        path=ppp.path.substring(remoteBasePath.length + 2) // without leading '/'
+        modTime = ppp.lastModified
+        size = ppp.size.get
+        isDir = if (ppp.isDirectory) 1 else 0
+      }
+      list += vf
+      if (receiver != null) receiver ! vf
     }
-  }
-  def listRecursively(path: String = "", receiver: Actor = null): List[VirtualFile] = {
-    var fa = recursiveListLocalFiles(new File(basePath+"/"+path), filterregex)
-    var vfl = new ListBuffer[VirtualFile]()
-    fa.foreach(fff => {vfl += new VirtualFile {
-      path=fff.getAbsolutePath.substring((basePath+"/").length+2)
-      modTime = fff.lastModified()
-      size = fff.length()
-      isDir = if (fff.isDirectory) 1 else 0
-    }
-    })
-    //    Actor.actor {
-    if (receiver != null) {
-      vfl.foreach(vf => receiver ! vf)
-      receiver ! 'done
-    }
-
-    //    }
-    vfl.sorted.toList
-  }
-
-  def putFile(fromPath: String, toPath: String) {
-    copyFile(new java.io.File(fromPath), basePath+"/"+toPath)
+    if (receiver != null) receiver ! 'done
+    list
   }
 }
-
-
 
 trait GeneralConnection {
 //  var conntype: ConnType.Value
-  var cachedList: Array[File] = null
-  var basePath: String = ""
+  var localBasePath: String = ""
+  var remoteBasePath: String = ""
   var filterregex: Regex = new Regex(""".*""")
-  var receiver: Actor = null
-  def getFile(fromPath: String, toPath: String)
-  def putFile(fromPath: String, toPath: String)
-  def listRecursively(path: String, receiver: Actor = null): List[VirtualFile]
   // TODO: time diff thing
+  def getfile(from: VirtualFile, to: VirtualFile)
+  def putfile(from: VirtualFile, to: VirtualFile)
+  def deletefile(what: VirtualFile)
+  def listrec(where: String, receiver: Actor): ListBuffer[VirtualFile]
 
 }
 
 class VirtualFile extends Ordered[VirtualFile] {
-  var path: String = ""
+  var path: String = "" // TODO: is this below basepath or not? YES!!!!!!!
   var modTime: Long = 0
   var size: Long = 0
   var isDir: Int = 0

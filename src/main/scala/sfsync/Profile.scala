@@ -58,6 +58,7 @@ import util.Logging
 import sfsync.store.Cache
 import scala.actors._
 import Actor._
+import java.util
 
 case object CompareFinished
 //case object Profile
@@ -72,21 +73,22 @@ class Profile  (view: Actor,
     var cache = Cache.loadCache(id)
     // test local conn
     var local = new LocalConnection {
-      basePath = localFolder
+      remoteBasePath = localFolder
     }
     var remote = new LocalConnection {
-      basePath = protocol.basefolder
+      localBasePath = localFolder
+      remoteBasePath = protocol.basefolder
     }
     debug("***********************local")
-    var locall = local.listRecursively(subfolder)
+    var locall = local.listrec(subfolder, null)
     locall.foreach(vf => debug(vf))
+
     debug("***********************remote")
-//    var remotel = remote.listRecursively(subfolder)
+//    var remotel = remote.listrec(subfolder)
 //    remotel.foreach(vf => debug(vf))
     debug("***********************cache")
     cache.foreach(vf => debug(vf))
     debug("***********************")
-
     debug("***********************receive remote list")
     val receiveList = actor {
       var finished = false
@@ -111,7 +113,7 @@ class Profile  (view: Actor,
       }
       println("a2")
     }
-    remote.listRecursively(subfolder, receiveList)
+    remote.listrec(subfolder, receiveList)
     receiveList !? 'replyWhenDone
 //    rec
     debug("*********************** receive remote finished")

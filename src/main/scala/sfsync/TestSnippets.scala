@@ -163,3 +163,7 @@ object TestJsch extends App {
   }
 
 }
+
+object TestFileName extends App {
+  Path.fromString("/tmp") ** "*" foreach { ppp => println(ppp.path) }
+}
