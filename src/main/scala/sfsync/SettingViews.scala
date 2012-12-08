@@ -7,10 +7,6 @@ import scalafx.scene.layout._
 import scalafx.scene.control._
 import cell.TextFieldListCell
 import scalafx. {collections => sfxc}
-
-import javafx.geometry. {Orientation=>jgo}
-import javafx.scene.control. {SelectionMode => jscsm}
-
 import scalafx.event.ActionEvent
 import sfsync.store._
 

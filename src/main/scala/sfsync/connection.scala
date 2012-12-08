@@ -1,32 +1,17 @@
 package sfsync.synchro
 
+import sfsync.Main.Dialog
 import scala.util.matching.Regex
 import scala.collection.mutable._
-import scala.collection.immutable._
-import collection.mutable
-import actors.Actor
-import actors.Actor._
-import scalax.io._
-import scalax.file.Path
-import scalax.file.PathMatcher.IsFile
-import com.jcraft.jsch
-import com.jcraft.jsch.ChannelSftp.LsEntrySelector
-import jsch.ChannelSftp
 import scala.Predef._
-import javax.swing.JOptionPane
 import scala.collection.JavaConversions._
-import sfsync.Main.Dialog
+import actors.Actor
+import scalax.file.Path
+import com.jcraft.jsch
+import jsch.ChannelSftp
 
 class cachedFile(path: String, modTime: Long, size: Long) {
-
 }
-
-
-case class getfile(from: VirtualFile, to: VirtualFile)
-case class putfile(from: VirtualFile, to: VirtualFile)
-case class deletefile(what: VirtualFile)
-case class listrec(where: String, receiver: Actor)
-
 
 class LocalConnection extends GeneralConnection {
   def deletefile(what: VirtualFile) {
@@ -63,7 +48,7 @@ class LocalConnection extends GeneralConnection {
     if (receiver != null) receiver ! 'done
     list
   }
-  def finish() = {}
+  def finish() {}
 }
 
 class SftpConnection extends GeneralConnection {
@@ -91,7 +76,8 @@ class SftpConnection extends GeneralConnection {
           val fullFilePath = folder + "/" + lse.getFilename
           val vf = new VirtualFile {
             path=(fullFilePath).substring(remoteBasePath.length + 2) // without leading '/'
-            modTime = lse.getAttrs.getMTime
+//            printf("times=" + lse.getAttrs.getMTime + " " + lse.getAttrs.getMtimeString + " " + lse.getAttrs.getATime)
+            modTime = lse.getAttrs.getMTime.toLong * 1000
             size = lse.getAttrs.getSize
             isDir = if (lse.getAttrs.isDir) 1 else 0
           }
@@ -113,18 +99,9 @@ class SftpConnection extends GeneralConnection {
 
   class MyUserInfo extends jsch.UserInfo with jsch.UIKeyboardInteractive {
     def getPassword : String = {
-      val foo=JOptionPane.showInputDialog(null,"Enter password!")
-      foo
+      new Dialog("Enter password:").showInputString
     }
     def promptYesNo(str: String) : Boolean = {
-//      val options: Array[AnyRef]=Array( "yes", "no" )
-//      val foo=JOptionPane.showOptionDialog(null,
-//        str,
-//        "Warning",
-//        JOptionPane.DEFAULT_OPTION,
-//        JOptionPane.WARNING_MESSAGE,
-//        null, options, options(1))
-//      foo==0
       new Dialog(str).showYesNo
     }
 

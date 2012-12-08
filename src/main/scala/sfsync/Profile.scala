@@ -138,5 +138,9 @@ class Profile  (view: Actor,
 
     }
   }
+  def finish() {
+    remote.finish()
+  }
+
 }
 

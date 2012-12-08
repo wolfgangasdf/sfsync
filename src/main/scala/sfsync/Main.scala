@@ -6,18 +6,14 @@ import scalafx.scene._
 import scalafx.stage._
 import scalafx.scene.layout._
 import scalafx.scene.control._
-import scalafx. {collections => sfxc}
 
 import javafx.geometry. {Orientation=>jgo}
-import javafx.scene.control. {SelectionMode => jscsm}
 
 import util.Logging
 import scalafx.event.ActionEvent
 import store._
 import javax.swing.JOptionPane
 import javafx. {stage => jfxs}
-
-//import store.MyImplicits._
 import synchro._
 
 object Main extends JFXApp with Logging {
@@ -37,7 +33,7 @@ object Main extends JFXApp with Logging {
 
   var spv : SplitPane = null
   var serverView = new ServerView(Store.config) {
-    def onServerChange {
+    def onServerChange() {
       println("**** onServerchange: " + server.currentProtocol)
       protocolView = new ProtocolView(server)
       subfolderView = new SubFolderView(server)
@@ -88,7 +84,6 @@ object Main extends JFXApp with Logging {
           ),
           subfolder = subfolderView.tfSubFolder.tf.text.value
         )
-//        val cl = profile.start()
 
       }
     },
@@ -132,33 +127,45 @@ object Main extends JFXApp with Logging {
 
   // https://gist.github.com/1887631
   class Dialog(msg: String) {
-    var res = -1;
-    var dstage = new Stage(jfxs.StageStyle.UTILITY)
-    {
+    var dstage = new Stage(jfxs.StageStyle.UTILITY) {
       initOwner(Main.stage) // TODO remove
       initModality(jfxs.Modality.APPLICATION_MODAL)
+      width = 500
+      height = 300
     }
     def showYesNo : Boolean = {
-      dstage.width = 300
-      dstage.height = 200
+      var res = -1
       dstage.scene = new Scene {
         content = new BorderPane {
           center = new Label { text = msg }
           bottom = new HBox {
             content = List(
               new Button("Yes") {
-                onAction = (ae: ActionEvent) => { res=1; dstage.close}
+                onAction = (ae: ActionEvent) => { res=1; dstage.close }
               },
               new Button("No") {
-                onAction = (ae: ActionEvent) => { res=0; dstage.close}
+                onAction = (ae: ActionEvent) => { res=0; dstage.close }
               }
             )
           }
         }
       }
       dstage.showAndWait()
-//      scene.wait()
       res==1
+    }
+    def showInputString : String = {
+      var res = ""
+      dstage.scene = new Scene {
+        content = new BorderPane {
+          top = new Label { text = msg }
+          center = new TextField {
+            text = ""
+            onAction = (ae: ActionEvent) => { res = text.value; dstage.close }
+          }
+        }
+      }
+      dstage.showAndWait()
+      res
     }
   }
 
