@@ -14,6 +14,8 @@ import javafx.scene.control. {SelectionMode => jscsm}
 import util.Logging
 import scalafx.event.ActionEvent
 import store._
+import javax.swing.JOptionPane
+import javafx. {stage => jfxs}
 
 //import store.MyImplicits._
 import synchro._
@@ -72,7 +74,6 @@ object Main extends JFXApp with Logging {
   val toolBar = new ToolBar {
     content = List(new Button("Compare") {
       onAction = (ae: ActionEvent) => {
-
         val cw = new CompareWindow()
         Main.stage.scene().content = cw
         cw.prefWidth <== Main.stage.scene.width
@@ -111,7 +112,6 @@ object Main extends JFXApp with Logging {
 
   }
 
-
   val maincontent = new VBox() {
     content += menuBar
     content += toolBar
@@ -121,6 +121,45 @@ object Main extends JFXApp with Logging {
 
   def showContent {
     Main.stage.scene().content = maincontent
+  }
+
+  class DialogAlsoNot(msg: String) {
+    def showYesNo : Int = {
+      JOptionPane.showMessageDialog(null, "alert", "alert", JOptionPane.ERROR_MESSAGE)
+      1
+    }
+  }
+
+  // https://gist.github.com/1887631
+  class Dialog(msg: String) {
+    var res = -1;
+    var dstage = new Stage(jfxs.StageStyle.UTILITY)
+    {
+      initOwner(Main.stage) // TODO remove
+      initModality(jfxs.Modality.APPLICATION_MODAL)
+    }
+    def showYesNo : Boolean = {
+      dstage.width = 300
+      dstage.height = 200
+      dstage.scene = new Scene {
+        content = new BorderPane {
+          center = new Label { text = msg }
+          bottom = new HBox {
+            content = List(
+              new Button("Yes") {
+                onAction = (ae: ActionEvent) => { res=1; dstage.close}
+              },
+              new Button("No") {
+                onAction = (ae: ActionEvent) => { res=0; dstage.close}
+              }
+            )
+          }
+        }
+      }
+      dstage.showAndWait()
+//      scene.wait()
+      res==1
+    }
   }
 
   stage = new Stage{
@@ -137,10 +176,12 @@ object Main extends JFXApp with Logging {
       }
     }
   }
+
   maincontent.prefHeight <== stage.scene.height
   maincontent.prefWidth <== stage.scene.width
 
   // init
+
   if (Store.config.currentServer > -1) {
     serverView.serverChanged()
 //    if (protocolView.currprotocol > -1) {
@@ -149,6 +190,7 @@ object Main extends JFXApp with Logging {
 //    if (subfolderView.currsubfolder > -1) {
 //      subfolderView.protocolChanged()
 //    }
+
   }
 
 

@@ -36,6 +36,7 @@ object ActorTest extends App {
 
 import scalax.file._
 import scalax.io._
+
 object TestTextStore extends App {
   val pad = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   val fff = Path.fromString("/tmp/testtextstore.txt")
@@ -90,6 +91,7 @@ object TestJanalysessh extends App {
 
 
 import com.jcraft.jsch
+import scala.collection.JavaConversions._
 
 object TestJsch extends App {
 
@@ -122,7 +124,6 @@ object TestJsch extends App {
   session.connect()
   val sftp = session.openChannel("sftp").asInstanceOf[jsch.ChannelSftp]
 
-  import scala.collection.JavaConversions._
   sftp.connect(5000)
   if (sftp.isConnected) {
     val files = sftp.ls(".")
