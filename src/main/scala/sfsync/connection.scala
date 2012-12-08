@@ -10,6 +10,8 @@ import scalax.io._
 import scalax.file.Path
 import scalax.file.PathMatcher.IsFile
 import com.jcraft.jsch
+import com.jcraft.jsch.ChannelSftp.LsEntrySelector
+import jsch.ChannelSftp
 import scala.Predef._
 import javax.swing.JOptionPane
 import scala.collection.JavaConversions._
@@ -36,23 +38,22 @@ class LocalConnection extends GeneralConnection {
   }
   def getfile(from: VirtualFile, to: VirtualFile) {
     Path.fromString(remoteBasePath + from.path) copyTo Path.fromString(localBasePath + to.path)
-  }  // the main actor
+  }
   def listrec(subfolder: String, receiver: Actor) = {
-    var list = new ListBuffer[VirtualFile]()
     println("searching " + remoteBasePath + subfolder)
-    // TODO change this to manual search since could be slow smb mount!
-    // or is this automatically lazy???
-//    val res: Option[Path] = Path.fromString(remoteBasePath + subfolder).descendants().find(_.name == ".gitignore")
-    Path.fromString(remoteBasePath + subfolder) ** "*" foreach { ppp =>
-      val vf = new VirtualFile {
-        path=ppp.path.substring(remoteBasePath.length + 2) // without leading '/'
-        modTime = ppp.lastModified
-        size = ppp.size.get
-        isDir = if (ppp.isDirectory) 1 else 0
-      }
-      list += vf
-      if (receiver != null) receiver ! vf
+    val list = new ListBuffer[VirtualFile]()
+    def parseContent(folder: Path) : Unit = {
+      println("parsing " + folder)
+      folder.children().foreach(cc => {
+        if (cc.isDirectory) {
+          list += sendOneFile(cc, receiver)
+          parseContent(cc)
+        } else {
+          list += sendOneFile(cc, receiver)
+        }
+      })
     }
+    parseContent(Path.fromString(remoteBasePath + subfolder))
     if (receiver != null) receiver ! 'done
     list
   }
@@ -70,18 +71,22 @@ class SftpConnection extends GeneralConnection {
     sftp.put(remoteBasePath + from.path, localBasePath + to.path) // TODO: progressmonitor!
   }
   def listrec(subfolder: String, receiver: Actor) = {
-    var list = new ListBuffer[VirtualFile]()
     println("searching " + remoteBasePath + subfolder)
-    Path.fromString(remoteBasePath + subfolder) ** "*" foreach { ppp =>
-      val vf = new VirtualFile {
-        path=ppp.path.substring(remoteBasePath.length + 2) // without leading '/'
-        modTime = ppp.lastModified
-        size = ppp.size.get
-        isDir = if (ppp.isDirectory) 1 else 0
-      }
-      list += vf
-      if (receiver != null) receiver ! vf
+    val list = new ListBuffer[VirtualFile]()
+    def parseContent(folder: ChannelSftp#LsEntry) : Unit = {
+//      println("parsing " + folder)
+//      folder.children().foreach(cc => {
+//        if (cc.isDirectory) {
+//          list += sendOneFile(cc, receiver)
+//          parseContent(cc)
+//        } else {
+//          list += sendOneFile(cc, receiver)
+//        }
+//      })
     }
+    val xx = sftp.ls(remoteBasePath + subfolder)
+    val lse = xx.asInstanceOf[ChannelSftp#LsEntry]
+    parseContent(lse)
     if (receiver != null) receiver ! 'done
     list
   }
@@ -168,6 +173,16 @@ trait GeneralConnection {
   def putfile(from: VirtualFile, to: VirtualFile)
   def deletefile(what: VirtualFile)
   def listrec(where: String, receiver: Actor): ListBuffer[VirtualFile]
+  def sendOneFile(ppp: Path, receiver: Actor): VirtualFile = {
+    val vf = new VirtualFile {
+      path=ppp.path.substring(remoteBasePath.length + 2) // without leading '/'
+      modTime = ppp.lastModified
+      size = ppp.size.get
+      isDir = if (ppp.isDirectory) 1 else 0
+    }
+    if (receiver != null) receiver ! vf
+    vf
+  }
 
 }
 

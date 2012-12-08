@@ -4,6 +4,8 @@ package sfsync.testsnippets
 import scala.actors._
 import Actor._
 import javax.swing.JOptionPane
+import com.jcraft.jsch.ChannelSftp._
+import sfsync.synchro.SftpConnection
 
 object ActorTest extends App {
   var act = actor {
@@ -91,6 +93,7 @@ object TestJanalysessh extends App {
 
 
 import com.jcraft.jsch
+import jsch.ChannelSftp
 import scala.collection.JavaConversions._
 
 object TestJsch extends App {
@@ -114,10 +117,10 @@ object TestJsch extends App {
   var jSch = new jsch.JSch
 
   val prvkey: Array[Byte] = scalax.file.Path.fromString("/Users/wolle/.ssh/id_dsa").bytes.toArray
-//  jSch.addIdentity("wolle",prvkey,null,Array[Byte]())
-//  var session = jSch.getSession("wolle", "localhost", 22);
-  jSch.addIdentity("loeffler",prvkey,null,Array[Byte]())
-  var session = jSch.getSession("loeffler", "data01.physics.leidenuniv.nl", 22);
+  jSch.addIdentity("wolle",prvkey,null,Array[Byte]())
+  var session = jSch.getSession("wolle", "localhost", 22);
+//  jSch.addIdentity("loeffler",prvkey,null,Array[Byte]())
+//  var session = jSch.getSession("loeffler", "data01.physics.leidenuniv.nl", 22);
 
   var ui = new MyUserInfo
   session.setUserInfo(ui);
@@ -129,7 +132,8 @@ object TestJsch extends App {
     val files = sftp.ls(".")
     println("files=" + files)
     for (obj <- files) {
-      println("file: " + obj)
+      val lse = obj.asInstanceOf[ChannelSftp#LsEntry]
+      println("file: " + lse.getFilename )
     }
     sftp.disconnect()
   }
