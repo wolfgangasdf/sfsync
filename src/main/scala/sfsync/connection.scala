@@ -30,63 +30,81 @@ case class listrec(where: String, receiver: Actor)
 
 class LocalConnection extends GeneralConnection {
   def deletefile(what: VirtualFile) {
-    Path.fromString(remoteBasePath + what.path).delete(force = true)
+    Path.fromString(remoteBasePath + "/" + what.path).delete(force = true)
     println("deleted " + remoteBasePath + what.path)
   }
   def putfile(from: VirtualFile, to: VirtualFile) {
-    Path.fromString(localBasePath + from.path) copyTo Path.fromString(remoteBasePath + to.path)
+    Path.fromString(localBasePath + "/" + from.path) copyTo Path.fromString(remoteBasePath + "/" + to.path)
   }
   def getfile(from: VirtualFile, to: VirtualFile) {
-    Path.fromString(remoteBasePath + from.path) copyTo Path.fromString(localBasePath + to.path)
+    Path.fromString(remoteBasePath + "/" + from.path) copyTo Path.fromString(localBasePath + "/" + to.path)
   }
   def listrec(subfolder: String, receiver: Actor) = {
-    println("searching " + remoteBasePath + subfolder)
+    println("searching " + remoteBasePath + "/" + subfolder)
     val list = new ListBuffer[VirtualFile]()
     def parseContent(folder: Path) : Unit = {
       println("parsing " + folder)
       folder.children().foreach(cc => {
+        val vf = new VirtualFile {
+          path=cc.path.substring(remoteBasePath.length + 1) // without leading '/'
+          modTime = cc.lastModified
+          size = cc.size.get
+          isDir = if (cc.isDirectory) 1 else 0
+        }
+        println("got " + vf)
+        list += vf
+        if (receiver != null) receiver ! vf
         if (cc.isDirectory) {
-          list += sendOneFile(cc, receiver)
           parseContent(cc)
-        } else {
-          list += sendOneFile(cc, receiver)
         }
       })
     }
-    parseContent(Path.fromString(remoteBasePath + subfolder))
+    parseContent(Path.fromString(remoteBasePath + "/" + subfolder))
     if (receiver != null) receiver ! 'done
     list
   }
+  def finish() = {}
 }
 
 class SftpConnection extends GeneralConnection {
   def deletefile(what: VirtualFile) {
-    sftp.rm(remoteBasePath + what.path)
-    println("deleted " + remoteBasePath + what.path)
+    sftp.rm(remoteBasePath + "/" + what.path)
+    println("deleted " + remoteBasePath + "/" + what.path)
   }
   def putfile(from: VirtualFile, to: VirtualFile) {
-    sftp.put(localBasePath + from.path, remoteBasePath + to.path) // TODO: progressmonitor!
+    sftp.put(localBasePath + "/" + from.path, remoteBasePath + "/" + to.path) // TODO: progressmonitor!
   }
   def getfile(from: VirtualFile, to: VirtualFile) {
-    sftp.put(remoteBasePath + from.path, localBasePath + to.path) // TODO: progressmonitor!
+    sftp.put(remoteBasePath + "/" + from.path, localBasePath + "/" + to.path) // TODO: progressmonitor!
   }
+
   def listrec(subfolder: String, receiver: Actor) = {
-    println("searching " + remoteBasePath + subfolder)
+    println("searching " + remoteBasePath + "/" + subfolder)
     val list = new ListBuffer[VirtualFile]()
-    def parseContent(folder: ChannelSftp#LsEntry) : Unit = {
-//      println("parsing " + folder)
-//      folder.children().foreach(cc => {
-//        if (cc.isDirectory) {
-//          list += sendOneFile(cc, receiver)
-//          parseContent(cc)
-//        } else {
-//          list += sendOneFile(cc, receiver)
-//        }
-//      })
+    def parseContent(folder: String) : Unit = {
+      val xx = sftp.ls(folder)
+      println("parsing " + folder + " : size=" + xx.size())
+      for (obj <- xx) {
+        val lse = obj.asInstanceOf[ChannelSftp#LsEntry]
+        println("parsing " + lse.getFilename)
+        if (!lse.getFilename.equals(".") && !lse.getFilename.equals("..")) {
+          val fullFilePath = folder + "/" + lse.getFilename
+          val vf = new VirtualFile {
+            path=(fullFilePath).substring(remoteBasePath.length + 2) // without leading '/'
+            modTime = lse.getAttrs.getMTime
+            size = lse.getAttrs.getSize
+            isDir = if (lse.getAttrs.isDir) 1 else 0
+          }
+          println("got " + vf)
+          list += vf
+          if (receiver != null) receiver ! vf
+          if (lse.getAttrs.isDir) {
+            parseContent(fullFilePath)
+          }
+        }
+      }
     }
-    val xx = sftp.ls(remoteBasePath + subfolder)
-    val lse = xx.asInstanceOf[ChannelSftp#LsEntry]
-    parseContent(lse)
+    parseContent(remoteBasePath + "/" + subfolder)
     if (receiver != null) receiver ! 'done
     list
   }
@@ -157,9 +175,9 @@ class SftpConnection extends GeneralConnection {
     sys.error("sftp not connected!")
   }
 
-  override def finalize() {
-    println("finalize!!!!")
-    super.finalize()
+  def finish() {
+    if (sftp.isConnected) sftp.disconnect()
+    if (session.isConnected) session.disconnect()
   }
 }
 
@@ -173,17 +191,7 @@ trait GeneralConnection {
   def putfile(from: VirtualFile, to: VirtualFile)
   def deletefile(what: VirtualFile)
   def listrec(where: String, receiver: Actor): ListBuffer[VirtualFile]
-  def sendOneFile(ppp: Path, receiver: Actor): VirtualFile = {
-    val vf = new VirtualFile {
-      path=ppp.path.substring(remoteBasePath.length + 2) // without leading '/'
-      modTime = ppp.lastModified
-      size = ppp.size.get
-      isDir = if (ppp.isDirectory) 1 else 0
-    }
-    if (receiver != null) receiver ! vf
-    vf
-  }
-
+  def finish()
 }
 
 class VirtualFile extends Ordered[VirtualFile] {

@@ -129,7 +129,7 @@ object TestJsch extends App {
 
   sftp.connect(5000)
   if (sftp.isConnected) {
-    val files = sftp.ls(".")
+    val files = sftp.ls("/tmp/testlocal")
     println("files=" + files)
     for (obj <- files) {
       val lse = obj.asInstanceOf[ChannelSftp#LsEntry]
