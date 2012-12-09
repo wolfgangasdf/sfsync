@@ -1,12 +1,18 @@
 package sfsync.synchro
 
+import Actions._
+import util.Logging
+import sfsync.store.Cache
+import scala.actors._
+import Actor._
+
+
 class TransferProtocol (
   var uri: String,
   var basefolder: String
 )
 
-case object ComparedFile
-class ComparedFile(var flocal: VirtualFile, var fremote: VirtualFile, var fcache: VirtualFile) {
+object Actions {
   val A_UNKNOWN = -1
   val A_NOTHING = 0
   val A_USELOCAL = 1
@@ -14,6 +20,9 @@ class ComparedFile(var flocal: VirtualFile, var fremote: VirtualFile, var fcache
   val A_MERGE = 3
   val A_RMLOCAL = 4
   val A_RMREMOTE = 5
+}
+case object ComparedFile
+class ComparedFile(var flocal: VirtualFile, var fremote: VirtualFile, var fcache: VirtualFile) {
   var action: Int = -9
 
   def isSynced = flocal.equals(fremote)
@@ -52,20 +61,13 @@ class ComparedFile(var flocal: VirtualFile, var fremote: VirtualFile, var fcache
   assert(action != -9)
 }
 
-import util.Logging
-import sfsync.store.Cache
-import scala.actors._
-import Actor._
-
 case object CompareFinished
-//case object Profile
 class Profile  (view: Actor,
                 localFolder: String,
                 protocol: TransferProtocol,
                 subfolder: String,
                 id: String
                 ) extends Logging /*with Actor*/ {
-//  def act() = {
   var comparedfiles = scalafx.collections.ObservableBuffer[ComparedFile]()
   var cache = Cache.loadCache(id)
   // test local conn
@@ -84,9 +86,6 @@ class Profile  (view: Actor,
   var locall = local.listrec(subfolder, null)
   locall.foreach(vf => debug(vf))
 
-  debug("***********************remote")
-//    var remotel = remote.listrec(subfolder)
-//    remotel.foreach(vf => debug(vf))
   debug("***********************cache")
   cache.foreach(vf => debug(vf))
   debug("***********************")
@@ -132,8 +131,8 @@ class Profile  (view: Actor,
   def synchronize(cfs: scalafx.collections.ObservableBuffer[ComparedFile]) {
     for (cf <- cfs) {
       println("***** cf:" + cf)
-      if (cf.action == cf.A_USELOCAL) {
-//TODO
+      if (cf.action == A_USELOCAL) {
+      //TODO
       }
 
     }

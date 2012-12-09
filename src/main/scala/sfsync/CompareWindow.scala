@@ -11,6 +11,7 @@ import javafx.scene. {control => jfxsc}
 import scalafx.event.ActionEvent
 
 import synchro._
+import Actions._
 
 import scalafx.beans.property.StringProperty
 import actors.Actor
@@ -18,8 +19,8 @@ import actors.Actor
 // the thing with properties for javafx tableview
 class CompFile(cf_ : ComparedFile) {
   val cf = cf_
-  val amap = Map(cf.A_MERGE -> "M", cf.A_NOTHING -> "==", cf.A_RMLOCAL -> "<-(rm)", cf.A_RMREMOTE -> "(rm)->",
-    cf.A_UNKNOWN -> "?", cf.A_USELOCAL -> "->", cf.A_USEREMOTE -> "<-")
+  val amap = Map(A_MERGE -> "M", A_NOTHING -> "==", A_RMLOCAL -> "<-(rm)", A_RMREMOTE -> "(rm)->",
+    A_UNKNOWN -> "?", A_USELOCAL -> "->", A_USEREMOTE -> "<-")
   var tmp = ""
   if (cf.flocal != null) tmp=cf.flocal.path
   else tmp=cf.fremote.path
@@ -62,33 +63,68 @@ class CompareWindow() extends VBox with Actor {
     delegate.getColumns.addAll(
       colDetailsLocal.delegate, colStatus.delegate, colDetailsRemote.delegate, colPath.delegate
     )
-  }
-
-  var bv = new HBox {
-    content = List(
-      new Button("Synchronize") {
-        onAction = (ae: ActionEvent) => {
-          comparedfiles.foreach(cf => println(cf))
-          //            profile.synchronize(compfiles) // TODO
-        }
-      },
-      new Button("uselocal") {
-        onAction = (ae: ActionEvent) => {
-          val iiis = tv.selectionModel.get().getSelectedItems
-          for (idx <- iiis) {
-            idx.cf.action = idx.cf.A_USELOCAL // this propagates to comparedfiles!
-            idx.changeAction()
-          }
-
-        }
-      },
-      new Button("Back") {
-        onAction = (ae: ActionEvent) => {
-          Main.showContent
+    selectionModel.get().selectedItems.onChange(
+      (ob, _) => {
+        if (ob.size > 0) {
+          updateActionButtons()
         }
       }
     )
   }
+
+  val btSync = new Button("Synchronize") {
+    onAction = (ae: ActionEvent) => {
+    profile.synchronize(compfiles)
+    }
+  }
+  var btBack = new Button("Back") {
+    onAction = (ae: ActionEvent) => {
+      Main.showContent
+    }
+  }
+
+  def createActionButton(lab: String, action: Int): Button = {
+    new Button(lab) {
+      onAction = (ae: ActionEvent) => {
+        for (idx <- tv.selectionModel.get().getSelectedItems) {
+          idx.cf.action = action
+          idx.changeAction()
+          updateSyncButton()
+        }
+      }
+    }
+  }
+  var btUseLocal = createActionButton("Use local",  A_USELOCAL)
+  var btUseRemote = createActionButton("Use remote", A_USEREMOTE)
+  var btRmLocal = createActionButton("Delete local", A_RMLOCAL)
+  var btRmRemote = createActionButton("Delete remote", A_RMREMOTE)
+  var btMerge = createActionButton("Merge", A_MERGE)
+  var btNothing = createActionButton("Do nothing", A_NOTHING)
+
+  def updateSyncButton() = {
+    var canSync = true
+    for (cf <- comparedfiles) {
+      if (cf.action == A_UNKNOWN) canSync = false
+    }
+    btSync.setDisable(!canSync)
+  }
+
+  def updateActionButtons() {
+    var allLocalPresenet = true
+    var allRemotePresent = true
+    List(btRmLocal, btUseLocal, btMerge, btNothing, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(false))
+    for (idx <- tv.selectionModel.get().getSelectedItems) {
+      val cf = idx.cf
+      if (cf.flocal == null) { allLocalPresenet = false }
+      if (cf.fremote == null) { allRemotePresent = false }
+    }
+    if (!allLocalPresenet) List(btUseLocal,btRmLocal).foreach(bb => bb.setDisable(true))
+    if (!allRemotePresent) List(btUseRemote,btRmRemote).foreach(bb => bb.setDisable(true))
+    if (!(allLocalPresenet && allRemotePresent)) btMerge.setDisable(true)
+  }
+
+  var bv = new HBox { content = List(btSync, btRmLocal, btUseLocal, btMerge, btNothing, btUseRemote, btRmRemote, btBack) }
+
   content = List(tv,bv)
   tv.selectionModel.get().setSelectionMode(javafx.scene.control.SelectionMode.MULTIPLE)
   colPath.prefWidth <== (this.width - colStatus.prefWidth-1 - colDetailsLocal.prefWidth - colDetailsRemote.prefWidth)
@@ -107,6 +143,7 @@ class CompareWindow() extends VBox with Actor {
         case CompareFinished => {
           doit = false
           println("comparefinished!")
+          updateSyncButton()
           exit()
         }
       }
