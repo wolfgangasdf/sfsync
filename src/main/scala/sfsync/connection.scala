@@ -47,7 +47,8 @@ class LocalConnection extends GeneralConnection {
         }
       })
     }
-    val sp = Path.fromString(remoteBasePath + "/" + subfolder)
+    val sp = Path.fromString(remoteBasePath + (if (subfolder.length>0) "/" else "") + subfolder)
+    println("sp=" + sp)
     if (sp.exists) parseContent(sp)
     if (receiver != null) receiver ! 'done
     list
@@ -55,16 +56,20 @@ class LocalConnection extends GeneralConnection {
   def finish() {}
 }
 
-class SftpConnection extends GeneralConnection {
+class SftpConnection(var uri: java.net.URI) extends GeneralConnection {
   def deletefile(what: VirtualFile) {
     sftp.rm(remoteBasePath + "/" + what.path)
     println("deleted " + remoteBasePath + "/" + what.path)
   }
   def putfile(from: VirtualFile) {
-    sftp.put(localBasePath + "/" + from.path, remoteBasePath + "/" + from.path) // TODO: progressmonitor!
+    val rp = remoteBasePath + "/" + from.path
+    sftp.put(localBasePath + "/" + from.path, rp) // TODO: progressmonitor!
+    sftp.setMtime(rp, (from.modTime/1000).toInt)
   }
   def getfile(from: VirtualFile) {
-    sftp.put(remoteBasePath + "/" + from.path, localBasePath + "/" + from.path) // TODO: progressmonitor!
+    val lp = localBasePath + "/" + from.path
+    sftp.get(remoteBasePath + "/" + from.path, lp) // TODO: progressmonitor!
+    Path.fromString(lp).lastModified = from.modTime
   }
 
   def listrec(subfolder: String, receiver: Actor) = {
@@ -78,7 +83,8 @@ class SftpConnection extends GeneralConnection {
         if (!lse.getFilename.equals(".") && !lse.getFilename.equals("..")) {
           val fullFilePath = folder + "/" + lse.getFilename
           val vf = new VirtualFile {
-            path=(fullFilePath).substring(remoteBasePath.length + 2) // without leading '/'
+            println("ffp=" + fullFilePath)
+            path=(fullFilePath).substring(remoteBasePath.length + 1) // without leading '/'
 //            printf("times=" + lse.getAttrs.getMTime + " " + lse.getAttrs.getMtimeString + " " + lse.getAttrs.getATime)
             modTime = lse.getAttrs.getMTime.toLong * 1000
             size = lse.getAttrs.getSize
@@ -93,7 +99,7 @@ class SftpConnection extends GeneralConnection {
         }
       }
     }
-    parseContent(remoteBasePath + "/" + subfolder)
+    parseContent(remoteBasePath + (if (subfolder.length>0) "/" else "") + subfolder)
     if (receiver != null) receiver ! 'done
     list
   }
@@ -102,11 +108,11 @@ class SftpConnection extends GeneralConnection {
 
   class MyUserInfo extends jsch.UserInfo with jsch.UIKeyboardInteractive {
     def getPassword : String = {
-      val res = runUIwait(sfsync.Main.Dialog.showInputString("Enter password:"))
+      val res = runUIwait(Dialog.showInputString("Enter password:"))
       res.asInstanceOf[String]
     }
     def promptYesNo(str: String) : Boolean = {
-      runUIwait(sfsync.Main.Dialog.showYesNo(str)) == true
+      runUIwait(Dialog.showYesNo(str)) == true
     }
 
     def promptKeyboardInteractive(destination: String, name: String, instruction: String, prompt: Array[String], echo: Array[Boolean]): Array[String] = null
@@ -117,7 +123,7 @@ class SftpConnection extends GeneralConnection {
 
     def promptPassphrase(message: String): Boolean = { println("prompt pwd") ; true }
 
-    def showMessage(message: String) { runUIwait(sfsync.Main.Dialog.showMessage(message)) }
+    def showMessage(message: String) { runUIwait(Dialog.showMessage(message)) }
   }
 
   class MyJschLogger extends jsch.Logger {
@@ -141,11 +147,28 @@ class SftpConnection extends GeneralConnection {
 
   var jSch = new jsch.JSch
 
-  val prvkey: Array[Byte] = scalax.file.Path.fromString("/Users/wolle/.ssh/id_dsa").bytes.toArray
-//    jSch.addIdentity("wolle",prvkey,null,Array[Byte]())
-//    var session = jSch.getSession("wolle", "localhost", 22)
-  jSch.addIdentity("loeffler",prvkey,null,Array[Byte]())
-  var session = jSch.getSession("loeffler", "data01.physics.leidenuniv.nl", 22)
+  println("urxi=" + uri.getScheme)
+
+//  val prvkey: Array[Byte] = scalax.file.Path.fromString("/Users/wolle/.ssh/id_dsa").bytes.toArray
+  var prvkeypath = ""
+  var knownhostspath = ""
+  val osname = System.getProperty("os.name")
+  println("osname=" + osname)
+  osname match {
+    case "Mac OS X" => {
+      println("mac")
+      prvkeypath = System.getProperty("user.home") + "/.ssh/id_dsa"
+      knownhostspath = System.getProperty("user.home") + "/.ssh/known_hosts"
+    }
+    case _ => { println("not supported:" +  osname) ; sys.exit(1) }
+  }
+  println("prv key: " + prvkeypath)
+  var prvkey: Array[Byte] = null
+  if (Path.fromString(prvkeypath).exists) prvkey = Path.fromString(prvkeypath).bytes.toArray
+  if (Path.fromString(knownhostspath).exists) jSch.setKnownHosts(knownhostspath)
+
+  jSch.addIdentity(uri.getUserInfo,prvkey,null,Array[Byte]())
+  var session = jSch.getSession(uri.getUserInfo, uri.getHost, uri.getPort)
 
   var ui = new MyUserInfo
   session.setUserInfo(ui)

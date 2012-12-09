@@ -105,7 +105,7 @@ class CompareWindow() extends VBox with Actor {
 
   def updateSyncButton() {
     var canSync = true
-    for (cf <- comparedfiles) {
+    for (cf <- comparedfiles) { // TODO: here was concurr. mod excp after compare
       if (cf.action == A_UNKNOWN) canSync = false
     }
     btSync.setDisable(!canSync)
@@ -148,12 +148,14 @@ class CompareWindow() extends VBox with Actor {
         }
         case CompareFinished => {
           println("comparefinished!")
-          updateSyncButton()
+          runUI { updateSyncButton() }
         }
         case RemoveCF(cf: ComparedFile) => {
           println("cw: remove " + cf + " lengths=" + comparedfiles.size + "," + compfiles.size)
-          comparedfiles.remove(cf)
-          compfiles.removeAll(compfiles.filter(p => p.cf == cf))
+          runUI {
+            comparedfiles.remove(cf)
+            compfiles.removeAll(compfiles.filter(p => p.cf == cf))
+          }
         }
         case 'done => {
           btSync.setDisable(true)

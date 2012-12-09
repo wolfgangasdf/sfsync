@@ -2,8 +2,6 @@ package sfsync.store
 
 import sfsync.synchro.VirtualFile
 import scalafx.{collections => sfxc}
-import collection.mutable
-import scalafx.beans.property.StringProperty
 import scalax.file.Path
 import scalax.io.Line
 import Tools._

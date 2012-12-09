@@ -6,6 +6,7 @@ import sfsync.store.Cache
 import scala.actors._
 import Actor._
 import scala.concurrent.ops.spawn
+import java.net.URI
 
 
 class TransferProtocol (
@@ -58,13 +59,7 @@ class ComparedFile(var flocal: VirtualFile, var fremote: VirtualFile, var fcache
     } else if (fremote == fcache && fcache != null) { // local mod, remote not modified
       if (flocal.modTime > fcache.modTime)  // only if local newer than cache, else unknown
         action = A_USELOCAL
-    } //else { // item not in cache but both present: leave unknown (the only secure thing)
-//      action = A_UNKNOWN
-//      if (flocal.modTime>fremote.modTime)
-//        action = A_USELOCAL
-//      else
-//      action = A_USEREMOTE
-//    }
+    }
   }
   assert(action != -9)
 
@@ -91,10 +86,13 @@ class Profile  (view: Actor,
     local = new LocalConnection {
       remoteBasePath = localFolder
     }
-    remote = protocol.uri match {
-      case s if s.startsWith("sftp://") => new SftpConnection
-      case "local" => new LocalConnection
-      case _ => { sys.error("wrong protocol URI") }
+    println("huhu")
+    val uri = new java.net.URI(protocol.uri)
+    println("scheme = " + uri.getScheme)
+    remote = uri.getScheme match {
+      case "sftp" => new SftpConnection(uri)
+      case "file" => new LocalConnection
+      case _ => { println("wrong protocol URI scheme: " + uri.getScheme); sys.exit(1) }
     }
     remote.localBasePath = localFolder
     remote.remoteBasePath = protocol.basefolder
@@ -169,7 +167,7 @@ class Profile  (view: Actor,
     Cache.saveCache(id)
   }
   def finish() {
-    remote.finish()
+    if (remote != null) remote.finish()
   }
 
 }

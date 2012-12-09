@@ -36,7 +36,7 @@ object Helpers {
       }
     }
     javafx.application.Platform.runLater(runable)
-    while(stat == null) {
+    while(stat == null) { // ugly
       Thread.sleep(1)
     }
     stat
@@ -123,7 +123,7 @@ object Main extends JFXApp with Logging {
     },
     new Button("Save settings") {
       onAction = (ae: ActionEvent) => {
-        Store.save
+        Store.save()
         println("store saved!")
       }
     },
@@ -182,7 +182,7 @@ object Main extends JFXApp with Logging {
     println("*************** close requested")
     if (cw != null) cw ! 'done
     if (profile != null) profile.finish()
-    Store.save
+    Store.save()
     sys.exit(0)
   }
 
