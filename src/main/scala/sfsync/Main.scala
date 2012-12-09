@@ -15,6 +15,8 @@ import store._
 import javax.swing.JOptionPane
 import javafx. {stage => jfxs}
 import synchro._
+import javafx.application.Platform
+import actors.Actor
 
 object Main extends JFXApp with Logging {
 
@@ -67,10 +69,11 @@ object Main extends JFXApp with Logging {
   }
 
   var profile: Profile = null
+  var cw: CompareWindow = null
   val toolBar = new ToolBar {
     content = List(new Button("Compare") {
       onAction = (ae: ActionEvent) => {
-        val cw = new CompareWindow()
+        cw = new CompareWindow()
         Main.stage.scene().content = cw
         cw.prefWidth <== Main.stage.scene.width
         cw.prefHeight <== Main.stage.scene.height
@@ -85,7 +88,7 @@ object Main extends JFXApp with Logging {
           ),
           subfolder = subfolderView.tfSubFolder.tf.text.value
         )
-
+        cw.setProfile(profile)
       }
     },
     new Button("Save settings") {
@@ -115,7 +118,7 @@ object Main extends JFXApp with Logging {
     content += statusBar
   }
 
-  def showContent {
+  def showContent() {
     Main.stage.scene().content = maincontent
   }
 
@@ -127,14 +130,14 @@ object Main extends JFXApp with Logging {
   }
 
   // https://gist.github.com/1887631
-  class Dialog(msg: String) {
-    var dstage = new Stage(jfxs.StageStyle.UTILITY) {
+  object Dialog {
+    val dstage = new Stage(jfxs.StageStyle.UTILITY) {
       initOwner(Main.stage) // TODO remove
       initModality(jfxs.Modality.APPLICATION_MODAL)
       width = 500
       height = 300
     }
-    def showYesNo : Boolean = {
+    def showYesNo(msg: String) : Boolean = {
       var res = -1
       dstage.scene = new Scene {
         content = new BorderPane {
@@ -154,7 +157,7 @@ object Main extends JFXApp with Logging {
       dstage.showAndWait()
       res==1
     }
-    def showInputString : String = {
+    def showInputString(msg: String) : String = {
       var res = ""
       dstage.scene = new Scene {
         content = new BorderPane {
@@ -177,13 +180,57 @@ object Main extends JFXApp with Logging {
     scene = new Scene {
       //      fill = Color.LIGHTGRAY
       content = maincontent
-      onCloseRequest =  {
-        // why are these methods called on startup??? disabled for now.
-//        Store.save
-//        println("close requested" + Store)
+    }
+    onCloseRequest = {
+      if (stage != null) { // stupid: this is called at startup???
+        println("*************** close requested")
+        if (cw != null) cw ! 'done
+        if (profile != null) profile.finish()
+        Store.save
       }
     }
   }
+
+//  case class showYesNoDialog(msg: String)
+//  val dialog = new Dialog
+//  class Dialog extends Actor {
+//    val dstage = new Stage(jfxs.StageStyle.UTILITY) {
+//      initOwner(Main.stage) // TODO remove
+//      initModality(jfxs.Modality.APPLICATION_MODAL)
+//      width = 500
+//      height = 300
+//    }
+//    def act() {
+//      println("actor started")
+//      loop {
+//        println("before")
+//        receive {
+//          case showYesNoDialog(msg) => {
+//            println("showyn")
+//            var res = -1
+//            dstage.scene = new Scene {
+//              content = new BorderPane {
+//                center = new Label { text = msg }
+//                bottom = new HBox {
+//                  content = List(
+//                    new Button("Yes") {
+//                      onAction = (ae: ActionEvent) => { res=1; dstage.close }
+//                    },
+//                    new Button("No") {
+//                      onAction = (ae: ActionEvent) => { res=0; dstage.close }
+//                    }
+//                  )
+//                }
+//              }
+//            }
+//            dstage.showAndWait()
+//            reply(res==1)
+//          }
+//        }
+//      }
+//    }
+//  }
+//  dialog.start()
 
   maincontent.prefHeight <== stage.scene.height
   maincontent.prefWidth <== stage.scene.width
@@ -192,27 +239,5 @@ object Main extends JFXApp with Logging {
 
   if (Store.config.currentServer > -1) {
     serverView.serverChanged()
-//    if (protocolView.currprotocol > -1) {
-//      protocolView.protocolChanged()
-//    }
-//    if (subfolderView.currsubfolder > -1) {
-//      subfolderView.protocolChanged()
-//    }
-
   }
-
-
-
-//  mainContent.prefHeight <== stage.scene.height
-//  mainContent.prefWidth <== stage.scene.width
-//  //  setPrefSize(stage.scene.width.get, stage.scene.height.get)
-//
-//  //  indicatorPane.prefHeight <== stage.scene.height
-//  leftPane.prefWidth <== mainContent.width * 0.2
-//  //  controlsPane.prefHeight <== stage.scene.height
-//  controlsPane.prefWidth <== mainContent.width * 0.2
-//  //  centerPane.prefHeight <== stage.scene.height
-//  //  centerPane.prefWidth <== stage.scene.width * 0.6
-
-
 }

@@ -40,6 +40,8 @@ class CompFile(cf_ : ComparedFile) {
 class CompareWindow() extends VBox with Actor {
   var comparedfiles = new sfxc.ObservableBuffer[ComparedFile]()
   var compfiles =  new sfxc.ObservableBuffer[CompFile]()
+  var profile: Profile = null
+  def setProfile(profilex: Profile) { profile = profilex }
 
   val colPath = new TableColumn[CompFile, String]("Path") { /*cellValueFactory = _.value.firstName// DOESNT WORK do below*/ }
   colPath.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[CompFile, String], jfxbv.ObservableValue[String]] {
@@ -74,12 +76,12 @@ class CompareWindow() extends VBox with Actor {
 
   val btSync = new Button("Synchronize") {
     onAction = (ae: ActionEvent) => {
-    profile.synchronize(compfiles)
+      profile.synchronize(comparedfiles.toList)
     }
   }
   var btBack = new Button("Back") {
     onAction = (ae: ActionEvent) => {
-      Main.showContent
+      Main.showContent()
     }
   }
 
@@ -101,7 +103,7 @@ class CompareWindow() extends VBox with Actor {
   var btMerge = createActionButton("Merge", A_MERGE)
   var btNothing = createActionButton("Do nothing", A_NOTHING)
 
-  def updateSyncButton() = {
+  def updateSyncButton() {
     var canSync = true
     for (cf <- comparedfiles) {
       if (cf.action == A_UNKNOWN) canSync = false
@@ -141,9 +143,19 @@ class CompareWindow() extends VBox with Actor {
           println("added compfile " + cf)
         }
         case CompareFinished => {
-          doit = false
+//          doit = false
           println("comparefinished!")
           updateSyncButton()
+//          exit()
+        }
+        case RemoveCF(cf: ComparedFile) => {
+          println("cw: remove " + cf + " lengths=" + comparedfiles.size + "," + compfiles.size)
+          comparedfiles.remove(cf)
+          compfiles.removeAll(compfiles.filter(p => p.cf == cf))
+        }
+        case 'done => {
+          btSync.setDisable(true)
+          doit = false
           exit()
         }
       }

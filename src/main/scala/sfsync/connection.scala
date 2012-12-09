@@ -18,13 +18,16 @@ class LocalConnection extends GeneralConnection {
     Path.fromString(remoteBasePath + "/" + what.path).delete(force = true)
     println("deleted " + remoteBasePath + what.path)
   }
-  def putfile(from: VirtualFile, to: VirtualFile) {
-    Path.fromString(localBasePath + "/" + from.path) copyTo Path.fromString(remoteBasePath + "/" + to.path)
+  def putfile(from: VirtualFile) {
+    Path.fromString(localBasePath + "/" + from.path).copyTo(Path.fromString(remoteBasePath + "/" + from.path),replaceExisting = true)
   }
-  def getfile(from: VirtualFile, to: VirtualFile) {
-    Path.fromString(remoteBasePath + "/" + from.path) copyTo Path.fromString(localBasePath + "/" + to.path)
+  def getfile(from: VirtualFile) {
+    Path.fromString(remoteBasePath + "/" + from.path).copyTo(Path.fromString(localBasePath + "/" + from.path),replaceExisting = true)
   }
   def listrec(subfolder: String, receiver: Actor) = {
+    println("before dialog")
+//    val res = (sfsync.Main.dialog !? sfsync.Main.showYesNoDialog("huhu"))
+    sfsync.Main.Dialog.showYesNo("huhu")
     println("searching " + remoteBasePath + "/" + subfolder)
     val list = new ListBuffer[VirtualFile]()
     def parseContent(folder: Path) : Unit = {
@@ -56,11 +59,11 @@ class SftpConnection extends GeneralConnection {
     sftp.rm(remoteBasePath + "/" + what.path)
     println("deleted " + remoteBasePath + "/" + what.path)
   }
-  def putfile(from: VirtualFile, to: VirtualFile) {
-    sftp.put(localBasePath + "/" + from.path, remoteBasePath + "/" + to.path) // TODO: progressmonitor!
+  def putfile(from: VirtualFile) {
+    sftp.put(localBasePath + "/" + from.path, remoteBasePath + "/" + from.path) // TODO: progressmonitor!
   }
-  def getfile(from: VirtualFile, to: VirtualFile) {
-    sftp.put(remoteBasePath + "/" + from.path, localBasePath + "/" + to.path) // TODO: progressmonitor!
+  def getfile(from: VirtualFile) {
+    sftp.put(remoteBasePath + "/" + from.path, localBasePath + "/" + from.path) // TODO: progressmonitor!
   }
 
   def listrec(subfolder: String, receiver: Actor) = {
@@ -99,10 +102,12 @@ class SftpConnection extends GeneralConnection {
 
   class MyUserInfo extends jsch.UserInfo with jsch.UIKeyboardInteractive {
     def getPassword : String = {
-      new Dialog("Enter password:").showInputString
+//      sfsync.Main.Dialog.showInputString("Enter password:")
+      ""
     }
     def promptYesNo(str: String) : Boolean = {
-      new Dialog(str).showYesNo
+//      sfsync.Main.Dialog.showYesNo(str)
+      false
     }
 
     def promptKeyboardInteractive(destination: String, name: String, instruction: String, prompt: Array[String], echo: Array[Boolean]): Array[String] = null
@@ -164,8 +169,8 @@ trait GeneralConnection {
   var remoteBasePath: String = ""
   var filterregex: Regex = new Regex(""".*""")
   // TODO: time diff thing
-  def getfile(from: VirtualFile, to: VirtualFile)
-  def putfile(from: VirtualFile, to: VirtualFile)
+  def getfile(from: VirtualFile)
+  def putfile(from: VirtualFile)
   def deletefile(what: VirtualFile)
   def listrec(where: String, receiver: Actor): ListBuffer[VirtualFile]
   def finish()

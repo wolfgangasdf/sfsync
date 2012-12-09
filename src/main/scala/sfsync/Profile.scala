@@ -27,6 +27,15 @@ class ComparedFile(var flocal: VirtualFile, var fremote: VirtualFile, var fcache
 
   def isSynced = flocal.equals(fremote)
   override def toString: String = "A=" + action + " local:" + flocal + " remote:" + fremote + " cache:" + fcache
+  override def hashCode = action.hashCode() + (if (flocal!=null) flocal.hashCode else 0)
+    + (if (fremote!=null) fremote.hashCode else 0) + (if (fcache!=null) fcache.hashCode else 0)
+  def equals(obj: ComparedFile): Boolean = {
+//    println("eq: " + (this.hashCode == obj.hashCode) + "     obj=" + obj + " this=" + this.toString)
+    this.hashCode == obj.hashCode
+  }
+
+
+  //  def compare(that: VirtualFile): Int =
 
   // init with best guess
   if (flocal == fremote) { // just equal?
@@ -51,17 +60,21 @@ class ComparedFile(var flocal: VirtualFile, var fremote: VirtualFile, var fcache
     } else if (fremote == fcache && fcache != null) { // local mod, remote not modified
       if (flocal.modTime > fcache.modTime)  // only if local newer than cache, else unknown
         action = A_USELOCAL
-    } else { // item not in cache but both present
-      if (flocal.modTime>fremote.modTime)
-        action = A_USELOCAL
-      else
-      action = A_USEREMOTE
-    }
+    } //else { // item not in cache but both present: leave unknown (the only secure thing)
+//      action = A_UNKNOWN
+//      if (flocal.modTime>fremote.modTime)
+//        action = A_USELOCAL
+//      else
+//      action = A_USEREMOTE
+//    }
   }
   assert(action != -9)
+
 }
 
 case object CompareFinished
+case class RemoveCF(cf: ComparedFile)
+
 class Profile  (view: Actor,
                 localFolder: String,
                 protocol: TransferProtocol,
@@ -128,14 +141,22 @@ class Profile  (view: Actor,
   comparedfiles.foreach(cf => println(cf))
   view ! CompareFinished // send finished!
 
-  def synchronize(cfs: scalafx.collections.ObservableBuffer[ComparedFile]) {
+  def synchronize(cfs: List[ComparedFile]) {
     for (cf <- cfs) {
       println("***** cf:" + cf)
-      if (cf.action == A_USELOCAL) {
-      //TODO
+      var removecf = true
+      cf.action match {
+        case A_MERGE => sys.error("merge not implemented yet!")
+        case A_RMLOCAL => local.deletefile(cf.flocal)
+        case A_RMREMOTE => remote.deletefile(cf.fremote)
+        case A_USELOCAL => remote.putfile(cf.flocal)
+        case A_USEREMOTE => remote.getfile(cf.fremote)
+        case A_NOTHING => {}
+        case _ => removecf = false
       }
-
+      if (removecf) view ! RemoveCF(cf)
     }
+    view ! 'done
   }
   def finish() {
     remote.finish()

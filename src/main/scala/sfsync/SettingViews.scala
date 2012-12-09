@@ -62,16 +62,16 @@ class MyTextField(labelText: String, fileChooserMode: Int = 0) extends HBox {
   }
   content = List(new Label() { text = labelText }, tf)
   if (fileChooserMode>0) {
-    val butt = new Button("file...") {
+    val butt = new Button("Dir...") {
       onAction = (ae: ActionEvent) => {
-        val fileChooser = new FileChooser
+        val fileChooser = new DirectoryChooser
         val jf = new java.io.File(tf.text.value)
         if (jf.exists() && jf.canRead) {
           fileChooser.setInitialDirectory(jf)
         } else {
           fileChooser.setInitialDirectory(new java.io.File("/"))
         }
-        val res = fileChooser.showOpenDialog(Main.stage)
+        val res = fileChooser.showDialog(Main.stage)
         if (res != null) tf.text = res.toString
       }
     }
