@@ -17,7 +17,7 @@ object DBSettings {
     if (!fff.exists) {
       fff.doCreateFile()
     }
-    fff.lines(Line.Terminators.NewLine,true)
+    fff.lines(Line.Terminators.NewLine, includeTerminator = true)
   }
 }
 
@@ -38,7 +38,7 @@ object Tools {
 class Config {
   var servers = new sfxc.ObservableBuffer[Server] // THIS does not work :-( if the servers is used by ListView, it crashes the DB.....
 //  var servers = new mutable.ArrayBuffer[Server] //
-  var currentServer = -1;
+  var currentServer = -1
 }
 
 class Server {
@@ -46,9 +46,9 @@ class Server {
   var id: String = new java.util.Date().getTime.toString
   var localFolder: String = ""
   var protocols = new sfxc.ObservableBuffer[Protocol]
-  var currentProtocol = -1;
+  var currentProtocol = -1
   var subfolders = new sfxc.ObservableBuffer[SubFolder]
-  var currentSubFolder = -1;
+  var currentSubFolder = -1
   override def toString: String = name // used for listview
 }
 
@@ -69,7 +69,7 @@ class SubFolder {
 object Store {
   var config : Config = null
 
-  def save {
+  def save() {
     println("-----------save " + config)
     val fff = Path.fromString(DBSettings.getSettingPath)
     fff.write("sfsyncsettingsversion,1\n")
@@ -94,7 +94,7 @@ object Store {
     println("-----------/save")
   }
 
-  def load {
+  def load() {
     var lastserver: Server = null
     var lastprotocol: Protocol = null
     var lastsubfolder: SubFolder = null
@@ -139,7 +139,7 @@ object Store {
     }
   }
 
-  def dumpConfig {
+  def dumpConfig() {
     println("--------------dumpconfig")
     for (server <- config.servers) {
       println("server: " + server + " currprot=" + server.currentProtocol + " currsf=" + server.currentSubFolder)
@@ -150,42 +150,64 @@ object Store {
   }
 
   // Load config
-  load
-
-
-
+  load()
 }
 
 object Cache {
   import collection.mutable.ListBuffer
+  var cache: ListBuffer[VirtualFile] = null
   def getCacheFilename(name: String) = DBSettings.dbpath + "-cache" + name + ".txt"
   def loadCache(name: String) : ListBuffer[VirtualFile] = {
-    var res = new ListBuffer[VirtualFile]()
+    cache = new ListBuffer[VirtualFile]()
     val fff = Path.fromString(getCacheFilename(name))
     if (!fff.exists) {
+      println("create cache file!")
       fff.doCreateFile()
     }
-    val lines = fff.lines(Line.Terminators.NewLine,true)
+    val lines = fff.lines(Line.Terminators.NewLine, includeTerminator = true)
     lines.foreach(lll => {
       var sett = splitsetting(lll.toString)
-      var vf = new VirtualFile
+      val vf = new VirtualFile
       vf.modTime = sett(0).toLong
       sett = splitsetting(sett(1))
       vf.isDir = sett(0).toInt
       sett = splitsetting(sett(1))
       vf.size = sett(0).toLong
       vf.path = sett(1) // this is safe, also commas in filename ok
+      cache += vf
     })
-    res
+    println("loaded cache file!")
+    cache
   }
-  def saveCache(name: String, cache: ListBuffer[VirtualFile]) = {
-    val fff = Path.fromString(getCacheFilename(name))
-    if (!fff.exists) {
-      fff.doCreateFile()
+  def remove(vf: VirtualFile) {
+    if (cache.contains(vf)) {
+      cache -= vf
+      println(" removed from cache " + vf)
+    } else {
+      println(" error: cache doesn't contain " + vf)
     }
+  }
+
+  def addupdate(vf: VirtualFile) {
+    val vfs = cache.filter(p => p.path == vf.path)
+    println(" addup: found " + vfs)
+    cache --= vfs
+    cache += vf
+    val vfs2 = cache.filter(p => p.path == vf.path)
+    println(" after: found " + vfs2)
+  }
+
+  def saveCache(name: String) {
+    val fff = Path.fromString(getCacheFilename(name))
+    if (fff.exists) {
+      fff.delete(force = true)
+    }
+    fff.doCreateFile()
     for (cf <- cache) {
+      println("  savecache: " + cf)
       fff.append("" + cf.modTime + "," + cf.isDir + "," + cf.size + "," + cf.path + "\n")
     }
+    println("***** cache saved!")
   }
 
 }

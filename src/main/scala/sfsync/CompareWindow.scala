@@ -132,21 +132,23 @@ class CompareWindow() extends VBox with Actor {
   colPath.prefWidth <== (this.width - colStatus.prefWidth-1 - colDetailsLocal.prefWidth - colDetailsRemote.prefWidth)
   tv.prefHeight <== (this.height - bv.prefHeight)
 
+  import sfsync.Helpers._
   // receive compared files!
   def act() {
     var doit = true
     loopWhile(doit) {
       receive {
         case cf: ComparedFile => {
-          comparedfiles.add(cf)
-          compfiles.add(new CompFile(cf))
-          println("added compfile " + cf)
+          runUI {
+            comparedfiles.add(cf)
+            compfiles.add(new CompFile(cf))
+//            tv.scrollTo(compfiles.size)
+          }
+//          println("added compfile " + cf)
         }
         case CompareFinished => {
-//          doit = false
           println("comparefinished!")
           updateSyncButton()
-//          exit()
         }
         case RemoveCF(cf: ComparedFile) => {
           println("cw: remove " + cf + " lengths=" + comparedfiles.size + "," + compfiles.size)
@@ -156,6 +158,7 @@ class CompareWindow() extends VBox with Actor {
         case 'done => {
           btSync.setDisable(true)
           doit = false
+          println("exiting actor cw")
           exit()
         }
       }

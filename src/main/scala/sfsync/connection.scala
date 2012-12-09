@@ -13,6 +13,8 @@ import jsch.ChannelSftp
 class cachedFile(path: String, modTime: Long, size: Long) {
 }
 
+import sfsync.Helpers._
+
 class LocalConnection extends GeneralConnection {
   def deletefile(what: VirtualFile) {
     Path.fromString(remoteBasePath + "/" + what.path).delete(force = true)
@@ -25,9 +27,6 @@ class LocalConnection extends GeneralConnection {
     Path.fromString(remoteBasePath + "/" + from.path).copyTo(Path.fromString(localBasePath + "/" + from.path),replaceExisting = true)
   }
   def listrec(subfolder: String, receiver: Actor) = {
-    println("before dialog")
-//    val res = (sfsync.Main.dialog !? sfsync.Main.showYesNoDialog("huhu"))
-    sfsync.Main.Dialog.showYesNo("huhu")
     println("searching " + remoteBasePath + "/" + subfolder)
     val list = new ListBuffer[VirtualFile]()
     def parseContent(folder: Path) : Unit = {
@@ -40,6 +39,7 @@ class LocalConnection extends GeneralConnection {
           isDir = if (cc.isDirectory) 1 else 0
         }
         println("got " + vf)
+//        Thread.sleep(250)
         list += vf
         if (receiver != null) receiver ! vf
         if (cc.isDirectory) {
@@ -47,7 +47,8 @@ class LocalConnection extends GeneralConnection {
         }
       })
     }
-    parseContent(Path.fromString(remoteBasePath + "/" + subfolder))
+    val sp = Path.fromString(remoteBasePath + "/" + subfolder)
+    if (sp.exists) parseContent(sp)
     if (receiver != null) receiver ! 'done
     list
   }
@@ -74,7 +75,6 @@ class SftpConnection extends GeneralConnection {
       println("parsing " + folder + " : size=" + xx.size())
       for (obj <- xx) {
         val lse = obj.asInstanceOf[ChannelSftp#LsEntry]
-        println("parsing " + lse.getFilename)
         if (!lse.getFilename.equals(".") && !lse.getFilename.equals("..")) {
           val fullFilePath = folder + "/" + lse.getFilename
           val vf = new VirtualFile {
@@ -102,12 +102,11 @@ class SftpConnection extends GeneralConnection {
 
   class MyUserInfo extends jsch.UserInfo with jsch.UIKeyboardInteractive {
     def getPassword : String = {
-//      sfsync.Main.Dialog.showInputString("Enter password:")
-      ""
+      val res = runUIwait(sfsync.Main.Dialog.showInputString("Enter password:"))
+      res.asInstanceOf[String]
     }
     def promptYesNo(str: String) : Boolean = {
-//      sfsync.Main.Dialog.showYesNo(str)
-      false
+      runUIwait(sfsync.Main.Dialog.showYesNo(str)) == true
     }
 
     def promptKeyboardInteractive(destination: String, name: String, instruction: String, prompt: Array[String], echo: Array[Boolean]): Array[String] = null
@@ -118,7 +117,7 @@ class SftpConnection extends GeneralConnection {
 
     def promptPassphrase(message: String): Boolean = { println("prompt pwd") ; true }
 
-    def showMessage(message: String) { println("message: " + message) }
+    def showMessage(message: String) { runUIwait(sfsync.Main.Dialog.showMessage(message)) }
   }
 
   class MyJschLogger extends jsch.Logger {
@@ -143,10 +142,10 @@ class SftpConnection extends GeneralConnection {
   var jSch = new jsch.JSch
 
   val prvkey: Array[Byte] = scalax.file.Path.fromString("/Users/wolle/.ssh/id_dsa").bytes.toArray
-    jSch.addIdentity("wolle",prvkey,null,Array[Byte]())
-    var session = jSch.getSession("wolle", "localhost", 22)
-//  jSch.addIdentity("loeffler",prvkey,null,Array[Byte]())
-//  var session = jSch.getSession("loeffler", "data01.physics.leidenuniv.nl", 22)
+//    jSch.addIdentity("wolle",prvkey,null,Array[Byte]())
+//    var session = jSch.getSession("wolle", "localhost", 22)
+  jSch.addIdentity("loeffler",prvkey,null,Array[Byte]())
+  var session = jSch.getSession("loeffler", "data01.physics.leidenuniv.nl", 22)
 
   var ui = new MyUserInfo
   session.setUserInfo(ui)

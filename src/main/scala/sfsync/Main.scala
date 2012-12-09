@@ -6,17 +6,42 @@ import scalafx.scene._
 import scalafx.stage._
 import scalafx.scene.layout._
 import scalafx.scene.control._
+import scalafx.event.ActionEvent
 
 import javafx.geometry. {Orientation=>jgo}
 
 import util.Logging
-import scalafx.event.ActionEvent
 import store._
 import javax.swing.JOptionPane
-import javafx. {stage => jfxs}
+import javafx.{stage => jfxs}
 import synchro._
-import javafx.application.Platform
-import actors.Actor
+import scala.concurrent.ops.spawn
+import javafx.event.EventHandler
+
+object Helpers {
+  def runUI( f: => Unit ) {
+    javafx.application.Platform.runLater( new Runnable() {
+      def run() {
+        f
+      }
+    })
+  }
+
+  def runUIwait( f: => Any ) : Any = {
+    var stat: Any = null
+    //    synchronized(stat) // not needed??
+    val runable = new Runnable() {
+      def run() {
+        stat = f
+      }
+    }
+    javafx.application.Platform.runLater(runable)
+    while(stat == null) {
+      Thread.sleep(1)
+    }
+    stat
+  }
+}
 
 object Main extends JFXApp with Logging {
 
@@ -61,6 +86,7 @@ object Main extends JFXApp with Logging {
     items += (serverView, new BorderPane(), new BorderPane())
   }
 
+
   def lookupTextField(id: String) : TextField = {
     val yy = stage.scene.get.lookup(id)
     yy.getClass
@@ -89,6 +115,10 @@ object Main extends JFXApp with Logging {
           subfolder = subfolderView.tfSubFolder.tf.text.value
         )
         cw.setProfile(profile)
+        spawn { // this is key, do in new thread!
+          profile.init()
+          profile.compare()
+        }
       }
     },
     new Button("Save settings") {
@@ -102,7 +132,6 @@ object Main extends JFXApp with Logging {
         println("spv:" + spv.items )
       }
     }
-
     )
   }
 
@@ -129,6 +158,38 @@ object Main extends JFXApp with Logging {
     }
   }
 
+  stage = new Stage{
+    title = "SFSynchro"
+    width = 800
+    height = 600
+    scene = new Scene {
+      //      fill = Color.LIGHTGRAY
+      content = maincontent
+    }
+    delegate.setOnCloseRequest(new EventHandler[jfxs.WindowEvent] {
+      def handle(p1: jfxs.WindowEvent) {
+        println("*************** close requested " + stage)
+        doClose()
+      }
+    })
+    // this does not work, it is called at startup if contains calls !!!???
+//    onCloseRequest = {
+//      println("*************** close requested " + stage)
+//    }
+  }
+
+  def doClose() {
+    println("*************** close requested")
+    if (cw != null) cw ! 'done
+    if (profile != null) profile.finish()
+    Store.save
+    sys.exit(0)
+  }
+
+
+  maincontent.prefHeight <== stage.scene.height
+  maincontent.prefWidth <== stage.scene.width
+
   // https://gist.github.com/1887631
   object Dialog {
     val dstage = new Stage(jfxs.StageStyle.UTILITY) {
@@ -136,6 +197,23 @@ object Main extends JFXApp with Logging {
       initModality(jfxs.Modality.APPLICATION_MODAL)
       width = 500
       height = 300
+    }
+    def showMessage(msg: String) : Boolean = {
+      var res = -1
+      dstage.scene = new Scene {
+        content = new BorderPane {
+          center = new Label { text = msg }
+          bottom = new HBox {
+            content = List(
+              new Button("Ok") {
+                onAction = (ae: ActionEvent) => { res=1; dstage.close }
+              }
+            )
+          }
+        }
+      }
+      dstage.showAndWait()
+      res==1
     }
     def showYesNo(msg: String) : Boolean = {
       var res = -1
@@ -172,68 +250,6 @@ object Main extends JFXApp with Logging {
       res
     }
   }
-
-  stage = new Stage{
-    title = "SFSynchro"
-    width = 800
-    height = 600
-    scene = new Scene {
-      //      fill = Color.LIGHTGRAY
-      content = maincontent
-    }
-    onCloseRequest = {
-      if (stage != null) { // stupid: this is called at startup???
-        println("*************** close requested")
-        if (cw != null) cw ! 'done
-        if (profile != null) profile.finish()
-        Store.save
-      }
-    }
-  }
-
-//  case class showYesNoDialog(msg: String)
-//  val dialog = new Dialog
-//  class Dialog extends Actor {
-//    val dstage = new Stage(jfxs.StageStyle.UTILITY) {
-//      initOwner(Main.stage) // TODO remove
-//      initModality(jfxs.Modality.APPLICATION_MODAL)
-//      width = 500
-//      height = 300
-//    }
-//    def act() {
-//      println("actor started")
-//      loop {
-//        println("before")
-//        receive {
-//          case showYesNoDialog(msg) => {
-//            println("showyn")
-//            var res = -1
-//            dstage.scene = new Scene {
-//              content = new BorderPane {
-//                center = new Label { text = msg }
-//                bottom = new HBox {
-//                  content = List(
-//                    new Button("Yes") {
-//                      onAction = (ae: ActionEvent) => { res=1; dstage.close }
-//                    },
-//                    new Button("No") {
-//                      onAction = (ae: ActionEvent) => { res=0; dstage.close }
-//                    }
-//                  )
-//                }
-//              }
-//            }
-//            dstage.showAndWait()
-//            reply(res==1)
-//          }
-//        }
-//      }
-//    }
-//  }
-//  dialog.start()
-
-  maincontent.prefHeight <== stage.scene.height
-  maincontent.prefWidth <== stage.scene.width
 
   // init
 

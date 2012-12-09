@@ -108,11 +108,14 @@ class ProtocolView(val server: Server) extends BorderPane {
   def protocolChanged() : Unit = {
     val idx = lvp.lvs.getSelectionModel.getSelectedIndex
     val itm = lvp.lvs.getSelectionModel.getSelectedItem
-    protocol=server.protocols(idx)
-    if (!protocol.name.equals(itm)) protocol.name = itm // then it was edited!
-    server.currentProtocol = idx
-    tfBaseFolder.tf.text = protocol.protocolbasefolder
-    tfURI.tf.text = protocol.protocoluri
+    if (idx > -1) {
+      println("idx=" + idx + " sp" + server.protocols)
+      protocol=server.protocols(idx)
+      if (!protocol.name.equals(itm)) protocol.name = itm // then it was edited!
+      server.currentProtocol = idx
+      tfBaseFolder.tf.text = protocol.protocolbasefolder
+      tfURI.tf.text = protocol.protocoluri
+    }
   }
   var lvp = new MyListView[Protocol](() => new Protocol,server.protocols, server.currentProtocol, () => protocolChanged())
   var tfBaseFolder = new MyTextField("Base folder: ") { tf.onAction = (ae: ActionEvent) => { protocol.protocolbasefolder = tf.text.value} }
