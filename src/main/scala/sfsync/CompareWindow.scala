@@ -65,7 +65,6 @@ class CompareWindow() extends VBox with Actor {
   }
 
   var bv = new HBox {
-    this.prefHeight = 30
     content = List(
       new Button("Synchronize") {
         onAction = (ae: ActionEvent) => {
@@ -91,15 +90,10 @@ class CompareWindow() extends VBox with Actor {
     )
   }
   content = List(tv,bv)
-//  center = tv
-//  bottom = bv
   tv.selectionModel.get().setSelectionMode(javafx.scene.control.SelectionMode.MULTIPLE)
-//  tv.prefWidth <== this.width
   colPath.prefWidth <== (this.width - colStatus.prefWidth-1 - colDetailsLocal.prefWidth - colDetailsRemote.prefWidth)
-//  tv.prefHeight <== this.height
+  tv.prefHeight <== (this.height - bv.prefHeight)
 
-
-  //  for (cf <- comparedfiles) { compfiles.add(new CompFile(cf)) }
   // receive compared files!
   def act() {
     var doit = true

@@ -73,6 +73,7 @@ object Main extends JFXApp with Logging {
         val cw = new CompareWindow()
         Main.stage.scene().content = cw
         cw.prefWidth <== Main.stage.scene.width
+        cw.prefHeight <== Main.stage.scene.height
         cw.start()
 
         profile = new Profile (cw,
