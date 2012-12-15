@@ -8,7 +8,7 @@ import Tools._
 
 
 object DBSettings {
-  def dbpath = "/tmp/sfsyncsettings"
+  def dbpath = "/Unencrypted_Data/softwaredevelopment/sfsync-tmp/sfsyncsettings"
   def getSettingPath = DBSettings.dbpath + ".txt"
   def getLines = {
     val fff = Path.fromString(getSettingPath)
@@ -37,6 +37,7 @@ class Config {
   var servers = new sfxc.ObservableBuffer[Server] // THIS does not work :-( if the servers is used by ListView, it crashes the DB.....
 //  var servers = new mutable.ArrayBuffer[Server] //
   var currentServer = -1
+  var currentFilter = 0
 }
 
 class Server {

@@ -5,6 +5,7 @@ import scalafx.scene.control._
 import scalafx. {collections => sfxc}
 import scalafx.Includes._
 
+import javafx.{collections => jfxc}
 import javafx.{util => jfxu}
 import javafx.beans.{value => jfxbv}
 import javafx.scene. {control => jfxsc}
@@ -15,6 +16,7 @@ import Actions._
 
 import scalafx.beans.property.StringProperty
 import actors.Actor
+import sfsync.store.Store
 
 // the thing with properties for javafx tableview
 class CompFile(cf_ : ComparedFile) {
@@ -39,7 +41,7 @@ class CompFile(cf_ : ComparedFile) {
 
 class CompareWindow() extends VBox with Actor {
   var comparedfiles = new sfxc.ObservableBuffer[ComparedFile]()
-  var compfiles =  new sfxc.ObservableBuffer[CompFile]()
+  var compfiles =  new sfxc.ObservableBuffer[CompFile]() // for tableview
   var profile: Profile = null
   def setProfile(profilex: Profile) { profile = profilex }
 
@@ -72,6 +74,7 @@ class CompareWindow() extends VBox with Actor {
         }
       }
     )
+
   }
 
   val btSync = new Button("Synchronize") {
@@ -91,8 +94,8 @@ class CompareWindow() extends VBox with Actor {
         for (idx <- tv.selectionModel.get().getSelectedItems) {
           idx.cf.action = action
           idx.changeAction()
-          updateSyncButton()
         }
+        updateSyncButton()
       }
     }
   }
@@ -127,7 +130,36 @@ class CompareWindow() extends VBox with Actor {
 
   var bv = new HBox { content = List(btSync, btRmLocal, btUseLocal, btMerge, btNothing, btUseRemote, btRmRemote, btBack) }
 
-  content = List(tv,bv)
+  var filterList = new sfxc.ObservableBuffer[String]()
+  object F { val all="all"; val changes="changes"; val problems="problems"; def getAll = (all,changes,problems) }
+  println("")
+  filterList.addAll (F.all,F.changes,F.problems)
+  val cFilter = new ComboBox(filterList) {
+    selectionModel.get().select(Store.config.currentFilter)
+    onAction = (ae: ActionEvent) => {
+      Store.config.currentFilter = selectionModel.get().getSelectedIndex
+      updateFilter(selectionModel.get().getSelectedItem)
+    }
+  }
+
+  def getFilter(cf: ComparedFile) : Boolean = {
+    cFilter.getValue match {
+      case F.all => true
+      case F.changes => cf.action != A_NOTHING || cf.action == A_UNKNOWN
+      case F.problems => cf.action == A_UNKNOWN
+      case _ => true
+    }
+  }
+  def updateFilter(filter: String) {
+    compfiles.clear()
+    comparedfiles.filter( cf => getFilter(cf) ).foreach(cf => compfiles.add(new CompFile(cf)))
+  }
+
+  val toolbar = new ToolBar {
+    content = List(cFilter)
+  }
+
+  content = List(toolbar,tv,bv)
   tv.selectionModel.get().setSelectionMode(javafx.scene.control.SelectionMode.MULTIPLE)
   colPath.prefWidth <== (this.width - colStatus.prefWidth-1 - colDetailsLocal.prefWidth - colDetailsRemote.prefWidth)
   tv.prefHeight <== (this.height - bv.prefHeight)
@@ -141,7 +173,7 @@ class CompareWindow() extends VBox with Actor {
         case cf: ComparedFile => {
           runUI {
             comparedfiles.add(cf)
-            compfiles.add(new CompFile(cf))
+            if (getFilter(cf)) compfiles.add(new CompFile(cf))
 //            tv.scrollTo(compfiles.size)
           }
 //          println("added compfile " + cf)

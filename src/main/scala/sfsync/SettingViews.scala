@@ -9,6 +9,7 @@ import cell.TextFieldListCell
 import scalafx. {collections => sfxc}
 import scalafx.event.ActionEvent
 import sfsync.store._
+import sfsync.Helpers._
 
 class MyListView[T](val factory: () => T = null, var obsBuffer: sfxc.ObservableBuffer[T], var currIdx: Int, val onChange: () => Unit ) extends VBox {
   minHeight=120
@@ -71,8 +72,11 @@ class MyTextField(labelText: String, fileChooserMode: Int = 0) extends HBox {
         } else {
           fileChooser.setInitialDirectory(new java.io.File("/"))
         }
-        val res = fileChooser.showDialog(Main.stage)
-        if (res != null) tf.text = res.toString
+        runUI { // TODO: make dialog modal
+          val res = fileChooser.showDialog(Main.stage)
+          if (res != null) tf.text = res.toString
+        }
+        println("finished")
       }
     }
     content.add(butt)

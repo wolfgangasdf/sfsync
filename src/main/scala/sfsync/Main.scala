@@ -151,13 +151,6 @@ object Main extends JFXApp with Logging {
     Main.stage.scene().content = maincontent
   }
 
-  class DialogAlsoNot(msg: String) {
-    def showYesNo : Int = {
-      JOptionPane.showMessageDialog(null, "alert", "alert", JOptionPane.ERROR_MESSAGE)
-      1
-    }
-  }
-
   stage = new Stage{
     title = "SFSynchro"
     width = 800
