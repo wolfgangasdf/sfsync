@@ -45,6 +45,8 @@ object Helpers {
 
 object Main extends JFXApp with Logging {
 
+  val version = io.Source.fromURL(getClass.getResource("VERSION.txt")).mkString
+
   val menu = new Menu("File") {
 
     items.add(new MenuItem("Open"))
@@ -136,8 +138,7 @@ object Main extends JFXApp with Logging {
   }
 
   val statusBar = new ToolBar {
-    content = List(new Label { text = "bla" })
-
+    content = List(new Label { text = "Sfsync Version " + version })
   }
 
   val maincontent = new VBox() {

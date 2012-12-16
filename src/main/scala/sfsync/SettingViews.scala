@@ -61,7 +61,16 @@ class MyTextField(labelText: String, fileChooserMode: Int = 0) extends HBox {
     prefWidth = 500
     text = "..."
   }
-  content = List(new Label() { text = labelText }, tf)
+  var lb = new Label() {
+    prefWidth = 200
+    text = labelText
+//    alignment = javafx.geometry.Pos.CENTER_RIGHT // doesn't work
+    delegate.setAlignment(javafx.geometry.Pos.CENTER_RIGHT)
+    labelFor = tf
+  }
+  content = List(lb, tf)
+  spacing = 10
+
   if (fileChooserMode>0) {
     val butt = new Button("Dir...") {
       onAction = (ae: ActionEvent) => {
@@ -100,11 +109,12 @@ abstract class ServerView(val config: Config) extends BorderPane {
   }
   var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer, () => serverChanged)
   var tfLocalFolder = new MyTextField("Local folder: ",1) { tf.onAction = (ae: ActionEvent) => { server.localFolder = tf.text.value} }
-  var tfID = new MyTextField("Server ID (for cache): ",1) { tf.onAction = (ae: ActionEvent) => { server.id = tf.text.value} }
+  var tfID = new MyTextField("Cache ID: ",1) { tf.onAction = (ae: ActionEvent) => { server.id = tf.text.value} }
+  var bClearCache = new Button("Clear cache") { onAction = (ae: ActionEvent) => { Cache.clearCache(tfID.tf.text.value)} }
 
   top = new Label() { text = "Servers:" }
   left = lvs
-  right = new VBox() { content = List(tfLocalFolder,tfID) }
+  right = new VBox() { content = List(tfLocalFolder,tfID,bClearCache) }
 }
 
 class ProtocolView(val server: Server) extends BorderPane {

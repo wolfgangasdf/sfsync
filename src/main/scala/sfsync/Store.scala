@@ -211,4 +211,11 @@ object Cache {
     println("***** cache saved!")
   }
 
+  def clearCache(name: String) {
+    val fff = Path.fromString(getCacheFilename(name))
+    if (fff.exists) {
+      fff.delete(force = true)
+    }
+  }
+
 }
