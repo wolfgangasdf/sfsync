@@ -73,6 +73,7 @@ object Store {
     val fff = Path.fromString(DBSettings.getSettingPath)
     fff.write("sfsyncsettingsversion,1\n")
     fff.append("servercurr," + config.currentServer + "\n")
+    fff.append("currentFilter," + config.currentFilter + "\n")
     for (server <- config.servers) {
       println("server: " + server)
       fff.append("server," + server.name + "\n")
@@ -112,6 +113,7 @@ object Store {
             config = new Config()
           }
           case "servercurr" => { config.currentServer = sett(1).toInt }
+          case "currentFilter" => config.currentFilter = sett(1).toInt
           case "server" => {
             lastserver = new Server { name = sett(1) }
             config.servers.add(lastserver)

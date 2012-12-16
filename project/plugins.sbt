@@ -6,3 +6,6 @@ resolvers += "Sonatype snapshots" at "http://oss.sonatype.org/content/repositori
 
 addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.2.0-SNAPSHOT")
 
+// TODO addSbtPlugin("no.vedaadata" %% "sbt-javafx" % "0.4.1-SNAPSHOT")
+
+addSbtPlugin("com.github.retronym" % "sbt-onejar" % "0.8")
