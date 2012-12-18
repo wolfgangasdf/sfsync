@@ -1,12 +1,11 @@
 package sfsync.synchro
 
 import Actions._
-import util.Logging
-import sfsync.store.Cache
 import scala.actors._
 import Actor._
-import scala.concurrent.ops.spawn
-import java.net.URI
+import sfsync.store._
+import sfsync.CompareWindow
+import sfsync.Helpers._
 
 
 class TransferProtocol (
@@ -69,59 +68,59 @@ import scala.collection.mutable.ListBuffer
 case object CompareFinished
 case class RemoveCF(cf: ComparedFile)
 
-class Profile  (view: Actor,
-                localFolder: String,
-                protocol: TransferProtocol,
-                subfolder: String,
-                id: String
-                ) extends Logging  {
+class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfolder: SubFolder) {
   var comparedfiles = scalafx.collections.ObservableBuffer[ComparedFile]()
   var cache: ListBuffer[VirtualFile] = null
   var local: GeneralConnection = null
   var remote: GeneralConnection = null
 
+  var remotecnt = 0
+
   def init() {
-    cache = Cache.loadCache(id)
+    cache = Cache.loadCache(server.id)
     // test local conn
     local = new LocalConnection {
-      remoteBasePath = localFolder
+      remoteBasePath = server.localFolder
     }
     println("huhu")
-    val uri = new java.net.URI(protocol.uri)
+    val uri = new java.net.URI(protocol.protocoluri)
     println("scheme = " + uri.getScheme)
     remote = uri.getScheme match {
       case "sftp" => new SftpConnection(uri)
       case "file" => new LocalConnection
       case _ => { println("wrong protocol URI scheme: " + uri.getScheme); sys.exit(1) }
     }
-    remote.localBasePath = localFolder
-    remote.remoteBasePath = protocol.basefolder
+    remote.localBasePath = server.localFolder
+    remote.remoteBasePath = protocol.protocolbasefolder
   }
 
   def compare() {
     println("***********************list local")
-    var locall = local.listrec(subfolder, null)
+    var locall = local.listrec(subfolder.subfolder, server.filterRegexp, null)
+    runUIwait { view.statusBar.local.text = locall.length.toString }
     println("***********************result:")
-    locall.foreach(vf => println(vf))
+//    locall.foreach(vf => println(vf))
     println("***********************cache" + cache)
-    cache.foreach(vf => println(vf))
+//    cache.foreach(vf => println(vf))
     println("***********************receive remote list")
     val receiveList = actor {
       var finished = false
       loop {
         receive {
           case rf: VirtualFile => {
+            remotecnt += 1
             val cachef = cache.find(x => x.path == rf.path).getOrElse(null)
             val localf = locall.find(x => x.path == rf.path).getOrElse(null)
             locall -= localf
             val cfnew = new ComparedFile(localf, rf, cachef)
             comparedfiles += cfnew
             view ! cfnew // send it to view!
-            debug(cfnew)
+//            println(cfnew)
           }
           case 'done => {
             finished = true
             println("remotelistfinished!")
+            runUI { view.statusBar.remote.text = remotecnt.toString }
           }
           case 'replyWhenDone => if (finished) {
             reply('done)
@@ -132,7 +131,7 @@ class Profile  (view: Actor,
       }
     }
 
-    remote.listrec(subfolder, receiveList)
+    remote.listrec(subfolder.subfolder, server.filterRegexp, receiveList)
     receiveList !? 'replyWhenDone
     println("*********************** receive remote finished")
 
@@ -150,7 +149,7 @@ class Profile  (view: Actor,
 
   def synchronize(cfs: List[ComparedFile]) {
     for (cf <- cfs) {
-      println("***** cf:" + cf)
+//      println("***** cf:" + cf)
       var removecf = true
       cf.action match {
         case A_MERGE => sys.error("merge not implemented yet!")
@@ -164,7 +163,7 @@ class Profile  (view: Actor,
       if (removecf) view ! RemoveCF(cf)
     }
     view ! 'done
-    Cache.saveCache(id)
+    Cache.saveCache(server.id)
   }
   def finish() {
     if (remote != null) remote.finish()

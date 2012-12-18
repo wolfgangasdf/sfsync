@@ -44,6 +44,7 @@ class Server {
   var name: String = "<new>"
   var id: String = new java.util.Date().getTime.toString
   var localFolder: String = ""
+  var filterRegexp: String = ""
   var protocols = new sfxc.ObservableBuffer[Protocol]
   var currentProtocol = -1
   var subfolders = new sfxc.ObservableBuffer[SubFolder]
@@ -78,6 +79,7 @@ object Store {
       println("server: " + server)
       fff.append("server," + server.name + "\n")
       fff.append("localfolder," + server.localFolder + "\n")
+      fff.append("filterregexp," + server.filterRegexp + "\n")
       fff.append("id," + server.id + "\n")
       fff.append("protocolcurr," + server.currentProtocol + "\n")
       for (proto <- server.protocols) {
@@ -120,6 +122,7 @@ object Store {
             println("added server " + lastserver)
           }
           case "localfolder" => { lastserver.localFolder = sett(1) }
+          case "filterregexp" => { lastserver.filterRegexp = sett(1) }
           case "id" => { lastserver.id = sett(1) }
           case "protocolcurr" => { lastserver.currentProtocol = sett(1).toInt }
           case "protocol" => {
@@ -150,7 +153,6 @@ object Store {
     println("--------------/dumpconfig")
   }
 
-  // Load config
   load()
 }
 
@@ -183,7 +185,7 @@ object Cache {
   def remove(vf: VirtualFile) {
     if (cache.contains(vf)) {
       cache -= vf
-      println(" removed from cache " + vf)
+//      println(" removed from cache " + vf)
     } else {
       println(" error: cache doesn't contain " + vf)
     }
@@ -191,11 +193,11 @@ object Cache {
 
   def addupdate(vf: VirtualFile) {
     val vfs = cache.filter(p => p.path == vf.path)
-    println(" addup: found " + vfs)
+//    println(" addup: found " + vfs)
     cache --= vfs
     cache += vf
     val vfs2 = cache.filter(p => p.path == vf.path)
-    println(" after: found " + vfs2)
+//    println(" after: found " + vfs2)
   }
 
   def saveCache(name: String) {
@@ -205,7 +207,7 @@ object Cache {
     }
     fff.doCreateFile()
     for (cf <- cache) {
-      println("  savecache: " + cf)
+//      println("  savecache: " + cf)
       fff.append("" + cf.modTime + "," + cf.isDir + "," + cf.size + "," + cf.path + "\n")
     }
     println("***** cache saved!")
@@ -218,4 +220,18 @@ object Cache {
     }
   }
 
+}
+
+object TestStoreMakeMany extends App {
+  val basef = Path.fromString("/Unencrypted_Data/temp/teststorelargelocal")
+  basef.exists && sys.error("basef exists")
+  basef.createDirectory()
+  for(i <- 1 to 200) {
+    val baseff = basef / ("folder" + i)
+    baseff.createDirectory()
+    for (j<- 1 to 100) {
+      baseff / ("file" + i + "-" + j) doCreateFile()
+    }
+  }
+  println("done")
 }

@@ -17,6 +17,8 @@ import Actions._
 import scalafx.beans.property.StringProperty
 import actors.Actor
 import sfsync.store.Store
+import sfsync.Helpers._
+import scala.collection
 
 // the thing with properties for javafx tableview
 class CompFile(cf_ : ComparedFile) {
@@ -132,7 +134,6 @@ class CompareWindow() extends VBox with Actor {
 
   var filterList = new sfxc.ObservableBuffer[String]()
   object F { val all="all"; val changes="changes"; val problems="problems"; def getAll = (all,changes,problems) }
-  println("")
   filterList.addAll (F.all,F.changes,F.problems)
   val cFilter = new ComboBox(filterList) {
     selectionModel.get().select(Store.config.currentFilter)
@@ -159,12 +160,30 @@ class CompareWindow() extends VBox with Actor {
     content = List(cFilter)
   }
 
-  content = List(toolbar,tv,bv)
+  val statusBar = new ToolBar {
+    var local = new Label { text = "?" }
+    var remote = new Label { text = "?" }
+    var status = new Label { text = "?" }
+    content = List(
+      new Label { text = "Local: " },
+      local,
+      new Label { text = "Status: " },
+      status,
+      new Label { text = "Remote: " },
+      remote
+    )
+//    spacing = 10
+    List(local,remote,status).map(f => f.prefWidth = 150)
+  }
+
+
+  content = List(toolbar,tv,bv,statusBar)
   tv.selectionModel.get().setSelectionMode(javafx.scene.control.SelectionMode.MULTIPLE)
   colPath.prefWidth <== (this.width - colStatus.prefWidth-1 - colDetailsLocal.prefWidth - colDetailsRemote.prefWidth)
   tv.prefHeight <== (this.height - bv.prefHeight)
+  bv.prefWidth <== this.width
+  statusBar.prefWidth <== this.width
 
-  import sfsync.Helpers._
   // receive compared files!
   def act() {
     var doit = true
@@ -181,9 +200,10 @@ class CompareWindow() extends VBox with Actor {
         case CompareFinished => {
           println("comparefinished!")
           runUI { updateSyncButton() }
+          runUI { statusBar.status.text = "ready" }
         }
-        case RemoveCF(cf: ComparedFile) => {
-          println("cw: remove " + cf + " lengths=" + comparedfiles.size + "," + compfiles.size)
+        case RemoveCF(cf: ComparedFile) => { // called by synchronize
+//          println("cw: remove " + cf + " lengths=" + comparedfiles.size + "," + compfiles.size)
           runUI {
             comparedfiles.remove(cf)
             compfiles.removeAll(compfiles.filter(p => p.cf == cf))

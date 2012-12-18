@@ -107,15 +107,7 @@ object Main extends JFXApp with Logging {
         cw.prefHeight <== Main.stage.scene.height
         cw.start()
 
-        profile = new Profile (cw,
-          id = serverView.server.id,
-          localFolder = serverView.tfLocalFolder.tf.text.value,
-          protocol = new TransferProtocol(
-            uri = protocolView.tfURI.tf.text.value,
-            basefolder = protocolView.tfBaseFolder.tf.text.value
-          ),
-          subfolder = subfolderView.tfSubFolder.tf.text.value
-        )
+        profile = new Profile (cw,serverView.server, protocolView.protocol, subfolderView.subfolder)
         cw.setProfile(profile)
         spawn { // this is key, do in new thread!
           profile.init()

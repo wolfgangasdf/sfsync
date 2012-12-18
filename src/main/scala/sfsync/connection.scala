@@ -18,7 +18,7 @@ import sfsync.Helpers._
 class LocalConnection extends GeneralConnection {
   def deletefile(what: VirtualFile) {
     Path.fromString(remoteBasePath + "/" + what.path).delete(force = true)
-    println("deleted " + remoteBasePath + what.path)
+//    println("deleted " + remoteBasePath + what.path)
   }
   def putfile(from: VirtualFile) {
     Path.fromString(localBasePath + "/" + from.path).copyTo(Path.fromString(remoteBasePath + "/" + from.path),replaceExisting = true)
@@ -26,26 +26,27 @@ class LocalConnection extends GeneralConnection {
   def getfile(from: VirtualFile) {
     Path.fromString(remoteBasePath + "/" + from.path).copyTo(Path.fromString(localBasePath + "/" + from.path),replaceExisting = true)
   }
-  def listrec(subfolder: String, receiver: Actor) = {
-    println("searching " + remoteBasePath + "/" + subfolder)
+  def listrec(subfolder: String, filterregexp: String, receiver: Actor) = {
+//    println("searching " + remoteBasePath + "/" + subfolder)
     val list = new ListBuffer[VirtualFile]()
     def parseContent(folder: Path) : Unit = {
-      println("parsing " + folder)
-      folder.children().foreach(cc => {
+//      println("parsing " + folder)
+      for (cc <- folder.children()) {
         val vf = new VirtualFile {
           path=cc.path.substring(remoteBasePath.length + 1) // without leading '/'
           modTime = cc.lastModified
           size = cc.size.get
           isDir = if (cc.isDirectory) 1 else 0
         }
-        println("got " + vf)
-//        Thread.sleep(250)
-        list += vf
-        if (receiver != null) receiver ! vf
-        if (cc.isDirectory) {
-          parseContent(cc)
+        if ( !vf.fileName.matches(filterregexp) ) {
+//          println("got " + vf)
+          list += vf
+          if (receiver != null) receiver ! vf
+          if (cc.isDirectory) {
+            parseContent(cc)
+          }
         }
-      })
+      }
     }
     val sp = Path.fromString(remoteBasePath + (if (subfolder.length>0) "/" else "") + subfolder)
     println("sp=" + sp)
@@ -59,7 +60,7 @@ class LocalConnection extends GeneralConnection {
 class SftpConnection(var uri: java.net.URI) extends GeneralConnection {
   def deletefile(what: VirtualFile) {
     sftp.rm(remoteBasePath + "/" + what.path)
-    println("deleted " + remoteBasePath + "/" + what.path)
+//    println("deleted " + remoteBasePath + "/" + what.path)
   }
   def putfile(from: VirtualFile) {
     val rp = remoteBasePath + "/" + from.path
@@ -72,29 +73,31 @@ class SftpConnection(var uri: java.net.URI) extends GeneralConnection {
     Path.fromString(lp).lastModified = from.modTime
   }
 
-  def listrec(subfolder: String, receiver: Actor) = {
+  def listrec(subfolder: String, filterregexp: String, receiver: Actor) = {
     println("searching " + remoteBasePath + "/" + subfolder)
     val list = new ListBuffer[VirtualFile]()
     def parseContent(folder: String) : Unit = {
       val xx = sftp.ls(folder)
-      println("parsing " + folder + " : size=" + xx.size())
+//      println("parsing " + folder + " : size=" + xx.size())
       for (obj <- xx) {
         val lse = obj.asInstanceOf[ChannelSftp#LsEntry]
         if (!lse.getFilename.equals(".") && !lse.getFilename.equals("..")) {
           val fullFilePath = folder + "/" + lse.getFilename
           val vf = new VirtualFile {
-            println("ffp=" + fullFilePath)
+//            println("ffp=" + fullFilePath)
             path=(fullFilePath).substring(remoteBasePath.length + 1) // without leading '/'
 //            printf("times=" + lse.getAttrs.getMTime + " " + lse.getAttrs.getMtimeString + " " + lse.getAttrs.getATime)
             modTime = lse.getAttrs.getMTime.toLong * 1000
             size = lse.getAttrs.getSize
             isDir = if (lse.getAttrs.isDir) 1 else 0
           }
-          println("got " + vf)
-          list += vf
-          if (receiver != null) receiver ! vf
-          if (lse.getAttrs.isDir) {
-            parseContent(fullFilePath)
+          if ( !vf.fileName.matches(filterregexp) ) {
+//            println("got " + vf)
+            list += vf
+            if (receiver != null) receiver ! vf
+            if (lse.getAttrs.isDir) {
+              parseContent(fullFilePath)
+            }
           }
         }
       }
@@ -194,7 +197,7 @@ trait GeneralConnection {
   def getfile(from: VirtualFile)
   def putfile(from: VirtualFile)
   def deletefile(what: VirtualFile)
-  def listrec(where: String, receiver: Actor): ListBuffer[VirtualFile]
+  def listrec(where: String, filterregexp: String, receiver: Actor): ListBuffer[VirtualFile]
   def finish()
 }
 
@@ -203,6 +206,8 @@ class VirtualFile extends Ordered[VirtualFile] {
   var modTime: Long = 0
   var size: Long = 0
   var isDir: Int = 0
+
+  def fileName : String = { path.split("/").last }
   override def toString: String = "["+path+"]:"+modTime+","+size
 
   override def equals(that: Any): Boolean = {

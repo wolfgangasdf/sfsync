@@ -104,17 +104,19 @@ abstract class ServerView(val config: Config) extends BorderPane {
       config.currentServer = idx//lvs.lvs.items.get().indexOf(server)
       tfLocalFolder.tf.text = server.localFolder
       tfID.tf.text = server.id
+      tfFilter.tf.text = server.filterRegexp
       onServerChange()
     }
   }
   var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer, () => serverChanged)
   var tfLocalFolder = new MyTextField("Local folder: ",1) { tf.onAction = (ae: ActionEvent) => { server.localFolder = tf.text.value} }
   var tfID = new MyTextField("Cache ID: ",1) { tf.onAction = (ae: ActionEvent) => { server.id = tf.text.value} }
+  var tfFilter = new MyTextField("Filter: ",1) { tf.onAction = (ae: ActionEvent) => { server.filterRegexp = tf.text.value} }
   var bClearCache = new Button("Clear cache") { onAction = (ae: ActionEvent) => { Cache.clearCache(tfID.tf.text.value)} }
 
   top = new Label() { text = "Servers:" }
   left = lvs
-  right = new VBox() { content = List(tfLocalFolder,tfID,bClearCache) }
+  right = new VBox() { content = List(tfLocalFolder,tfFilter,tfID,bClearCache) }
 }
 
 class ProtocolView(val server: Server) extends BorderPane {
@@ -144,10 +146,12 @@ class SubFolderView(val server: Server) extends BorderPane {
   def subfolderChanged() : Unit = {
     val idx = lvp.lvs.getSelectionModel.getSelectedIndex
     val itm = lvp.lvs.getSelectionModel.getSelectedItem
-    subfolder=server.subfolders(idx)
-    if (!subfolder.name.equals(itm)) subfolder.name = itm // then it was edited!
-    server.currentSubFolder = idx
-    tfSubFolder.tf.text = subfolder.subfolder
+    if (idx > -1) {
+      subfolder=server.subfolders(idx)
+      if (!subfolder.name.equals(itm)) subfolder.name = itm // then it was edited!
+      server.currentSubFolder = idx
+      tfSubFolder.tf.text = subfolder.subfolder
+    }
   }
   var lvp = new MyListView[SubFolder](() => new SubFolder,server.subfolders, server.currentSubFolder, () => subfolderChanged())
   var tfSubFolder = new MyTextField("Subfolder: ",5) { tf.onAction = (ae: ActionEvent) => { subfolder.subfolder = tf.text.value} }
