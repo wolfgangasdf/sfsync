@@ -49,6 +49,6 @@ object Profiling {
         formatTime(delta, timeUnits, Nil).mkString(" ")
     }
     def printTime(msg:String) = (delta:Long) => {
-        println(msg + formatTime(delta))
+        println("TTTTTTTTTTTT " + msg + formatTime(delta))
     }
 }

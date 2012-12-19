@@ -223,7 +223,7 @@ object Cache {
 }
 
 object TestStoreMakeMany extends App {
-  val basef = Path.fromString("/Unencrypted_Data/temp/teststorelargelocal")
+  val basef = Path.fromString("/Unencrypted_Data/tempnospotlight/teststorelargelocal")
   basef.exists && sys.error("basef exists")
   basef.createDirectory()
   for(i <- 1 to 200) {

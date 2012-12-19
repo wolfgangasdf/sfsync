@@ -10,6 +10,7 @@ import javafx.{util => jfxu}
 import javafx.beans.{value => jfxbv}
 import javafx.scene. {control => jfxsc}
 import scalafx.event.ActionEvent
+import scala.concurrent.ops.spawn
 
 import synchro._
 import Actions._
@@ -81,7 +82,10 @@ class CompareWindow() extends VBox with Actor {
 
   val btSync = new Button("Synchronize") {
     onAction = (ae: ActionEvent) => {
-      profile.synchronize(comparedfiles.toList)
+      disable = true
+      spawn {
+        profile.synchronize(comparedfiles.toList)
+      }
     }
   }
   var btBack = new Button("Back") {
@@ -209,7 +213,8 @@ class CompareWindow() extends VBox with Actor {
             compfiles.removeAll(compfiles.filter(p => p.cf == cf))
           }
         }
-        case 'done => {
+        case 'done => { // this should be called by myself only
+          println("done: sender = " + sender.toString)
           btSync.setDisable(true)
           doit = false
           println("exiting actor cw")

@@ -31,7 +31,7 @@ class LocalConnection extends GeneralConnection {
     val list = new ListBuffer[VirtualFile]()
     def parseContent(folder: Path) : Unit = {
 //      println("parsing " + folder)
-      for (cc <- folder.children()) {
+      for (cc <- folder.children().toList.sorted) { // sorted improves performance a lot of course
         val vf = new VirtualFile {
           path=cc.path.substring(remoteBasePath.length + 1) // without leading '/'
           modTime = cc.lastModified
@@ -78,9 +78,13 @@ class SftpConnection(var uri: java.net.URI) extends GeneralConnection {
     val list = new ListBuffer[VirtualFile]()
     def parseContent(folder: String) : Unit = {
       val xx = sftp.ls(folder)
-//      println("parsing " + folder + " : size=" + xx.size())
-      for (obj <- xx) {
+//      println("parsing " + folder + " : size=" + xx.length)
+      val tmp = new ListBuffer[ChannelSftp#LsEntry]
+      for (obj <- xx ) { tmp += obj.asInstanceOf[ChannelSftp#LsEntry] } // doesn't work otherwise!
+      val ord = new Ordering[ChannelSftp#LsEntry]() { def compare(l: ChannelSftp#LsEntry, r: ChannelSftp#LsEntry) = l.getFilename compare r.getFilename }
+      for (obj <- tmp.sorted(ord) ) {
         val lse = obj.asInstanceOf[ChannelSftp#LsEntry]
+//        println("lse=" + lse.getFilename)
         if (!lse.getFilename.equals(".") && !lse.getFilename.equals("..")) {
           val fullFilePath = folder + "/" + lse.getFilename
           val vf = new VirtualFile {
@@ -103,6 +107,7 @@ class SftpConnection(var uri: java.net.URI) extends GeneralConnection {
       }
     }
     parseContent(remoteBasePath + (if (subfolder.length>0) "/" else "") + subfolder)
+    println("parsing done")
     if (receiver != null) receiver ! 'done
     list
   }

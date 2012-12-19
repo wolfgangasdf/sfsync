@@ -10,7 +10,9 @@ scalaVersion := "2.9.2"
 
 unmanagedJars in Compile += Attributed.blank(file(System.getenv("JAVA_HOME") + "/jre/lib/jfxrt.jar"))
 
-mainClass in oneJar := Some("sfsync.Main")
+//mainClass in (Compile, run, oneJar) := Some("sfsync.Main")
+
+mainClass in (Compile, run) := Some("sfsync.Main")
 
 //javaHome := Some(file("/Library/Java/JavaVirtualMachines/1.7.0.jdk/Contents/Home"))
 

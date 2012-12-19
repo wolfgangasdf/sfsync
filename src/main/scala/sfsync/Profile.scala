@@ -1,11 +1,16 @@
 package sfsync.synchro
 
+/*
+this runs not in ui thread, so use runUI and runUIwait!
+ */
+
 import Actions._
 import scala.actors._
 import Actor._
 import sfsync.store._
 import sfsync.CompareWindow
 import sfsync.Helpers._
+import util.Profiling._
 
 
 class TransferProtocol (
@@ -77,31 +82,38 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
   var remotecnt = 0
 
   def init() {
+    runUIwait { view.statusBar.status.text = "load cached files..." }
     cache = Cache.loadCache(server.id)
-    // test local conn
+    runUIwait { view.statusBar.status.text = "ready" }
+
     local = new LocalConnection {
       remoteBasePath = server.localFolder
     }
-    println("huhu")
     val uri = new java.net.URI(protocol.protocoluri)
     println("scheme = " + uri.getScheme)
+    runUIwait { view.statusBar.status.text = "ini remote connection..." }
     remote = uri.getScheme match {
       case "sftp" => new SftpConnection(uri)
       case "file" => new LocalConnection
       case _ => { println("wrong protocol URI scheme: " + uri.getScheme); sys.exit(1) }
     }
+    runUIwait { view.statusBar.status.text = "ready" }
     remote.localBasePath = server.localFolder
     remote.remoteBasePath = protocol.protocolbasefolder
   }
 
   def compare() {
+    runUIwait { view.statusBar.status.text = "list local files..." }
     println("***********************list local")
-    var locall = local.listrec(subfolder.subfolder, server.filterRegexp, null)
+    var locall = timed(printTime("loaded local list in ")) {
+      local.listrec(subfolder.subfolder, server.filterRegexp, null)
+    }
     runUIwait { view.statusBar.local.text = locall.length.toString }
-    println("***********************result:")
+//    println("***********************result:")
 //    locall.foreach(vf => println(vf))
-    println("***********************cache" + cache)
+//    println("***********************cache" + cache)
 //    cache.foreach(vf => println(vf))
+    runUIwait { view.statusBar.status.text = "compare to remote files..." }
     println("***********************receive remote list")
     val receiveList = actor {
       var finished = false
@@ -115,6 +127,9 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
             val cfnew = new ComparedFile(localf, rf, cachef)
             comparedfiles += cfnew
             view ! cfnew // send it to view!
+            if (remotecnt % 100 == 0) runUIwait { // give UI time
+              view.statusBar.remote.text = remotecnt.toString
+            }
 //            println(cfnew)
           }
           case 'done => {
@@ -131,39 +146,56 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
       }
     }
 
-    remote.listrec(subfolder.subfolder, server.filterRegexp, receiveList)
-    receiveList !? 'replyWhenDone
-    println("*********************** receive remote finished")
+    timed(printTime("compared in ")){
+      remote.listrec(subfolder.subfolder, server.filterRegexp, receiveList)
+      receiveList !? 'replyWhenDone
+      println("*********************** receive remote finished")
 
-    // add remaing remote-only files
-    locall.foreach(vf => {
-      val cachef = cache.find(x => x.path == vf.path).getOrElse(null)
-      val cfnew = new ComparedFile(vf, null, cachef)
-      comparedfiles += cfnew
-      view ! cfnew // send it!
-    })
-//    debug("***********************compfiles")
-//    comparedfiles.foreach(cf => println(cf))
-    view ! CompareFinished // send finished!
+      // add remaing local-only files
+      locall.foreach(vf => {
+        val cachef = cache.find(x => x.path == vf.path).getOrElse(null)
+        val cfnew = new ComparedFile(vf, null, cachef)
+        comparedfiles += cfnew
+        view ! cfnew // send it!
+      })
+  //    debug("***********************compfiles")
+  //    comparedfiles.foreach(cf => println(cf))
+      runUIwait { view.statusBar.status.text = "ready" }
+      view ! CompareFinished // send finished!
+    }
   }
 
   def synchronize(cfs: List[ComparedFile]) {
-    for (cf <- cfs) {
-//      println("***** cf:" + cf)
-      var removecf = true
-      cf.action match {
-        case A_MERGE => sys.error("merge not implemented yet!")
-        case A_RMLOCAL => local.deletefile(cf.flocal)
-        case A_RMREMOTE => { remote.deletefile(cf.fremote) ; if (cache.contains(cf.fremote)) Cache.remove(cf.fremote) }
-        case A_USELOCAL => { remote.putfile(cf.flocal) ; Cache.addupdate(cf.flocal) }
-        case A_USEREMOTE => { remote.getfile(cf.fremote) ; if (!cache.contains(cf.fremote)) Cache.addupdate(cf.fremote) }
-        case A_NOTHING => { if (!cache.contains(cf.fremote)) Cache.addupdate(cf.fremote) }
-        case _ => removecf = false
+    println("synchronize...")
+    runUIwait { view.statusBar.status.text = "synchronize..." }
+    println("aaaaa...")
+    timed(printTime("synchronized in ")) {
+      var iii = cfs.length
+      for (cf <- cfs) {
+        iii -= 1
+  //      println("***** cf:" + cf)
+        var removecf = true
+        cf.action match {
+          case A_MERGE => sys.error("merge not implemented yet!")
+          case A_RMLOCAL => local.deletefile(cf.flocal)
+          case A_RMREMOTE => { remote.deletefile(cf.fremote) ; if (cache.contains(cf.fremote)) Cache.remove(cf.fremote) }
+          case A_USELOCAL => { remote.putfile(cf.flocal) ; Cache.addupdate(cf.flocal) }
+          case A_USEREMOTE => { remote.getfile(cf.fremote) ; if (!cache.contains(cf.fremote)) Cache.addupdate(cf.fremote) }
+          case A_NOTHING => { if (!cache.contains(cf.fremote)) Cache.addupdate(cf.fremote) }
+          case _ => removecf = false
+        }
+        if (removecf) view ! RemoveCF(cf)
+        if (iii % 100 == 0) runUIwait { // give UI time
+          view.statusBar.status.text = "synchronize " + iii
+        }
       }
-      if (removecf) view ! RemoveCF(cf)
+      view ! 'done
     }
-    view ! 'done
-    Cache.saveCache(server.id)
+    runUIwait { view.statusBar.status.text = "save cache..." }
+    timed(printTime("saved cache in ")) {
+      Cache.saveCache(server.id)
+    }
+    runUIwait { view.statusBar.status.text = "ready" }
   }
   def finish() {
     if (remote != null) remote.finish()
