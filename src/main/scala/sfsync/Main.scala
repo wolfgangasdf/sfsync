@@ -17,6 +17,7 @@ import javafx.{stage => jfxs}
 import synchro._
 import scala.concurrent.ops.spawn
 import javafx.event.EventHandler
+import Helpers._
 
 object Helpers {
   def runUI( f: => Unit ) {
@@ -41,6 +42,9 @@ object Helpers {
     }
     stat
   }
+  import scalafx.beans.property._
+  implicit def StringPropertyToString(sp: StringProperty) = sp.value
+  implicit def IntegerPropertyToString(sp: IntegerProperty) = sp.value
 }
 
 object Main extends JFXApp with Logging {
@@ -68,12 +72,12 @@ object Main extends JFXApp with Logging {
       subfolderView = new SubFolderView(server)
       spv.items(1) = protocolView
       spv.items(2) = subfolderView
-      if (server.currentProtocol > -1) {
+      if (server.currentProtocol.value > -1) {
         println("****  " + server.currentProtocol)
         protocolView.protocolChanged()
         println("****  " + server.currentProtocol)
       }
-      if (server.currentSubFolder > -1) {
+      if (server.currentSubFolder.value > -1) {
         subfolderView.subfolderChanged()
       }
       println("**** /onServerchange: " + server.currentProtocol)
@@ -98,6 +102,11 @@ object Main extends JFXApp with Logging {
 
   var profile: Profile = null
   var cw: CompareWindow = null
+
+  var asdfv: scalafx.beans.property.StringProperty = "asf"
+  asdfv.onChange( { println(asdfv) } )
+  var asdf = new TextField
+
   val toolBar = new ToolBar {
     content = List(new Button("Compare") {
       onAction = (ae: ActionEvent) => {
@@ -123,13 +132,22 @@ object Main extends JFXApp with Logging {
         println("store saved!")
       }
     },
-    new Button("test") {
-      onAction = (ae: ActionEvent) => {
-        println("spv:" + spv.items )
-      }
-    }
+      new Button("test") {
+        onAction = (ae: ActionEvent) => {
+          asdfv.set("huhuhuhu")
+        }
+      },
+      new Button("test2") {
+        onAction = (ae: ActionEvent) => {
+          asdfv = new scalafx.beans.property.StringProperty
+          asdfv = "hihi"
+          asdf.text <==> asdfv
+        }
+      },
+    asdf
     )
   }
+  asdf.text <==> asdfv
 
   val statusBar = new ToolBar {
     content = List(new Label { text = "Sfsync Version " + version })
@@ -244,7 +262,7 @@ object Main extends JFXApp with Logging {
 
   // init
 
-  if (Store.config.currentServer > -1) {
+  if (Store.config.currentServer.value > -1) {
     serverView.serverChanged()
   }
 }

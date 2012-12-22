@@ -73,6 +73,7 @@ class ComparedFile(var flocal: VirtualFile, var fremote: VirtualFile, var fcache
 }
 import scala.collection.mutable.ListBuffer
 
+
 case object CompareFinished
 case class RemoveCF(cf: ComparedFile)
 
@@ -96,7 +97,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
     if (protocol.executeBefore != "") {
       runUIwait { view.statusBar.status.text = "execute 'before'..." }
       import sys.process._
-      val res = protocol.executeBefore.!
+      val res = protocol.executeBefore.value.!
       if (res != 0) {
         sys.error("error executing 'before' command!")
       }
@@ -105,7 +106,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
     runUIwait { view.statusBar.status.text = "ready" }
 
     local = new LocalConnection {
-      remoteBasePath = server.localFolder
+      remoteBasePath = server.localFolder.value
     }
     val uri = new java.net.URI(protocol.protocoluri)
     println("scheme = " + uri.getScheme)
@@ -116,7 +117,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
       case _ => { println("wrong protocol URI scheme: " + uri.getScheme); sys.exit(1) }
     }
     runUIwait { view.statusBar.status.text = "ready" }
-    remote.localBasePath = server.localFolder
+    remote.localBasePath = server.localFolder.value
     remote.remoteBasePath = protocol.protocolbasefolder
   }
 
@@ -229,7 +230,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
     if (remote != null) remote.finish()
     if (protocol.executeAfter != "") {
       import sys.process._
-      val res = protocol.executeAfter.!
+      val res = protocol.executeAfter.value.!
       if (res != 0) {
         sys.error("error executing 'after' command!")
       }

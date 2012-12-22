@@ -2,9 +2,12 @@ package sfsync.store
 
 import sfsync.synchro.VirtualFile
 import scalafx.{collections => sfxc}
+import scalafx.beans.property._
 import scalax.file.Path
 import scalax.io.Line
 import Tools._
+import sfsync.Helpers._
+
 
 
 object DBSettings {
@@ -36,34 +39,34 @@ object Tools {
 class Config {
   var servers = new sfxc.ObservableBuffer[Server] // THIS does not work :-( if the servers is used by ListView, it crashes the DB.....
 //  var servers = new mutable.ArrayBuffer[Server] //
-  var currentServer = -1
-  var currentFilter = 0
+  var currentServer: IntegerProperty = -1
+  var currentFilter: IntegerProperty = 0
 }
 
 class Server {
-  var name: String = "<new>"
-  var id: String = new java.util.Date().getTime.toString
-  var localFolder: String = ""
-  var filterRegexp: String = ""
+  var name: StringProperty = "<new>"
+  var id: StringProperty = new java.util.Date().getTime.toString
+  var localFolder: StringProperty = ""
+  var filterRegexp: StringProperty = ""
   var protocols = new sfxc.ObservableBuffer[Protocol]
-  var currentProtocol = -1
+  var currentProtocol: IntegerProperty = -1
   var subfolders = new sfxc.ObservableBuffer[SubFolder]
-  var currentSubFolder = -1
+  var currentSubFolder: IntegerProperty = -1
   override def toString: String = name // used for listview
 }
 
 class Protocol {
-  var name = "<new>"
-  var protocoluri = ""
-  var protocolbasefolder = ""
-  var executeBefore = ""
-  var executeAfter = ""
+  var name: StringProperty = "<new>"
+  var protocoluri: StringProperty = ""
+  var protocolbasefolder: StringProperty = ""
+  var executeBefore: StringProperty = ""
+  var executeAfter: StringProperty = ""
   override def toString: String = name
 }
 
 class SubFolder {
-  var name: String = "<new>"
-  var subfolder: String = ""
+  var name: StringProperty = "<new>"
+  var subfolder: StringProperty = ""
   override def toString: String = name
 }
 
@@ -74,27 +77,29 @@ object Store {
   def save() {
     println("-----------save " + config)
     val fff = Path.fromString(DBSettings.getSettingPath)
+    def saveVal(key: String, what: Property[_,_]) = {
+      fff.append(key + "," + what.value + "\n")
+    }
     fff.write("sfsyncsettingsversion,1\n")
-    fff.append("servercurr," + config.currentServer + "\n")
-    fff.append("currentFilter," + config.currentFilter + "\n")
+    saveVal("servercurr", config.currentServer)
+    saveVal("currentFilter", config.currentFilter)
     for (server <- config.servers) {
-      println("server: " + server)
-      fff.append("server," + server.name + "\n")
-      fff.append("localfolder," + server.localFolder + "\n")
-      fff.append("filterregexp," + server.filterRegexp + "\n")
-      fff.append("id," + server.id + "\n")
-      fff.append("protocolcurr," + server.currentProtocol + "\n")
+      saveVal("server", server.name)
+      saveVal("localfolder", server.localFolder)
+      saveVal("filterregexp", server.filterRegexp)
+      saveVal("id", server.id)
+      saveVal("protocolcurr", server.currentProtocol)
       for (proto <- server.protocols) {
-        fff.append("protocol," + proto.name + "\n")
-        fff.append("protocoluri," + proto.protocoluri + "\n")
-        fff.append("protocolbasefolder," + proto.protocolbasefolder+ "\n")
-        fff.append("protocolexbefore," + proto.executeBefore+ "\n")
-        fff.append("protocolexafter," + proto.executeAfter+ "\n")
+        saveVal("protocol", proto.name)
+        saveVal("protocoluri", proto.protocoluri)
+        saveVal("protocolbasefolder", proto.protocolbasefolder)
+        saveVal("protocolexbefore", proto.executeBefore)
+        saveVal("protocolexafter", proto.executeAfter)
       }
-      fff.append("subfoldercurr," + server.currentSubFolder + "\n")
+      saveVal("subfoldercurr", server.currentSubFolder)
       for (subf <- server.subfolders) {
-        fff.append("subfolder," + subf.name + "\n")
-        fff.append("subfolderfolder," + subf.subfolder + "\n")
+        saveVal("subfolder", subf.name)
+        saveVal("subfolderfolder", subf.subfolder)
       }
     }
     println("-----------/save")
@@ -104,7 +109,7 @@ object Store {
     var lastserver: Server = null
     var lastprotocol: Protocol = null
     var lastsubfolder: SubFolder = null
-    println("Store ini!!!!!!!!!!!!")
+    println("----------load")
     val lines = DBSettings.getLines
     if (lines.size == 0) {
       println("no config file...")
@@ -123,7 +128,6 @@ object Store {
           case "server" => {
             lastserver = new Server { name = sett(1) }
             config.servers.add(lastserver)
-            println("added server " + lastserver)
           }
           case "localfolder" => { lastserver.localFolder = sett(1) }
           case "filterregexp" => { lastserver.filterRegexp = sett(1) }
