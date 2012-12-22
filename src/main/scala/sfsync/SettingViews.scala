@@ -13,7 +13,7 @@ import sfsync.Helpers._
 import scala._
 
 class MyListView[T](val factory: () => T = null, var obsBuffer: sfxc.ObservableBuffer[T], var currIdx: Int, val onChange: () => Unit ) extends VBox {
-  minHeight=120
+//  minHeight=120
   var slist = new sfxc.ObservableBuffer[String]()
   obsBuffer.foreach(cf => slist.add(cf.toString))
   var lvs = new control.ListView[String]() {
@@ -21,7 +21,7 @@ class MyListView[T](val factory: () => T = null, var obsBuffer: sfxc.ObservableB
     items = slist
     cellFactory = TextFieldListCell.forListView()
 
-    minHeight = 100
+//    prefHeight = 200
     selectionModel.get().clearSelection()
     selectionModel.get().select(currIdx)
   }
@@ -37,6 +37,7 @@ class MyListView[T](val factory: () => T = null, var obsBuffer: sfxc.ObservableB
             val newi = factory()
             obsBuffer.add(newi)
             slist.add(newi.toString)
+            onChange
             print("")
           }
         },
@@ -44,7 +45,8 @@ class MyListView[T](val factory: () => T = null, var obsBuffer: sfxc.ObservableB
           onAction = (ae: ActionEvent) => {
             val idx = lvs.selectionModel.get().getSelectedIndex
             obsBuffer.remove(idx)
-            lvs.items.get().remove(idx)
+            slist.remove(idx)
+            onChange
             print("")
           }
         }
@@ -91,6 +93,7 @@ class MyTextField(labelText: String, fileChooserMode: Int = 0, toolTip: String =
 }
 
 abstract class ServerView(val config: Config) extends BorderPane {
+  minHeight = 160
   def onServerChange()
   var server = new Server
   def serverChanged() : Unit = {
@@ -119,6 +122,7 @@ abstract class ServerView(val config: Config) extends BorderPane {
 }
 
 class ProtocolView(val server: Server) extends BorderPane {
+  minHeight = 160
   var protocol: Protocol = null
   def protocolChanged() : Unit = {
     val idx = lvp.lvs.getSelectionModel.getSelectedIndex
@@ -145,6 +149,7 @@ class ProtocolView(val server: Server) extends BorderPane {
 }
 
 class SubFolderView(val server: Server) extends BorderPane {
+  minHeight = 150
   var subfolder: SubFolder= null
   def subfolderChanged() : Unit = {
     val idx = lvp.lvs.getSelectionModel.getSelectedIndex
