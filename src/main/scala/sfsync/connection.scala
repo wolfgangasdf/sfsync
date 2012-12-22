@@ -211,6 +211,7 @@ class VirtualFile extends Ordered[VirtualFile] {
   var modTime: Long = 0
   var size: Long = 0
   var isDir: Int = 0
+  var tagged = false // for cachelist: tagged if local/remote existing
 
   def fileName : String = { path.split("/").last }
   override def toString: String = "["+path+"]:"+modTime+","+size

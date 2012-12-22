@@ -56,10 +56,11 @@ class MyListView[T](val factory: () => T = null, var obsBuffer: sfxc.ObservableB
 }
 
 
-class MyTextField(labelText: String, fileChooserMode: Int = 0) extends HBox {
+class MyTextField(labelText: String, fileChooserMode: Int = 0, toolTip: String = "") extends HBox {
   var tf = new TextField() {
     prefWidth = 500
     text = "..."
+    tooltip = new Tooltip { text = toolTip }
   }
   var lb = new Label() {
     prefWidth = 200
@@ -110,8 +111,8 @@ abstract class ServerView(val config: Config) extends BorderPane {
   }
   var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer, () => serverChanged)
   var tfLocalFolder = new MyTextField("Local folder: ",1) { tf.onAction = (ae: ActionEvent) => { server.localFolder = tf.text.value} }
-  var tfID = new MyTextField("Cache ID: ",1) { tf.onAction = (ae: ActionEvent) => { server.id = tf.text.value} }
-  var tfFilter = new MyTextField("Filter: ",1) { tf.onAction = (ae: ActionEvent) => { server.filterRegexp = tf.text.value} }
+  var tfID = new MyTextField("Cache ID: ",1, "just leave it") { tf.onAction = (ae: ActionEvent) => { server.id = tf.text.value} }
+  var tfFilter = new MyTextField("Filter: ",1, "e.g., (.*12)|(.*e2)") { tf.onAction = (ae: ActionEvent) => { server.filterRegexp = tf.text.value} }
   var bClearCache = new Button("Clear cache") { onAction = (ae: ActionEvent) => { Cache.clearCache(tfID.tf.text.value)} }
 
   top = new Label() { text = "Servers:" }

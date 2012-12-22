@@ -26,6 +26,7 @@ object Actions {
   val A_MERGE = 3
   val A_RMLOCAL = 4
   val A_RMREMOTE = 5
+  val A_CACHEONLY = 6
 }
 case object ComparedFile
 class ComparedFile(var flocal: VirtualFile, var fremote: VirtualFile, var fcache: VirtualFile) {
@@ -42,7 +43,9 @@ class ComparedFile(var flocal: VirtualFile, var fremote: VirtualFile, var fcache
   //  def compare(that: VirtualFile): Int =
 
   // init with best guess
-  if (flocal == fremote) { // just equal?
+  if (flocal == null && fremote == null && fcache != null) { // cache only?
+    action = A_CACHEONLY
+  } else  if (flocal == fremote) { // just equal?
     action = A_NOTHING
   } else if (flocal == null || fremote == null) { // one was deleted or created, which?
     action = A_UNKNOWN // unknown which was deleted
@@ -76,6 +79,7 @@ case class RemoveCF(cf: ComparedFile)
 class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfolder: SubFolder) {
   var comparedfiles = scalafx.collections.ObservableBuffer[ComparedFile]()
   var cache: ListBuffer[VirtualFile] = null
+  var cacherelevant: ListBuffer[VirtualFile] = null // only below subdir
   var local: GeneralConnection = null
   var remote: GeneralConnection = null
 
@@ -84,6 +88,11 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
   def init() {
     runUIwait { view.statusBar.status.text = "load cached files..." }
     cache = Cache.loadCache(server.id)
+    if (subfolder.subfolder != "")
+      cacherelevant = cache.filter(cf => cf.fileName.startsWith(subfolder.subfolder) && cf.fileName != subfolder.subfolder)
+    else
+      cacherelevant = cache
+
     runUIwait { view.statusBar.status.text = "ready" }
 
     local = new LocalConnection {
@@ -121,7 +130,8 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
         receive {
           case rf: VirtualFile => {
             remotecnt += 1
-            val cachef = cache.find(x => x.path == rf.path).getOrElse(null)
+            val cachef = cacherelevant.find(x => x.path == rf.path).getOrElse(null)
+            if (cachef != null) cachef.tagged = true // mark
             val localf = locall.find(x => x.path == rf.path).getOrElse(null)
             locall -= localf
             val cfnew = new ComparedFile(localf, rf, cachef)
@@ -153,11 +163,19 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
 
       // add remaing local-only files
       locall.foreach(vf => {
-        val cachef = cache.find(x => x.path == vf.path).getOrElse(null)
+        val cachef = cacherelevant.find(x => x.path == vf.path).getOrElse(null)
+        if (cachef != null) cachef.tagged = true // mark
         val cfnew = new ComparedFile(vf, null, cachef)
         comparedfiles += cfnew
         view ! cfnew // send it!
       })
+      // add remaining cache-only files for information: local and remote are deleted.
+      cacherelevant.filter(vf => !vf.tagged).foreach( vf => {
+        val cfnew = new ComparedFile(null, null, vf)
+        comparedfiles += cfnew
+        view ! cfnew // send it!
+      })
+
   //    debug("***********************compfiles")
   //    comparedfiles.foreach(cf => println(cf))
       runUIwait { view.statusBar.status.text = "ready" }
@@ -177,11 +195,12 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
         var removecf = true
         cf.action match {
           case A_MERGE => sys.error("merge not implemented yet!")
-          case A_RMLOCAL => local.deletefile(cf.flocal)
+          case A_RMLOCAL => { local.deletefile(cf.flocal) ; if (cache.contains(cf.flocal)) Cache.remove(cf.flocal) }
           case A_RMREMOTE => { remote.deletefile(cf.fremote) ; if (cache.contains(cf.fremote)) Cache.remove(cf.fremote) }
           case A_USELOCAL => { remote.putfile(cf.flocal) ; Cache.addupdate(cf.flocal) }
           case A_USEREMOTE => { remote.getfile(cf.fremote) ; if (!cache.contains(cf.fremote)) Cache.addupdate(cf.fremote) }
           case A_NOTHING => { if (!cache.contains(cf.fremote)) Cache.addupdate(cf.fremote) }
+          case A_CACHEONLY => { if (cache.contains(cf.fcache)) Cache.remove(cf.fcache) }
           case _ => removecf = false
         }
         if (removecf) view ! RemoveCF(cf)

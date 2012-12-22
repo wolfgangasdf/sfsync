@@ -25,10 +25,11 @@ import scala.collection
 class CompFile(cf_ : ComparedFile) {
   val cf = cf_
   val amap = Map(A_MERGE -> "M", A_NOTHING -> "==", A_RMLOCAL -> "<-(rm)", A_RMREMOTE -> "(rm)->",
-    A_UNKNOWN -> "?", A_USELOCAL -> "->", A_USEREMOTE -> "<-")
+    A_UNKNOWN -> "?", A_USELOCAL -> "->", A_USEREMOTE -> "<-", A_CACHEONLY -> "C")
   var tmp = ""
   if (cf.flocal != null) tmp=cf.flocal.path
-  else tmp=cf.fremote.path
+  else if (cf.fremote != null) tmp=cf.fremote.path
+  else if (cf.fcache != null) tmp=cf.fcache.path
   val path = new StringProperty(this, "path", tmp)
   val status = new StringProperty(this, "status", amap(cf.action))
   val dformat = new java.text.SimpleDateFormat("dd-MM-yyyy HH:mm:ss")
@@ -140,7 +141,10 @@ class CompareWindow() extends VBox with Actor {
   var bv = new HBox { content = List(btSync, btRmLocal, btUseLocal, btMerge, btNothing, btUseRemote, btRmRemote, btBack) }
 
   var filterList = new sfxc.ObservableBuffer[String]()
-  object F { val all="all"; val changes="changes"; val problems="problems"; def getAll = (all,changes,problems) }
+  object F {
+    val all="all"; val changes="changes"; val problems="problems";
+    def getAll = (all,changes,problems)
+  }
   filterList.addAll (F.all,F.changes,F.problems)
   val cFilter = new ComboBox(filterList) {
     selectionModel.get().select(Store.config.currentFilter)
