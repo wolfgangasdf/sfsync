@@ -83,8 +83,8 @@ object Main extends JFXApp with Logging {
       println("**** /onServerchange: " + server.currentProtocol)
     }
   }
-  var protocolView : ProtocolView = null//new ProtocolView(null)
-  var subfolderView : SubFolderView = null//= new SubFolderView(null)
+  var protocolView : ProtocolView = null
+  var subfolderView : SubFolderView = null
 
   spv = new SplitPane {
     orientation = jgo.VERTICAL
@@ -102,10 +102,6 @@ object Main extends JFXApp with Logging {
 
   var profile: Profile = null
   var cw: CompareWindow = null
-
-  var asdfv: scalafx.beans.property.StringProperty = "asf"
-  asdfv.onChange( { println(asdfv) } )
-  var asdf = new TextField
 
   val toolBar = new ToolBar {
     content = List(new Button("Compare") {
@@ -134,20 +130,14 @@ object Main extends JFXApp with Logging {
     },
       new Button("test") {
         onAction = (ae: ActionEvent) => {
-          asdfv.set("huhuhuhu")
         }
       },
       new Button("test2") {
         onAction = (ae: ActionEvent) => {
-          asdfv = new scalafx.beans.property.StringProperty
-          asdfv = "hihi"
-          asdf.text <==> asdfv
         }
-      },
-    asdf
+      }
     )
   }
-  asdf.text <==> asdfv
 
   val statusBar = new ToolBar {
     content = List(new Label { text = "Sfsync Version " + version })
@@ -170,7 +160,7 @@ object Main extends JFXApp with Logging {
     height = 600
     scene = new Scene {
       //      fill = Color.LIGHTGRAY
-      content = maincontent
+//      content = maincontent
     }
     delegate.setOnCloseRequest(new EventHandler[jfxs.WindowEvent] {
       def handle(p1: jfxs.WindowEvent) {
@@ -196,6 +186,7 @@ object Main extends JFXApp with Logging {
   }
 
 
+  showContent()
   maincontent.prefHeight <== stage.scene.height
   maincontent.prefWidth <== stage.scene.width
 
