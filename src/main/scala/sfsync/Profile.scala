@@ -30,8 +30,8 @@ object Actions {
 case object ComparedFile
 class ComparedFile(var flocal: VirtualFile, var fremote: VirtualFile, var fcache: VirtualFile) {
   var action: Int = -9
-
   def isSynced = flocal.equals(fremote)
+
   override def toString: String = "A=" + action + " local:" + flocal + " remote:" + fremote + " cache:" + fcache
   override def hashCode = action.hashCode() + (if (flocal!=null) flocal.hashCode else 0)
     + (if (fremote!=null) fremote.hashCode else 0) + (if (fcache!=null) fcache.hashCode else 0)

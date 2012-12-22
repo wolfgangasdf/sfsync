@@ -123,15 +123,18 @@ class CompareWindow() extends VBox with Actor {
   def updateActionButtons() {
     var allLocalPresenet = true
     var allRemotePresent = true
+    var allEqual = true
     List(btRmLocal, btUseLocal, btMerge, btNothing, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(false))
     for (idx <- tv.selectionModel.get().getSelectedItems) {
       val cf = idx.cf
       if (cf.flocal == null) { allLocalPresenet = false }
       if (cf.fremote == null) { allRemotePresent = false }
+      if (!cf.isSynced) allEqual = false
     }
     if (!allLocalPresenet) List(btUseLocal,btRmLocal).foreach(bb => bb.setDisable(true))
     if (!allRemotePresent) List(btUseRemote,btRmRemote).foreach(bb => bb.setDisable(true))
     if (!(allLocalPresenet && allRemotePresent)) btMerge.setDisable(true)
+    if (allEqual) List(btRmLocal, btUseLocal, btMerge, btNothing, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
   }
 
   var bv = new HBox { content = List(btSync, btRmLocal, btUseLocal, btMerge, btNothing, btUseRemote, btRmRemote, btBack) }
