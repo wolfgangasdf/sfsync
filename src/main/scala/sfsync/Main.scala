@@ -101,6 +101,8 @@ object Main extends JFXApp with Logging {
   val toolBar = new ToolBar {
     content = List(new Button("Compare") {
       onAction = (ae: ActionEvent) => {
+        doCleanup()
+
         cw = new CompareWindow()
         Main.stage.scene().content = cw
         cw.prefWidth <== Main.stage.scene.width
@@ -164,10 +166,13 @@ object Main extends JFXApp with Logging {
 //    }
   }
 
-  def doClose() {
-    println("*************** close requested")
+  def doCleanup() {
     if (cw != null) cw ! 'done
     if (profile != null) profile.finish()
+  }
+  def doClose() {
+    println("*************** close requested")
+    doCleanup()
     Store.save()
     sys.exit(0)
   }

@@ -93,6 +93,15 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
     else
       cacherelevant = cache
 
+    if (protocol.executeBefore != "") {
+      runUIwait { view.statusBar.status.text = "execute 'before'..." }
+      import sys.process._
+      val res = protocol.executeBefore.!
+      if (res != 0) {
+        sys.error("error executing 'before' command!")
+      }
+    }
+
     runUIwait { view.statusBar.status.text = "ready" }
 
     local = new LocalConnection {
@@ -218,6 +227,13 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
   }
   def finish() {
     if (remote != null) remote.finish()
+    if (protocol.executeAfter != "") {
+      import sys.process._
+      val res = protocol.executeAfter.!
+      if (res != 0) {
+        sys.error("error executing 'after' command!")
+      }
+    }
   }
 
 }

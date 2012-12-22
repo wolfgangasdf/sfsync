@@ -59,8 +59,8 @@ class MyListView[T](val factory: () => T = null, var obsBuffer: sfxc.ObservableB
 class MyTextField(labelText: String, fileChooserMode: Int = 0, toolTip: String = "") extends HBox {
   var tf = new TextField() {
     prefWidth = 500
-    text = "..."
-    tooltip = new Tooltip { text = toolTip }
+    text = ""
+    if (toolTip != "") tooltip = new Tooltip { text = toolTip }
   }
   var lb = new Label() {
     prefWidth = 200
@@ -132,14 +132,18 @@ class ProtocolView(val server: Server) extends BorderPane {
       server.currentProtocol = idx
       tfBaseFolder.tf.text = protocol.protocolbasefolder
       tfURI.tf.text = protocol.protocoluri
+      tfExBefore.tf.text = protocol.executeBefore
+      tfExAfter.tf.text = protocol.executeAfter
     }
   }
   var lvp = new MyListView[Protocol](() => new Protocol,server.protocols, server.currentProtocol, () => protocolChanged())
   var tfBaseFolder = new MyTextField("Base folder: ") { tf.onAction = (ae: ActionEvent) => { protocol.protocolbasefolder = tf.text.value} }
   var tfURI = new MyTextField("Protocol URI: ") { tf.onAction = (ae: ActionEvent) => { protocol.protocoluri = tf.text.value} }
+  var tfExBefore = new MyTextField("Execute before: ") { tf.onAction = (ae: ActionEvent) => { protocol.executeBefore = tf.text.value} }
+  var tfExAfter = new MyTextField("Execute after: ") { tf.onAction = (ae: ActionEvent) => { protocol.executeAfter = tf.text.value} }
   top = new Label() { text = "Protocols:" }
   left = lvp
-  right = new VBox() { content = List(tfURI, tfBaseFolder) }
+  right = new VBox() { content = List(tfURI, tfBaseFolder, tfExBefore, tfExAfter) }
 }
 
 class SubFolderView(val server: Server) extends BorderPane {

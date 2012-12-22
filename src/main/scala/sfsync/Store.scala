@@ -53,9 +53,11 @@ class Server {
 }
 
 class Protocol {
-  var name: String = "<new>"
-  var protocoluri: String = ""
-  var protocolbasefolder: String = ""
+  var name = "<new>"
+  var protocoluri = ""
+  var protocolbasefolder = ""
+  var executeBefore = ""
+  var executeAfter = ""
   override def toString: String = name
 }
 
@@ -86,6 +88,8 @@ object Store {
         fff.append("protocol," + proto.name + "\n")
         fff.append("protocoluri," + proto.protocoluri + "\n")
         fff.append("protocolbasefolder," + proto.protocolbasefolder+ "\n")
+        fff.append("protocolexbefore," + proto.executeBefore+ "\n")
+        fff.append("protocolexafter," + proto.executeAfter+ "\n")
       }
       fff.append("subfoldercurr," + server.currentSubFolder + "\n")
       for (subf <- server.subfolders) {
@@ -131,6 +135,8 @@ object Store {
           }
           case "protocoluri" => {lastprotocol.protocoluri = sett(1)}
           case "protocolbasefolder" => {lastprotocol.protocolbasefolder = sett(1)}
+          case "protocolexbefore" => {lastprotocol.executeBefore = sett(1)}
+          case "protocolexafter" => {lastprotocol.executeAfter = sett(1)}
           case "subfoldercurr" => { lastserver.currentSubFolder = sett(1).toInt }
           case "subfolder" => {
             lastsubfolder = new SubFolder { name = sett(1) }
