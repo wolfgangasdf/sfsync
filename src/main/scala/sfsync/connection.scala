@@ -31,7 +31,7 @@ class LocalConnection extends GeneralConnection {
     val list = new ListBuffer[VirtualFile]()
     def parseContent(folder: Path) : Unit = {
 //      println("parsing " + folder)
-      for (cc <- folder.children().toList.sorted) { // sorted improves performance a lot of course
+      for (cc <- folder.children().toList.sorted) { // sorted slow but faster for cache find
         val vf = new VirtualFile {
           path=cc.path.substring(remoteBasePath.length + 1) // without leading '/'
           modTime = cc.lastModified
@@ -39,7 +39,6 @@ class LocalConnection extends GeneralConnection {
           isDir = if (cc.isDirectory) 1 else 0
         }
         if ( !vf.fileName.matches(filterregexp) ) {
-//          println("got " + vf)
           list += vf
           if (receiver != null) receiver ! vf
           if (cc.isDirectory) {

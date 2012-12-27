@@ -5,7 +5,10 @@ import scala.actors._
 import Actor._
 import javax.swing.JOptionPane
 import com.jcraft.jsch.ChannelSftp._
-import sfsync.synchro.SftpConnection
+import sfsync.synchro.{VirtualFile, SftpConnection}
+import collection.mutable.ListBuffer
+import util.Profiling._
+import actors.!
 
 object ActorTest extends App {
   var act = actor {
@@ -171,4 +174,37 @@ object TestJsch extends App {
 
 object TestFileName extends App {
   Path.fromString("/tmp") ** "*" foreach { ppp => println(ppp.path) }
+}
+
+object TestListRecSpeed extends App {
+  def listrec(subfolder: String, filterregexp: String, receiver: Actor) = {
+    //    println("searching " + remoteBasePath + "/" + subfolder)
+    val list = new ListBuffer[VirtualFile]()
+    def parseContent(folder: Path) : Unit = {
+      //      println("parsing " + folder)
+      for (cc <- folder.children().toList.sorted) { // sorted slow but faster for cache find
+      val vf = new VirtualFile {
+          path=cc.path
+          modTime = cc.lastModified
+          size = cc.size.get
+          isDir = if (cc.isDirectory) 1 else 0
+        }
+        if ( !vf.fileName.matches(filterregexp) ) {
+          list += vf
+          if (receiver != null) receiver ! vf
+          if (cc.isDirectory) {
+            parseContent(cc)
+          }
+        }
+      }
+    }
+    val sp = Path.fromString(subfolder)
+    println("sp=" + sp)
+    if (sp.exists) parseContent(sp)
+    if (receiver != null) receiver ! 'done
+    list
+  }
+  var locall = timed(printTime("loaded local list in ")) {
+    listrec("/Unencrypted_Data/tempnospotlight/teststorelargelocal","",null)
+  }
 }

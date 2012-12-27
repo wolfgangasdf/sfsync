@@ -38,7 +38,7 @@ object Helpers {
     }
     javafx.application.Platform.runLater(runable)
     while(stat == null) { // ugly
-      Thread.sleep(1)
+      Thread.sleep(0,10000)
     }
     stat
   }

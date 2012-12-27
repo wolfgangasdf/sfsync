@@ -94,7 +94,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
     else
       cacherelevant = cache
 
-    if (protocol.executeBefore != "") {
+    if (protocol.executeBefore.value != "") {
       runUIwait { view.statusBar.status.text = "execute 'before'..." }
       import sys.process._
       val res = protocol.executeBefore.value.!
@@ -228,7 +228,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
   }
   def finish() {
     if (remote != null) remote.finish()
-    if (protocol.executeAfter != "") {
+    if (protocol.executeAfter.value != "") {
       import sys.process._
       val res = protocol.executeAfter.value.!
       if (res != 0) {
