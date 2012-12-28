@@ -27,22 +27,28 @@ class LocalConnection extends GeneralConnection {
     Path.fromString(remoteBasePath + "/" + from.path).copyTo(Path.fromString(localBasePath + "/" + from.path),replaceExisting = true)
   }
   def listrec(subfolder: String, filterregexp: String, receiver: Actor) = {
-//    println("searching " + remoteBasePath + "/" + subfolder)
+    //    println("searching " + remoteBasePath + "/" + subfolder)
     val list = new ListBuffer[VirtualFile]()
-    def parseContent(folder: Path) : Unit = {
-//      println("parsing " + folder)
+    def parseContentScala(folder: Path) : Unit = { // scalax.io is horribly slow, there is an issue filed
       for (cc <- folder.children().toList.sorted) { // sorted slow but faster for cache find
-        val vf = new VirtualFile {
-          path=cc.path.substring(remoteBasePath.length + 1) // without leading '/'
-          modTime = cc.lastModified
-          size = cc.size.get
-          isDir = if (cc.isDirectory) 1 else 0
-        }
+        val vf = new VirtualFile(cc.path.substring(remoteBasePath.length + 1), cc.lastModified, cc.size.get, if (cc.isDirectory) 1 else 0)
         if ( !vf.fileName.matches(filterregexp) ) {
           list += vf
           if (receiver != null) receiver ! vf
-          if (cc.isDirectory) {
-            parseContent(cc)
+          if (vf.isDir == 1) {
+            parseContentScala(cc)
+          }
+        }
+      }
+    }
+    def parseContent(folder: Path) : Unit = {
+      for (cc <- (new java.io.File(folder.path)).listFiles()) {
+        val vf = new VirtualFile(cc.getPath.substring(remoteBasePath.length + 1), cc.lastModified(), cc.length, if (cc.isDirectory) 1 else 0)
+        if ( !vf.fileName.matches(filterregexp) ) {
+          list += vf
+          if (receiver != null) receiver ! vf
+          if (vf.isDir == 1) {
+            parseContent(Path(cc))
           }
         }
       }
@@ -205,12 +211,14 @@ trait GeneralConnection {
   def finish()
 }
 
-class VirtualFile extends Ordered[VirtualFile] {
-  var path: String = "" // TODO: is this below basepath or not? YES!!!!!!!
-  var modTime: Long = 0
-  var size: Long = 0
-  var isDir: Int = 0
+class VirtualFile(var path: String, var modTime: Long, var size: Long, var isDir: Int) extends Ordered[VirtualFile] {
+//  var path: String = "" // TODO: is this below basepath or not? YES!!!!!!!
+//  var modTime: Long = 0
+//  var size: Long = 0
+//  var isDir: Int = 0
   var tagged = false // for cachelist: tagged if local/remote existing
+
+  def this() = this("",0,0,0)
 
   def fileName : String = { path.split("/").last }
   override def toString: String = "["+path+"]:"+modTime+","+size

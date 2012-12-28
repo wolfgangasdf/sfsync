@@ -10,8 +10,7 @@ import Actor._
 import sfsync.store._
 import sfsync.CompareWindow
 import sfsync.Helpers._
-import util.Profiling._
-
+import util.StopWatch
 
 class TransferProtocol (
   var uri: String,
@@ -124,7 +123,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
   def compare() {
     runUIwait { view.statusBar.status.text = "list local files..." }
     println("***********************list local")
-    var locall = timed(printTime("loaded local list in ")) {
+    var locall = StopWatch.timed("loaded local list in ") {
       local.listrec(subfolder.subfolder, server.filterRegexp, null)
     }
     runUIwait { view.statusBar.local.text = locall.length.toString }
@@ -150,7 +149,6 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
             if (remotecnt % 100 == 0) runUIwait { // give UI time
               view.statusBar.remote.text = remotecnt.toString
             }
-//            println(cfnew)
           }
           case 'done => {
             finished = true
@@ -165,63 +163,60 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
         }
       }
     }
+    val sw1 = new StopWatch
+    remote.listrec(subfolder.subfolder, server.filterRegexp, receiveList)
+    receiveList !? 'replyWhenDone
+    println("*********************** receive remote finished")
 
-    timed(printTime("compared in ")){
-      remote.listrec(subfolder.subfolder, server.filterRegexp, receiveList)
-      receiveList !? 'replyWhenDone
-      println("*********************** receive remote finished")
+    // add remaing local-only files
+    locall.foreach(vf => {
+      val cachef = cacherelevant.find(x => x.path == vf.path).getOrElse(null)
+      if (cachef != null) cachef.tagged = true // mark
+      val cfnew = new ComparedFile(vf, null, cachef)
+      comparedfiles += cfnew
+      view ! cfnew // send it!
+    })
+    // add remaining cache-only files for information: local and remote are deleted.
+    cacherelevant.filter(vf => !vf.tagged).foreach( vf => {
+      val cfnew = new ComparedFile(null, null, vf)
+      comparedfiles += cfnew
+      view ! cfnew // send it!
+    })
 
-      // add remaing local-only files
-      locall.foreach(vf => {
-        val cachef = cacherelevant.find(x => x.path == vf.path).getOrElse(null)
-        if (cachef != null) cachef.tagged = true // mark
-        val cfnew = new ComparedFile(vf, null, cachef)
-        comparedfiles += cfnew
-        view ! cfnew // send it!
-      })
-      // add remaining cache-only files for information: local and remote are deleted.
-      cacherelevant.filter(vf => !vf.tagged).foreach( vf => {
-        val cfnew = new ComparedFile(null, null, vf)
-        comparedfiles += cfnew
-        view ! cfnew // send it!
-      })
-
-  //    debug("***********************compfiles")
-  //    comparedfiles.foreach(cf => println(cf))
-      runUIwait { view.statusBar.status.text = "ready" }
-      view ! CompareFinished // send finished!
-    }
+    runUIwait { view.statusBar.status.text = "ready" }
+    view ! CompareFinished // send finished!
+    sw1.printTime("TTTTTTTTT compared in ")
   }
 
   def synchronize(cfs: List[ComparedFile]) {
     println("synchronize...")
     runUIwait { view.statusBar.status.text = "synchronize..." }
     println("aaaaa...")
-    timed(printTime("synchronized in ")) {
-      var iii = cfs.length
-      for (cf <- cfs) {
-        iii -= 1
-  //      println("***** cf:" + cf)
-        var removecf = true
-        cf.action match {
-          case A_MERGE => sys.error("merge not implemented yet!")
-          case A_RMLOCAL => { local.deletefile(cf.flocal) ; if (cache.contains(cf.flocal)) Cache.remove(cf.flocal) }
-          case A_RMREMOTE => { remote.deletefile(cf.fremote) ; if (cache.contains(cf.fremote)) Cache.remove(cf.fremote) }
-          case A_USELOCAL => { remote.putfile(cf.flocal) ; Cache.addupdate(cf.flocal) }
-          case A_USEREMOTE => { remote.getfile(cf.fremote) ; if (!cache.contains(cf.fremote)) Cache.addupdate(cf.fremote) }
-          case A_NOTHING => { if (!cache.contains(cf.fremote)) Cache.addupdate(cf.fremote) }
-          case A_CACHEONLY => { if (cache.contains(cf.fcache)) Cache.remove(cf.fcache) }
-          case _ => removecf = false
-        }
-        if (removecf) view ! RemoveCF(cf)
-        if (iii % 100 == 0) runUIwait { // give UI time
-          view.statusBar.status.text = "synchronize " + iii
-        }
+    val sw = new StopWatch
+    var iii = cfs.length
+    for (cf <- cfs) {
+      iii -= 1
+//      println("***** cf:" + cf)
+      var removecf = true
+      cf.action match {
+        case A_MERGE => sys.error("merge not implemented yet!")
+        case A_RMLOCAL => { local.deletefile(cf.flocal) ; if (cache.contains(cf.flocal)) Cache.remove(cf.flocal) }
+        case A_RMREMOTE => { remote.deletefile(cf.fremote) ; if (cache.contains(cf.fremote)) Cache.remove(cf.fremote) }
+        case A_USELOCAL => { remote.putfile(cf.flocal) ; Cache.addupdate(cf.flocal) }
+        case A_USEREMOTE => { remote.getfile(cf.fremote) ; if (!cache.contains(cf.fremote)) Cache.addupdate(cf.fremote) }
+        case A_NOTHING => { if (!cache.contains(cf.fremote)) Cache.addupdate(cf.fremote) }
+        case A_CACHEONLY => { if (cache.contains(cf.fcache)) Cache.remove(cf.fcache) }
+        case _ => removecf = false
       }
-      view ! 'done
+      if (removecf) view ! RemoveCF(cf)
+      if (iii % 100 == 0) runUIwait { // give UI time
+        view.statusBar.status.text = "synchronize " + iii
+      }
     }
+    view ! 'done
+    sw.printTime("TTTTTTTTT synchronized in ")
     runUIwait { view.statusBar.status.text = "save cache..." }
-    timed(printTime("saved cache in ")) {
+    StopWatch.timed("TTTTTTTTT saved cache in ") {
       Cache.saveCache(server.id)
     }
     runUIwait { view.statusBar.status.text = "ready" }
