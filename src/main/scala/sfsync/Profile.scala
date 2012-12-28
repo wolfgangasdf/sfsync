@@ -30,7 +30,7 @@ object Actions {
 case object ComparedFile
 class ComparedFile(var flocal: VirtualFile, var fremote: VirtualFile, var fcache: VirtualFile) {
   var action: Int = -9
-  def isSynced = flocal.equals(fremote)
+  def isSynced = if (flocal != null) flocal == fremote else false
 
   override def toString: String = "A=" + action + " local:" + flocal + " remote:" + fremote + " cache:" + fcache
   override def hashCode = action.hashCode() + (if (flocal!=null) flocal.hashCode else 0)
@@ -139,15 +139,20 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
         receive {
           case rf: VirtualFile => {
             remotecnt += 1
+            if (remotecnt % 100 == 0) runUIwait { // give UI time
+              view.statusBar.remote.text = remotecnt.toString
+            }
             val cachef = cacherelevant.find(x => x.path == rf.path).getOrElse(null)
             if (cachef != null) cachef.tagged = true // mark
             val localf = locall.find(x => x.path == rf.path).getOrElse(null)
             locall -= localf
             val cfnew = new ComparedFile(localf, rf, cachef)
-            comparedfiles += cfnew
-            view ! cfnew // send it to view!
-            if (remotecnt % 100 == 0) runUIwait { // give UI time
-              view.statusBar.remote.text = remotecnt.toString
+            if (server.skipEqualFiles.value && rf != localf) { // TODO test this!!!
+              comparedfiles += cfnew
+              view ! cfnew // send it to view!
+            } else {
+              // for save cache later, only in case 'synchronize' is pressed it's saved!
+              if (cachef == null) Cache.addupdate(rf) // it should work, but TODO test this!!!
             }
           }
           case 'done => {

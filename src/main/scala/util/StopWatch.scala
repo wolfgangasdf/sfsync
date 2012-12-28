@@ -21,7 +21,7 @@ object StopWatch extends StopWatch {
   val startNanos = System.nanoTime
     val r = body
     val stopNanos = System.nanoTime
-    println(msg + (stopNanos - startNanos))
+    println(msg + (stopNanos - startNanos)/1e9)
     r
   }
 }

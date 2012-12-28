@@ -29,18 +29,18 @@ class LocalConnection extends GeneralConnection {
   def listrec(subfolder: String, filterregexp: String, receiver: Actor) = {
     //    println("searching " + remoteBasePath + "/" + subfolder)
     val list = new ListBuffer[VirtualFile]()
-    def parseContentScala(folder: Path) : Unit = { // scalax.io is horribly slow, there is an issue filed
-      for (cc <- folder.children().toList.sorted) { // sorted slow but faster for cache find
-        val vf = new VirtualFile(cc.path.substring(remoteBasePath.length + 1), cc.lastModified, cc.size.get, if (cc.isDirectory) 1 else 0)
-        if ( !vf.fileName.matches(filterregexp) ) {
-          list += vf
-          if (receiver != null) receiver ! vf
-          if (vf.isDir == 1) {
-            parseContentScala(cc)
-          }
-        }
-      }
-    }
+//    def parseContentScala(folder: Path) : Unit = { // scalax.io is horribly slow, there is an issue filed
+//      for (cc <- folder.children().toList.sorted) { // sorted slow but faster for cache find
+//        val vf = new VirtualFile(cc.path.substring(remoteBasePath.length + 1), cc.lastModified, cc.size.get, if (cc.isDirectory) 1 else 0)
+//        if ( !vf.fileName.matches(filterregexp) ) {
+//          list += vf
+//          if (receiver != null) receiver ! vf
+//          if (vf.isDir == 1) {
+//            parseContentScala(cc)
+//          }
+//        }
+//      }
+//    }
     def parseContent(folder: Path) : Unit = {
       for (cc <- (new java.io.File(folder.path)).listFiles()) {
         val vf = new VirtualFile(cc.getPath.substring(remoteBasePath.length + 1), cc.lastModified(), cc.length, if (cc.isDirectory) 1 else 0)

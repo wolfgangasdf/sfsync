@@ -5,7 +5,7 @@ import scala.actors._
 import Actor._
 import javax.swing.JOptionPane
 import com.jcraft.jsch.ChannelSftp._
-import sfsync.synchro.{VirtualFile, SftpConnection}
+import sfsync.synchro.{ComparedFile, VirtualFile, SftpConnection}
 import collection.mutable.ListBuffer
 import util.Profiling._
 import actors.!
@@ -286,3 +286,18 @@ object TestListRecSpeed2 extends App {
   println("loaded local list1 in " + sw1.timeIt )
 }
 
+object TestFindSpeed extends App {
+  val list = new ListBuffer[VirtualFile]()
+  var comparedfiles = scalafx.collections.ObservableBuffer[ComparedFile]()
+  for (ii <- 1 to 20000) {
+    val vf = new VirtualFile("asdf"+ii, 0,ii,0)
+  }
+  StopWatch.timed("find in ") {
+    for (ii <- 1 to 20000) {
+      val asdf = list.find(x => x.path == "asdf"+ii).getOrElse(null)
+      val cf = new ComparedFile(asdf, new VirtualFile("asdf"+ii, 0,ii,0), new VirtualFile("asgdf"+ii, 0,ii,0))
+      comparedfiles += cf
+    }
+  }
+
+}

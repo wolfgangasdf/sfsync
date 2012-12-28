@@ -12,8 +12,8 @@ import sfsync.store._
 import sfsync.Helpers._
 import scala._
 
-class MyListView[T](val factory: () => T = null, var obsBuffer: sfxc.ObservableBuffer[T], var currIdx: Int, val onChange: () => Unit ) extends VBox {
-//  minHeight=120
+class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer: sfxc.ObservableBuffer[T], var currIdx: Int, val onChange: () => Unit ) extends VBox {
+  var oldidx = -1
   var slist = new sfxc.ObservableBuffer[String]()
   obsBuffer.foreach(cf => slist.add(cf.toString))
   var lvs = new control.ListView[String]() {
@@ -26,7 +26,19 @@ class MyListView[T](val factory: () => T = null, var obsBuffer: sfxc.ObservableB
     selectionModel.get().select(currIdx)
   }
 
-  lvs.getSelectionModel.getSelectedIndices.onChange( (aaa,bbb) => onChange() )
+  lvs.getSelectionModel().getSelectedIndices.onChange( (aaa,bbb) => {
+    val newidx = lvs.getSelectionModel.getSelectedIndex
+    if (oldidx != newidx) { // onChange is called 4 times if entry edited (looses selection)
+      oldidx = newidx
+      onChange()
+    }
+  } )
+
+  slist.onChange( { // list has been edited: update obsBuffer... ugly
+    for (ii <- 0 until slist.length) {
+      if (slist(ii) != obsBuffer(ii).name) obsBuffer(ii).name = slist(ii)
+    }
+  } )
 
   content = List(
     lvs,
@@ -98,10 +110,8 @@ abstract class ServerView(val config: Config) extends BorderPane {
   var server = new Server
   def serverChanged() : Unit = {
     val idx = lvs.lvs.getSelectionModel.getSelectedIndices.head
-    val itm = lvs.lvs.getSelectionModel.getSelectedItem
     if (idx > -1) {
       server=config.servers.get(idx)
-      if (!server.name.equals(itm)) server.name = itm // then it was edited!
       config.currentServer.set(idx)
 
       right = new ServerDetailView
@@ -113,8 +123,10 @@ abstract class ServerView(val config: Config) extends BorderPane {
     val tfID = new MyTextField("Cache ID: ",0, "just leave it") { tf.text <==> server.id }
     val tfFilter = new MyTextField("Filter: ",0, "e.g., (.*12)|(.*e2)") { tf.text <==> server.filterRegexp }
     val tfLocalFolder = new MyTextField("Local folder: ",1) { tf.text <==> server.localFolder }
+    val cbSkipEqualFiles = new CheckBox("Skip equal files") { selected <==> server.skipEqualFiles }
     var bClearCache = new Button("Clear cache") { onAction = (ae: ActionEvent) => { Cache.clearCache(tfID.tf.text.value)} }
-    content = List(tfLocalFolder,tfFilter,tfID,bClearCache)
+    content = List(tfLocalFolder,tfFilter,tfID,cbSkipEqualFiles,bClearCache)
+    spacing = 5
   }
   var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer, () => serverChanged)
   top = new Label() { text = "Servers:" }
@@ -126,13 +138,9 @@ class ProtocolView(val server: Server) extends BorderPane {
   var protocol: Protocol = null
   def protocolChanged() : Unit = {
     val idx = lvp.lvs.getSelectionModel.getSelectedIndex
-    val itm = lvp.lvs.getSelectionModel.getSelectedItem
     if (idx > -1) {
-      println("idx=" + idx + " sp" + server.protocols)
       protocol=server.protocols(idx)
-      if (!protocol.name.equals(itm)) protocol.name = itm // then it was edited!
       server.currentProtocol = idx
-
       right = new ProtocolDetailView
     }
   }

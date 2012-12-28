@@ -43,7 +43,11 @@ class Config {
   var currentFilter: IntegerProperty = 0
 }
 
-class Server {
+abstract class ListableThing {
+  var name: StringProperty
+}
+
+class Server extends ListableThing {
   var name: StringProperty = "<new>"
   var id: StringProperty = new java.util.Date().getTime.toString
   var localFolder: StringProperty = ""
@@ -52,10 +56,11 @@ class Server {
   var currentProtocol: IntegerProperty = -1
   var subfolders = new sfxc.ObservableBuffer[SubFolder]
   var currentSubFolder: IntegerProperty = -1
+  var skipEqualFiles: BooleanProperty = false
   override def toString: String = name // used for listview
 }
 
-class Protocol {
+class Protocol extends ListableThing {
   var name: StringProperty = "<new>"
   var protocoluri: StringProperty = ""
   var protocolbasefolder: StringProperty = ""
@@ -64,7 +69,7 @@ class Protocol {
   override def toString: String = name
 }
 
-class SubFolder {
+class SubFolder extends ListableThing {
   var name: StringProperty = "<new>"
   var subfolder: StringProperty = ""
   override def toString: String = name
@@ -89,6 +94,7 @@ object Store {
       saveVal("filterregexp", server.filterRegexp)
       saveVal("id", server.id)
       saveVal("protocolcurr", server.currentProtocol)
+      saveVal("skipequalfiles", server.skipEqualFiles)
       for (proto <- server.protocols) {
         saveVal("protocol", proto.name)
         saveVal("protocoluri", proto.protocoluri)
@@ -132,6 +138,7 @@ object Store {
           case "localfolder" => { lastserver.localFolder = sett(1) }
           case "filterregexp" => { lastserver.filterRegexp = sett(1) }
           case "id" => { lastserver.id = sett(1) }
+          case "skipequalfiles" => {lastserver.skipEqualFiles = sett(1).toBoolean }
           case "protocolcurr" => { lastserver.currentProtocol = sett(1).toInt }
           case "protocol" => {
             lastprotocol = new Protocol { name = sett(1) }

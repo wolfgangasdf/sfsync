@@ -45,6 +45,8 @@ object Helpers {
   import scalafx.beans.property._
   implicit def StringPropertyToString(sp: StringProperty) = sp.value
   implicit def IntegerPropertyToString(sp: IntegerProperty) = sp.value
+
+
 }
 
 object Main extends JFXApp with Logging {
@@ -67,20 +69,16 @@ object Main extends JFXApp with Logging {
   var spv : SplitPane = null
   var serverView = new ServerView(Store.config) {
     def onServerChange() {
-      println("**** onServerchange: " + server.currentProtocol)
       protocolView = new ProtocolView(server)
       subfolderView = new SubFolderView(server)
       spv.items(1) = protocolView
       spv.items(2) = subfolderView
       if (server.currentProtocol.value > -1) {
-        println("****  " + server.currentProtocol)
         protocolView.protocolChanged()
-        println("****  " + server.currentProtocol)
       }
       if (server.currentSubFolder.value > -1) {
         subfolderView.subfolderChanged()
       }
-      println("**** /onServerchange: " + server.currentProtocol)
     }
   }
   var protocolView : ProtocolView = null
