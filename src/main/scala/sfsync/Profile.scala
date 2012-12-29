@@ -137,13 +137,11 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
     val receiveList = actor {
       var finished = false
 //      Scheduler.impl = new scala.actors.scheduler.ForkJoinScheduler()
-
-      println("recvlist thread=" + Thread.currentThread())
       loop {
         receive {
           case rf: VirtualFile => {
             remotecnt += 1
-            if (remotecnt % 100 == 0) runUIwait { // give UI time
+            if (remotecnt % 200 == 0) runUIwait { // give UI time
               view.statusBar.remote.text = remotecnt.toString
             }
             val cachef = cacherelevant.find(x => x.path == rf.path).getOrElse(null)
@@ -151,7 +149,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
             val localf = locall.find(x => x.path == rf.path).getOrElse(null)
             locall -= localf
             val cfnew = new ComparedFile(localf, rf, cachef)
-            if (server.skipEqualFiles.value && rf != localf) { // TODO test this!!!
+            if (!server.skipEqualFiles.value || rf != localf) { // TODO test this!!!
               comparedfiles += cfnew
               view ! cfnew // send it to view!
             } else {
@@ -162,7 +160,9 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
           case 'done => {
             finished = true
             println("receiveList: remotelistfinished!")
-            runUI { view.statusBar.remote.text = remotecnt.toString }
+            runUI {
+              view.statusBar.remote.text = remotecnt.toString
+            }
           }
           case 'replyWhenDone => if (finished) {
             reply('done)
@@ -174,23 +174,24 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
     }
     val sw1 = new StopWatch
     remote.listrec(subfolder.subfolder, server.filterRegexp, receiveList)
+    sw1.printLapTime("TTTTTTT listrec alone needed ")
     receiveList !? 'replyWhenDone
     println("*********************** receive remote finished")
 
-    // add remaing local-only files
-    locall.foreach(vf => {
-      val cachef = cacherelevant.find(x => x.path == vf.path).getOrElse(null)
-      if (cachef != null) cachef.tagged = true // mark
-      val cfnew = new ComparedFile(vf, null, cachef)
-      comparedfiles += cfnew
-      view ! cfnew // send it!
-    })
-    // add remaining cache-only files for information: local and remote are deleted.
-    cacherelevant.filter(vf => !vf.tagged).foreach( vf => {
-      val cfnew = new ComparedFile(null, null, vf)
-      comparedfiles += cfnew
-      view ! cfnew // send it!
-    })
+//    // add remaing local-only files
+//    locall.foreach(vf => {
+//      val cachef = cacherelevant.find(x => x.path == vf.path).getOrElse(null)
+//      if (cachef != null) cachef.tagged = true // mark
+//      val cfnew = new ComparedFile(vf, null, cachef)
+//      comparedfiles += cfnew
+//      view ! cfnew // send it!
+//    })
+//    // add remaining cache-only files for information: local and remote are deleted.
+//    cacherelevant.filter(vf => !vf.tagged).foreach( vf => {
+//      val cfnew = new ComparedFile(null, null, vf)
+//      comparedfiles += cfnew
+//      view ! cfnew // send it!
+//    })
 
     runUIwait { view.statusBar.status.text = "ready" }
     view ! CompareFinished // send finished!

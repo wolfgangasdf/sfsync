@@ -14,6 +14,9 @@ class StopWatch {
   def printTime(msg: String) = {
     println(msg + timeIt)
   }
+  def printLapTime(msg: String) = {
+    println(msg + getTime)
+  }
 }
 
 object StopWatch extends StopWatch {
