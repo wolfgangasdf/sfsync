@@ -28,6 +28,7 @@ class LocalConnection extends GeneralConnection {
   }
   def listrec(subfolder: String, filterregexp: String, receiver: Actor) = {
     //    println("searching " + remoteBasePath + "/" + subfolder)
+    println("listrec thread=" + Thread.currentThread())
     val list = new ListBuffer[VirtualFile]()
 //    def parseContentScala(folder: Path) : Unit = { // scalax.io is horribly slow, there is an issue filed
 //      for (cc <- folder.children().toList.sorted) { // sorted slow but faster for cache find

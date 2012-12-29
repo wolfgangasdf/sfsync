@@ -133,8 +133,12 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
 //    cache.foreach(vf => println(vf))
     runUIwait { view.statusBar.status.text = "compare to remote files..." }
     println("***********************receive remote list")
+
     val receiveList = actor {
       var finished = false
+//      Scheduler.impl = new scala.actors.scheduler.ForkJoinScheduler()
+
+      println("recvlist thread=" + Thread.currentThread())
       loop {
         receive {
           case rf: VirtualFile => {
@@ -157,12 +161,12 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
           }
           case 'done => {
             finished = true
-            println("remotelistfinished!")
+            println("receiveList: remotelistfinished!")
             runUI { view.statusBar.remote.text = remotecnt.toString }
           }
           case 'replyWhenDone => if (finished) {
             reply('done)
-            println("exiting actor profile")
+            println("exit actor receiveList")
             exit()
           }
         }

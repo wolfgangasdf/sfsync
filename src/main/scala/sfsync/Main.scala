@@ -51,7 +51,7 @@ object Helpers {
 
 object Main extends JFXApp with Logging {
 
-  val version = io.Source.fromURL(getClass.getResource("VERSION.txt")).mkString
+  val version = io.Source.fromURL(getClass.getResource("VERSION.txt")).mkString.trim
 
   val menu = new Menu("File") {
 
@@ -183,10 +183,17 @@ object Main extends JFXApp with Logging {
     sys.exit(0)
   }
 
+  // startup
+  println("sfsync version " + version)
+  println("  using java " + System.getProperty("java.version"))
 
   showContent()
   maincontent.prefHeight <== stage.scene.height
   maincontent.prefWidth <== stage.scene.width
+
+  if (Store.config.currentServer.value > -1) {
+    serverView.serverChanged()
+  }
 
   // https://gist.github.com/1887631
   object Dialog {
@@ -249,9 +256,4 @@ object Main extends JFXApp with Logging {
     }
   }
 
-  // init
-
-  if (Store.config.currentServer.value > -1) {
-    serverView.serverChanged()
-  }
 }
