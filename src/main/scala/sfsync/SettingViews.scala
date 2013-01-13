@@ -11,6 +11,7 @@ import scalafx.event.ActionEvent
 import sfsync.store._
 import sfsync.Helpers._
 import scala._
+import sfsync.Main.Dialog
 
 class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer: sfxc.ObservableBuffer[T], var currIdx: Int, val onChange: () => Unit ) extends VBox {
   var oldidx = -1
@@ -40,6 +41,8 @@ class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer:
     }
   } )
 
+  def beforeDelete(what: T) = true
+
   content = List(
     lvs,
     new HBox {
@@ -56,9 +59,11 @@ class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer:
         new Button("delete") {
           onAction = (ae: ActionEvent) => {
             val idx = lvs.selectionModel.get().getSelectedIndex
-            obsBuffer.remove(idx)
-            slist.remove(idx)
-            onChange
+            if (beforeDelete(obsBuffer(idx))) {
+              obsBuffer.remove(idx)
+              slist.remove(idx)
+              onChange
+            }
             print("")
           }
         }
@@ -128,7 +133,14 @@ abstract class ServerView(val config: Config) extends BorderPane {
     content = List(tfLocalFolder,tfFilter,tfID,cbSkipEqualFiles,bClearCache)
     spacing = 5
   }
-  var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer, () => serverChanged)
+  var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer, () => serverChanged) {
+    override def beforeDelete(what: Server) = {
+      if (Dialog.showYesNo("Really delete server " + what)) {
+        Cache.clearCache(what.id)
+        true
+      } else false
+    }
+  }
   top = new Label() { text = "Servers:" }
   left = lvs
 }
