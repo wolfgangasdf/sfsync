@@ -91,7 +91,7 @@ class CompareWindow() extends VBox with Actor {
   }
   var btBack = new Button("Back") {
     onAction = (ae: ActionEvent) => {
-      Main.showContent()
+      Main.refreshContent()
     }
   }
 

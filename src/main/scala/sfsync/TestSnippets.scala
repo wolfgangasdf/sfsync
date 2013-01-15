@@ -7,7 +7,7 @@ import javax.swing.JOptionPane
 import com.jcraft.jsch.ChannelSftp._
 import sfsync.synchro.{ComparedFile, VirtualFile, SftpConnection}
 import collection.mutable.ListBuffer
-import util.Profiling._
+import util.StopWatch._
 import actors.!
 
 object ActorTest extends App {

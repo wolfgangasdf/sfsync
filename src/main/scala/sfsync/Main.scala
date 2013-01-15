@@ -11,6 +11,7 @@ import scalafx.event.ActionEvent
 import javafx.geometry. {Orientation=>jgo}
 
 import util.Logging
+import scala._
 import store._
 import javax.swing.JOptionPane
 import javafx.{stage => jfxs}
@@ -46,6 +47,33 @@ object Helpers {
   implicit def StringPropertyToString(sp: StringProperty) = sp.value
   implicit def IntegerPropertyToString(sp: IntegerProperty) = sp.value
 
+  // this only works for serializable objects (no javafx properties)
+  def deepCopy[A](a: A)(implicit m: reflect.Manifest[A]): A =
+    util.Marshal.load[A](util.Marshal.dump(a))
+}
+
+class MainView extends SplitPane {
+  var serverView = new ServerView(Store.config) {
+    def onServerChange() {
+      protocolView = new ProtocolView(server)
+      subfolderView = new SubFolderView(server)
+      items(1) = protocolView
+      items(2) = subfolderView
+      if (server.currentProtocol.value > -1) {
+        protocolView.protocolChanged()
+      }
+      if (server.currentSubFolder.value > -1) {
+        subfolderView.subfolderChanged()
+      }
+    }
+  }
+  var protocolView : ProtocolView = null
+  var subfolderView : SubFolderView = null
+
+  orientation = jgo.VERTICAL
+  dividerPositions = (0.3)
+  items += (serverView, new BorderPane(), new BorderPane())
+
 
 }
 
@@ -66,30 +94,7 @@ object Main extends JFXApp with Logging {
     menus.add(menu)
   }
 
-  var spv : SplitPane = null
-  var serverView = new ServerView(Store.config) {
-    def onServerChange() {
-      protocolView = new ProtocolView(server)
-      subfolderView = new SubFolderView(server)
-      spv.items(1) = protocolView
-      spv.items(2) = subfolderView
-      if (server.currentProtocol.value > -1) {
-        protocolView.protocolChanged()
-      }
-      if (server.currentSubFolder.value > -1) {
-        subfolderView.subfolderChanged()
-      }
-    }
-  }
-  var protocolView : ProtocolView = null
-  var subfolderView : SubFolderView = null
-
-  spv = new SplitPane {
-    orientation = jgo.VERTICAL
-    dividerPositions = (0.3)
-    items += (serverView, new BorderPane(), new BorderPane())
-  }
-
+//  var spv : SplitPane = null
 
   def lookupTextField(id: String) : TextField = {
     val yy = stage.scene.get.lookup(id)
@@ -100,6 +105,8 @@ object Main extends JFXApp with Logging {
 
   var profile: Profile = null
   var cw: CompareWindow = null
+  var mainView: MainView = null
+  var maincontent = new VBox
 
   val toolBar = new ToolBar {
     content = List(new Button("Compare") {
@@ -112,7 +119,7 @@ object Main extends JFXApp with Logging {
         cw.prefHeight <== Main.stage.scene.height
         cw.start()
 
-        profile = new Profile (cw,serverView.server, protocolView.protocol, subfolderView.subfolder)
+        profile = new Profile (cw,mainView.serverView.server, mainView.protocolView.protocol, mainView.subfolderView.subfolder)
         cw.setProfile(profile)
         spawn { // this is key, do in new thread!
           profile.init()
@@ -141,25 +148,22 @@ object Main extends JFXApp with Logging {
     content = List(new Label { text = "Sfsync Version " + version })
   }
 
-  val maincontent = new VBox() {
-    content += menuBar
-    content += toolBar
-    content += spv
-    content += statusBar
-  }
-
-  def showContent() {
+  def refreshContent() {
+    mainView = new MainView
+    maincontent.content = List(menuBar,toolBar,mainView,statusBar)
     Main.stage.scene().content = maincontent
+    maincontent.prefHeight <== stage.scene.height
+    maincontent.prefWidth <== stage.scene.width
+    if (Store.config.currentServer.value > -1) {
+      mainView.serverView.serverChanged()
+    }
   }
 
   stage = new Stage{
     title = "SFSynchro"
     width = 800
     height = 600
-    scene = new Scene {
-      //      fill = Color.LIGHTGRAY
-//      content = maincontent
-    }
+    scene = new Scene
     delegate.setOnCloseRequest(new EventHandler[jfxs.WindowEvent] {
       def handle(p1: jfxs.WindowEvent) {
         println("*************** close requested " + stage)
@@ -187,13 +191,7 @@ object Main extends JFXApp with Logging {
   println("sfsync version " + version)
   println("  using java " + System.getProperty("java.version"))
 
-  showContent()
-  maincontent.prefHeight <== stage.scene.height
-  maincontent.prefWidth <== stage.scene.width
-
-  if (Store.config.currentServer.value > -1) {
-    serverView.serverChanged()
-  }
+  refreshContent()
 
   // https://gist.github.com/1887631
   object Dialog {

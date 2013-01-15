@@ -7,7 +7,7 @@ import scalax.file.Path
 import scalax.io.Line
 import Tools._
 import sfsync.Helpers._
-
+import collection.mutable.{ArrayBuffer, ListBuffer}
 
 
 object DBSettings {
@@ -35,10 +35,11 @@ object Tools {
 
 // list types:
 // sfxc.ObservableBuffer[Server] needed for ListView. turns out to be useless since need [String].....
-// mutable.ArrayBuffer[Server] is needed for db4o
+// ArrayBuffer[Server] is needed for db4o
+// further, all javafx properties are NOT serializable :-(
 class Config {
-  var servers = new sfxc.ObservableBuffer[Server] // THIS does not work :-( if the servers is used by ListView, it crashes the DB.....
-//  var servers = new mutable.ArrayBuffer[Server] //
+//  var servers = new sfxc.ObservableBuffer[Server] // THIS does not work :-( if the servers is used by ListView, it crashes the DB.....
+  var servers = new ArrayBuffer[Server]
   var currentServer: IntegerProperty = -1
   var currentFilter: IntegerProperty = 0
 }
@@ -47,14 +48,17 @@ abstract class ListableThing {
   var name: StringProperty
 }
 
+class MyList[T] extends ArrayBuffer[T] {
+  def add(what: T) = { this += what}
+}
 class Server extends ListableThing {
   var name: StringProperty = "<new>"
   var id: StringProperty = new java.util.Date().getTime.toString
   var localFolder: StringProperty = ""
   var filterRegexp: StringProperty = ""
-  var protocols = new sfxc.ObservableBuffer[Protocol]
+  var protocols = new ArrayBuffer[Protocol]
   var currentProtocol: IntegerProperty = -1
-  var subfolders = new sfxc.ObservableBuffer[SubFolder]
+  var subfolders = new ArrayBuffer[SubFolder]
   var currentSubFolder: IntegerProperty = -1
   var skipEqualFiles: BooleanProperty = false
   override def toString: String = name // used for listview
@@ -133,7 +137,7 @@ object Store {
           case "currentFilter" => config.currentFilter = sett(1).toInt
           case "server" => {
             lastserver = new Server { name = sett(1) }
-            config.servers.add(lastserver)
+            config.servers += lastserver
           }
           case "localfolder" => { lastserver.localFolder = sett(1) }
           case "filterregexp" => { lastserver.filterRegexp = sett(1) }
@@ -142,7 +146,7 @@ object Store {
           case "protocolcurr" => { lastserver.currentProtocol = sett(1).toInt }
           case "protocol" => {
             lastprotocol = new Protocol { name = sett(1) }
-            lastserver.protocols.add(lastprotocol)
+            lastserver.protocols += lastprotocol
           }
           case "protocoluri" => {lastprotocol.protocoluri = sett(1)}
           case "protocolbasefolder" => {lastprotocol.protocolbasefolder = sett(1)}
@@ -151,7 +155,7 @@ object Store {
           case "subfoldercurr" => { lastserver.currentSubFolder = sett(1).toInt }
           case "subfolder" => {
             lastsubfolder = new SubFolder { name = sett(1) }
-            lastserver.subfolders.add(lastsubfolder)
+            lastserver.subfolders += lastsubfolder
           }
           case "subfolderfolder" => {lastsubfolder.subfolder = sett(1)}
           case _ => {println("unknown tag in config file: <" + sett(0) + ">")}

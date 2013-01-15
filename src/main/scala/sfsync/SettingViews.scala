@@ -11,9 +11,10 @@ import scalafx.event.ActionEvent
 import sfsync.store._
 import sfsync.Helpers._
 import scala._
+import collection.mutable.ArrayBuffer
 import sfsync.Main.Dialog
 
-class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer: sfxc.ObservableBuffer[T], var currIdx: Int, val onChange: () => Unit ) extends VBox {
+abstract class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer: ArrayBuffer[T], var currIdx: Int, val onChange: () => Unit ) extends VBox {
   var oldidx = -1
   var slist = new sfxc.ObservableBuffer[String]()
   obsBuffer.foreach(cf => slist.add(cf.toString))
@@ -42,6 +43,7 @@ class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer:
   } )
 
   def beforeDelete(what: T) = true
+  def getCopy(what: T): T
 
   content = List(
     lvs,
@@ -50,19 +52,36 @@ class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer:
         new Button("add") {
           onAction = (ae: ActionEvent) => {
             val newi = factory()
-            obsBuffer.add(newi)
+            obsBuffer += newi
             slist.add(newi.toString)
             onChange
             print("")
           }
         },
+        new Button("copy") {
+          onAction = (ae: ActionEvent) => {
+            val idx = lvs.selectionModel.get().getSelectedIndex
+            if (idx >= 0) {
+              // it is very hard to clone a not-serializable object, so this hack:
+              val newi = obsBuffer(idx)
+              obsBuffer += newi
+//              slist.add(newi.toString)
+              Store.save() // this clones
+              Store.load()
+              Main.refreshContent
+              print("")
+            }
+          }
+        },
         new Button("delete") {
           onAction = (ae: ActionEvent) => {
             val idx = lvs.selectionModel.get().getSelectedIndex
-            if (beforeDelete(obsBuffer(idx))) {
-              obsBuffer.remove(idx)
-              slist.remove(idx)
-              onChange
+            if (idx >= 0) {
+              if (beforeDelete(obsBuffer(idx))) {
+                obsBuffer.remove(idx)
+                slist.remove(idx)
+                onChange
+              }
             }
             print("")
           }
@@ -116,7 +135,7 @@ abstract class ServerView(val config: Config) extends BorderPane {
   def serverChanged() : Unit = {
     val idx = lvs.lvs.getSelectionModel.getSelectedIndices.head
     if (idx > -1) {
-      server=config.servers.get(idx)
+      server=config.servers(idx)
       config.currentServer.set(idx)
 
       right = new ServerDetailView
@@ -140,6 +159,7 @@ abstract class ServerView(val config: Config) extends BorderPane {
         true
       } else false
     }
+    def getCopy(what: Server) = Helpers.deepCopy[Server](what)
   }
   top = new Label() { text = "Servers:" }
   left = lvs
@@ -163,7 +183,9 @@ class ProtocolView(val server: Server) extends BorderPane {
     var tfExAfter = new MyTextField("Execute after: ") { tf.text <==> protocol.executeAfter }
     content = List(tfURI, tfBaseFolder, tfExBefore, tfExAfter)
   }
-  var lvp = new MyListView[Protocol](() => new Protocol,server.protocols, server.currentProtocol.value, () => protocolChanged())
+  var lvp = new MyListView[Protocol](() => new Protocol,server.protocols, server.currentProtocol.value, () => protocolChanged()) {
+    def getCopy(what: Protocol) = Helpers.deepCopy(what)
+  }
   top = new Label() { text = "Protocols:" }
   left = lvp
 }
@@ -186,7 +208,9 @@ class SubFolderView(val server: Server) extends BorderPane {
     var tfSubFolder = new MyTextField("Subfolder: ",5) { tf.text <==> subfolder.subfolder }
     content = List(tfSubFolder)
   }
-  var lvp = new MyListView[SubFolder](() => new SubFolder,server.subfolders, server.currentSubFolder.value, () => subfolderChanged())
+  var lvp = new MyListView[SubFolder](() => new SubFolder,server.subfolders, server.currentSubFolder.value, () => subfolderChanged()) {
+    def getCopy(what: SubFolder) = Helpers.deepCopy(what)
+  }
   top = new Label() { text = "Subfolders:" }
   left = lvp
 }
