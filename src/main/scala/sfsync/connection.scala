@@ -76,7 +76,6 @@ class SftpConnection(var uri: java.net.URI) extends GeneralConnection {
       sftp.rmdir(remoteBasePath + "/" + what.path)
     else
       sftp.rm(remoteBasePath + "/" + what.path)
-//    println("deleted " + remoteBasePath + "/" + what.path)
   }
   def putfile(from: VirtualFile) {
     val rp = remoteBasePath + "/" + from.path
@@ -100,7 +99,6 @@ class SftpConnection(var uri: java.net.URI) extends GeneralConnection {
       if (fn == Path.fromString(sp).name) {
         found = true
       }
-//      println("checked " + fn + " <> " + Path.fromString(sp).name)
     }
     found
   }
