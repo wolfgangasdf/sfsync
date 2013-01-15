@@ -14,7 +14,7 @@ import scala._
 import collection.mutable.ArrayBuffer
 import sfsync.Main.Dialog
 
-abstract class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer: ArrayBuffer[T], var currIdx: Int, val onChange: () => Unit ) extends VBox {
+class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer: ArrayBuffer[T], var currIdx: Int, val onChange: () => Unit ) extends VBox {
   var oldidx = -1
   var slist = new sfxc.ObservableBuffer[String]()
   obsBuffer.foreach(cf => slist.add(cf.toString))
@@ -43,7 +43,7 @@ abstract class MyListView[T <: ListableThing](val factory: () => T = null, var o
   } )
 
   def beforeDelete(what: T) = true
-  def getCopy(what: T): T
+  def afterCopy(copyidx: Int) = {} // ugly: is called from somewhere
 
   content = List(
     lvs,
@@ -63,11 +63,10 @@ abstract class MyListView[T <: ListableThing](val factory: () => T = null, var o
             val idx = lvs.selectionModel.get().getSelectedIndex
             if (idx >= 0) {
               // it is very hard to clone a not-serializable object, so this hack:
-              val newi = obsBuffer(idx)
-              obsBuffer += newi
-//              slist.add(newi.toString)
-              Store.save() // this clones
-              Store.load()
+              obsBuffer += obsBuffer(idx) // this clones
+              Store.save()
+              Store.load() // /this clones
+              afterCopy(obsBuffer.length - 1)
               Main.refreshContent
               print("")
             }
@@ -159,7 +158,11 @@ abstract class ServerView(val config: Config) extends BorderPane {
         true
       } else false
     }
-    def getCopy(what: Server) = Helpers.deepCopy[Server](what)
+    override def afterCopy(copyidx: Int) = {
+      val s1 = new Server
+      Store.config.servers(copyidx).id = s1.id
+      Store.config.currentServer = copyidx
+    }
   }
   top = new Label() { text = "Servers:" }
   left = lvs
@@ -183,9 +186,7 @@ class ProtocolView(val server: Server) extends BorderPane {
     var tfExAfter = new MyTextField("Execute after: ") { tf.text <==> protocol.executeAfter }
     content = List(tfURI, tfBaseFolder, tfExBefore, tfExAfter)
   }
-  var lvp = new MyListView[Protocol](() => new Protocol,server.protocols, server.currentProtocol.value, () => protocolChanged()) {
-    def getCopy(what: Protocol) = Helpers.deepCopy(what)
-  }
+  var lvp = new MyListView[Protocol](() => new Protocol,server.protocols, server.currentProtocol.value, () => protocolChanged())
   top = new Label() { text = "Protocols:" }
   left = lvp
 }
@@ -208,9 +209,7 @@ class SubFolderView(val server: Server) extends BorderPane {
     var tfSubFolder = new MyTextField("Subfolder: ",5) { tf.text <==> subfolder.subfolder }
     content = List(tfSubFolder)
   }
-  var lvp = new MyListView[SubFolder](() => new SubFolder,server.subfolders, server.currentSubFolder.value, () => subfolderChanged()) {
-    def getCopy(what: SubFolder) = Helpers.deepCopy(what)
-  }
+  var lvp = new MyListView[SubFolder](() => new SubFolder,server.subfolders, server.currentSubFolder.value, () => subfolderChanged())
   top = new Label() { text = "Subfolders:" }
   left = lvp
 }
