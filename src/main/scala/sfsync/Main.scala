@@ -29,6 +29,8 @@ object Helpers {
     })
   }
 
+  def getUnit = {}
+
   def runUIwait( f: => Any ) : Any = {
     var stat: Any = null
     //    synchronized(stat) // not needed??

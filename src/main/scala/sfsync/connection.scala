@@ -30,7 +30,8 @@ class LocalConnection extends GeneralConnection {
     //    println("searching " + remoteBasePath + "/" + subfolder)
     println("listrec thread=" + Thread.currentThread())
     val list = new ListBuffer[VirtualFile]()
-//    def parseContentScala(folder: Path) : Unit = { // scalax.io is horribly slow, there is an issue filed
+// scalax.io is horribly slow, there is an issue filed
+//    def parseContentScala(folder: Path) : Unit = {
 //      for (cc <- folder.children().toList.sorted) { // sorted slow but faster for cache find
 //        val vf = new VirtualFile(cc.path.substring(remoteBasePath.length + 1), cc.lastModified, cc.size.get, if (cc.isDirectory) 1 else 0)
 //        if ( !vf.fileName.matches(filterregexp) ) {
@@ -53,10 +54,16 @@ class LocalConnection extends GeneralConnection {
           }
         }
       }
+      getUnit
     }
     val sp = Path.fromString(remoteBasePath + (if (subfolder.length>0) "/" else "") + subfolder)
     println("sp=" + sp)
-    if (sp.exists) parseContent(sp)
+    if (sp.exists) {
+      parseContent(sp)
+    } else {
+      runUIwait(Dialog.showMessage("creating local directory " + sp + " ..."))
+      sp.createDirectory()
+    }
     if (receiver != null) receiver ! 'done
     list
   }
@@ -65,12 +72,18 @@ class LocalConnection extends GeneralConnection {
 
 class SftpConnection(var uri: java.net.URI) extends GeneralConnection {
   def deletefile(what: VirtualFile) {
-    sftp.rm(remoteBasePath + "/" + what.path)
+    if (what.isDir == 1)
+      sftp.rmdir(remoteBasePath + "/" + what.path)
+    else
+      sftp.rm(remoteBasePath + "/" + what.path)
 //    println("deleted " + remoteBasePath + "/" + what.path)
   }
   def putfile(from: VirtualFile) {
     val rp = remoteBasePath + "/" + from.path
-    sftp.put(localBasePath + "/" + from.path, rp) // TODO: progressmonitor!
+    if (from.isDir == 1)
+      sftp.mkdir(rp)
+    else
+      sftp.put(localBasePath + "/" + from.path, rp) // TODO: progressmonitor!
     sftp.setMtime(rp, (from.modTime/1000).toInt)
   }
   def getfile(from: VirtualFile) {
@@ -79,10 +92,23 @@ class SftpConnection(var uri: java.net.URI) extends GeneralConnection {
     Path.fromString(lp).lastModified = from.modTime
   }
 
+  def sftpexists(sp: String) = {
+    val xx = sftp.ls(Path.fromString(sp).parent.get.path)
+    var found = false
+    for (obj <- xx) {
+      val fn = obj.asInstanceOf[ChannelSftp#LsEntry].getFilename
+      if (fn == Path.fromString(sp).name) {
+        found = true
+      }
+//      println("checked " + fn + " <> " + Path.fromString(sp).name)
+    }
+    found
+  }
+
   def listrec(subfolder: String, filterregexp: String, receiver: Actor) = {
-    println("searching " + remoteBasePath + "/" + subfolder)
     val list = new ListBuffer[VirtualFile]()
-    def parseContent(folder: String) : Unit = {
+    def parseContent(folder: String): Unit = {
+      println("parsing " + folder )
       val xx = sftp.ls(folder)
 //      println("parsing " + folder + " : size=" + xx.length)
       val tmp = new ListBuffer[ChannelSftp#LsEntry]
@@ -111,8 +137,17 @@ class SftpConnection(var uri: java.net.URI) extends GeneralConnection {
           }
         }
       }
+      getUnit
     }
-    parseContent(remoteBasePath + (if (subfolder.length>0) "/" else "") + subfolder)
+    println("searching " + remoteBasePath + "/" + subfolder)
+    val sp = remoteBasePath + (if (subfolder.length>0) "/" else "") + subfolder
+    if (sftpexists(sp)) {
+      parseContent(sp)
+    } else {
+      runUIwait(Dialog.showMessage("creating sftp directory " + sp + " ..."))
+      sftp.mkdir(sp)
+    }
+
     println("parsing done")
     if (receiver != null) receiver ! 'done
     list
@@ -212,11 +247,8 @@ trait GeneralConnection {
   def finish()
 }
 
+// path below baspath!
 class VirtualFile(var path: String, var modTime: Long, var size: Long, var isDir: Int) extends Ordered[VirtualFile] {
-//  var path: String = "" // TODO: is this below basepath or not? YES!!!!!!!
-//  var modTime: Long = 0
-//  var size: Long = 0
-//  var isDir: Int = 0
   var tagged = false // for cachelist: tagged if local/remote existing
 
   def this() = this("",0,0,0)

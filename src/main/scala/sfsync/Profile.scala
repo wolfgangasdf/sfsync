@@ -178,20 +178,20 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
     receiveList !? 'replyWhenDone
     println("*********************** receive remote finished")
 
-//    // add remaing local-only files
-//    locall.foreach(vf => {
-//      val cachef = cacherelevant.find(x => x.path == vf.path).getOrElse(null)
-//      if (cachef != null) cachef.tagged = true // mark
-//      val cfnew = new ComparedFile(vf, null, cachef)
-//      comparedfiles += cfnew
-//      view ! cfnew // send it!
-//    })
-//    // add remaining cache-only files for information: local and remote are deleted.
-//    cacherelevant.filter(vf => !vf.tagged).foreach( vf => {
-//      val cfnew = new ComparedFile(null, null, vf)
-//      comparedfiles += cfnew
-//      view ! cfnew // send it!
-//    })
+    // add remaing local-only files
+    locall.foreach(vf => {
+      val cachef = cacherelevant.find(x => x.path == vf.path).getOrElse(null)
+      if (cachef != null) cachef.tagged = true // mark
+      val cfnew = new ComparedFile(vf, null, cachef)
+      comparedfiles += cfnew
+      view ! cfnew // send it!
+    })
+    // add remaining cache-only files for information: local and remote are deleted.
+    cacherelevant.filter(vf => !vf.tagged).foreach( vf => {
+      val cfnew = new ComparedFile(null, null, vf)
+      comparedfiles += cfnew
+      view ! cfnew // send it!
+    })
 
     runUIwait { view.statusBar.status.text = "ready" }
     view ! CompareFinished // send finished!
@@ -208,6 +208,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
       iii -= 1
 //      println("***** cf:" + cf)
       var removecf = true
+      println("cf.action=" + cf.action)
       cf.action match {
         case A_MERGE => sys.error("merge not implemented yet!")
         case A_RMLOCAL => { local.deletefile(cf.flocal) ; if (cache.contains(cf.flocal)) Cache.remove(cf.flocal) }
@@ -218,6 +219,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
         case A_CACHEONLY => { if (cache.contains(cf.fcache)) Cache.remove(cf.fcache) }
         case _ => removecf = false
       }
+      println("doneaction")
       if (removecf) view ! RemoveCF(cf)
       if (iii % 100 == 0) runUIwait { // give UI time
         view.statusBar.status.text = "synchronize " + iii
