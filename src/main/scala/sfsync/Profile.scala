@@ -96,7 +96,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
     if (protocol.executeBefore.value != "") {
       runUIwait { view.statusBar.status.text = "execute 'before'..." }
       import sys.process._
-      val res = protocol.executeBefore.value.!
+      val res = protocol.executeBefore.value.split("#").toSeq.!
       if (res != 0) {
         sys.error("error executing 'before' command!")
       }
@@ -237,7 +237,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
     if (remote != null) remote.finish()
     if (protocol.executeAfter.value != "") {
       import sys.process._
-      val res = protocol.executeAfter.value.!
+      val res = protocol.executeAfter.value.split("#").toSeq.!
       if (res != 0) {
         sys.error("error executing 'after' command!")
       }

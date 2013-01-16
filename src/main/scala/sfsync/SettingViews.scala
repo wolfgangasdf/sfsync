@@ -182,8 +182,8 @@ class ProtocolView(val server: Server) extends BorderPane {
   class ProtocolDetailView extends VBox {
     var tfBaseFolder = new MyTextField("Base folder: ") { tf.text <==> protocol.protocolbasefolder }
     var tfURI = new MyTextField("Protocol URI: ") { tf.text <==> protocol.protocoluri }
-    var tfExBefore = new MyTextField("Execute before: ") { tf.text <==> protocol.executeBefore }
-    var tfExAfter = new MyTextField("Execute after: ") { tf.text <==> protocol.executeAfter }
+    var tfExBefore = new MyTextField("Execute before: ",0,"use '#' to separate args") { tf.text <==> protocol.executeBefore }
+    var tfExAfter = new MyTextField("Execute after: ",0,"use '#' to separate args") { tf.text <==> protocol.executeAfter }
     content = List(tfURI, tfBaseFolder, tfExBefore, tfExAfter)
   }
   var lvp = new MyListView[Protocol](() => new Protocol,server.protocols, server.currentProtocol.value, () => protocolChanged())
