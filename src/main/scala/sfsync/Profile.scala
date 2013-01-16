@@ -89,7 +89,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
     runUIwait { view.statusBar.status.text = "load cached files..." }
     cache = Cache.loadCache(server.id)
     if (subfolder.subfolder != "")
-      cacherelevant = cache.filter(cf => cf.fileName.startsWith(subfolder.subfolder) && cf.fileName != subfolder.subfolder)
+      cacherelevant = cache.filter(cf => cf.fileName.startsWith("" + subfolder.subfolder + "/") && cf.fileName != subfolder.subfolder)
     else
       cacherelevant = cache
 
