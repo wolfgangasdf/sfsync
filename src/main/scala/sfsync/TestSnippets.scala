@@ -301,3 +301,10 @@ object TestFindSpeed extends App {
   }
 
 }
+
+object TestScalaSubString extends App {
+  val s = "asdf"
+  println("3=" + s.substring(3))
+  println("4=" + s.substring(4))
+  println("5=" + s.substring(5))
+}

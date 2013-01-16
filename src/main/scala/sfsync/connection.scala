@@ -8,7 +8,8 @@ import scala.collection.JavaConversions._
 import actors.Actor
 import scalax.file.Path
 import com.jcraft.jsch
-import jsch.ChannelSftp
+import jsch.{SftpATTRS, ChannelSftp}
+import java.io.File
 
 class cachedFile(path: String, modTime: Long, size: Long) {
 }
@@ -26,43 +27,28 @@ class LocalConnection extends GeneralConnection {
   def getfile(from: VirtualFile) {
     Path.fromString(remoteBasePath + "/" + from.path).copyTo(Path.fromString(localBasePath + "/" + from.path),replaceExisting = true)
   }
+  // include the subfolder but root "/" is not allowed!
   def listrec(subfolder: String, filterregexp: String, receiver: Actor) = {
-    //    println("searching " + remoteBasePath + "/" + subfolder)
     println("listrec thread=" + Thread.currentThread())
     val list = new ListBuffer[VirtualFile]()
-// scalax.io is horribly slow, there is an issue filed
-//    def parseContentScala(folder: Path) : Unit = {
-//      for (cc <- folder.children().toList.sorted) { // sorted slow but faster for cache find
-//        val vf = new VirtualFile(cc.path.substring(remoteBasePath.length + 1), cc.lastModified, cc.size.get, if (cc.isDirectory) 1 else 0)
-//        if ( !vf.fileName.matches(filterregexp) ) {
-//          list += vf
-//          if (receiver != null) receiver ! vf
-//          if (vf.isDir == 1) {
-//            parseContentScala(cc)
-//          }
-//        }
-//      }
-//    }
-    def parseContent(folder: Path) : Unit = {
-      for (cc <- (new java.io.File(folder.path)).listFiles()) {
-        val vf = new VirtualFile(cc.getPath.substring(remoteBasePath.length + 1), cc.lastModified(), cc.length, if (cc.isDirectory) 1 else 0)
-        if ( !vf.fileName.matches(filterregexp) ) {
-          list += vf
-          if (receiver != null) receiver ! vf
-          if (vf.isDir == 1) {
-            parseContent(Path(cc))
-          }
-        }
+    // scalax.io is horribly slow, there is an issue filed
+    def parseContent(cc: java.io.File, firstTime: Boolean = false) : Unit = {
+      val strippedPath: String = if (cc.getPath == remoteBasePath) "/" else cc.getPath.substring(remoteBasePath.length)
+      val vf = new VirtualFile(strippedPath, cc.lastModified(), cc.length, if (cc.isDirectory) 1 else 0)
+      if ( !vf.fileName.matches(filterregexp) ) {
+        list += vf
+        if (receiver != null) receiver ! vf
+        if (vf.isDir == 1) for (cc <- cc.listFiles()) parseContent(cc)
       }
       getUnit
     }
     val sp = Path.fromString(remoteBasePath + (if (subfolder.length>0) "/" else "") + subfolder)
-    println("sp=" + sp)
-    if (sp.exists) {
-      parseContent(sp)
+    val spf = new java.io.File(sp.path)
+    if (spf.exists) {
+      parseContent(spf,true)
     } else {
-      runUIwait(Dialog.showMessage("creating local directory " + sp + " ..."))
-      sp.createDirectory()
+      runUIwait(Dialog.showMessage("creating local directory " + spf + " ..."))
+      spf.mkdir()
     }
     if (receiver != null) receiver ! 'done
     list
@@ -91,45 +77,42 @@ class SftpConnection(var uri: java.net.URI) extends GeneralConnection {
     Path.fromString(lp).lastModified = from.modTime
   }
 
-  def sftpexists(sp: String) = {
+  def sftpexists(sp: String): ChannelSftp#LsEntry = {
     val xx = sftp.ls(Path.fromString(sp).parent.get.path)
-    var found = false
     for (obj <- xx) {
-      val fn = obj.asInstanceOf[ChannelSftp#LsEntry].getFilename
-      if (fn == Path.fromString(sp).name) {
-        found = true
+      val sftplse = obj.asInstanceOf[ChannelSftp#LsEntry]
+      if (sftplse.getFilename == Path.fromString(sp).name) {
+        return sftplse
       }
     }
-    found
+    return null
   }
 
   def listrec(subfolder: String, filterregexp: String, receiver: Actor) = {
     val list = new ListBuffer[VirtualFile]()
+    def VFfromLse(fullFilePath: String, lse: ChannelSftp#LsEntry) = {
+      new VirtualFile {
+        path=(fullFilePath).substring(remoteBasePath.length)
+        if (path == "") path = "/"
+        modTime = lse.getAttrs.getMTime.toLong * 1000
+        size = lse.getAttrs.getSize
+        isDir = if (lse.getAttrs.isDir) 1 else 0
+      }
+    }
     def parseContent(folder: String): Unit = {
       println("parsing " + folder )
       val xx = sftp.ls(folder)
-//      println("parsing " + folder + " : size=" + xx.length)
       val tmp = new ListBuffer[ChannelSftp#LsEntry]
       for (obj <- xx ) { tmp += obj.asInstanceOf[ChannelSftp#LsEntry] } // doesn't work otherwise!
       val ord = new Ordering[ChannelSftp#LsEntry]() { def compare(l: ChannelSftp#LsEntry, r: ChannelSftp#LsEntry) = l.getFilename compare r.getFilename }
       for (obj <- tmp.sorted(ord) ) {
-        val lse = obj.asInstanceOf[ChannelSftp#LsEntry]
-//        println("lse=" + lse.getFilename)
-        if (!lse.getFilename.equals(".") && !lse.getFilename.equals("..")) {
-          val fullFilePath = folder + "/" + lse.getFilename
-          val vf = new VirtualFile {
-//            println("ffp=" + fullFilePath)
-            path=(fullFilePath).substring(remoteBasePath.length + 1) // without leading '/'
-//            printf("times=" + lse.getAttrs.getMTime + " " + lse.getAttrs.getMtimeString + " " + lse.getAttrs.getATime)
-            modTime = lse.getAttrs.getMTime.toLong * 1000
-            size = lse.getAttrs.getSize
-            isDir = if (lse.getAttrs.isDir) 1 else 0
-          }
+        if (!obj.getFilename.equals(".") && !obj.getFilename.equals("..")) {
+          val fullFilePath = folder + "/" + obj.getFilename
+          val vf = VFfromLse(fullFilePath, obj)
           if ( !vf.fileName.matches(filterregexp) ) {
-//            println("got " + vf)
             list += vf
             if (receiver != null) receiver ! vf
-            if (lse.getAttrs.isDir) {
+            if (obj.getAttrs.isDir) {
               parseContent(fullFilePath)
             }
           }
@@ -139,12 +122,21 @@ class SftpConnection(var uri: java.net.URI) extends GeneralConnection {
     }
     println("searching " + remoteBasePath + "/" + subfolder)
     val sp = remoteBasePath + (if (subfolder.length>0) "/" else "") + subfolder
-    if (sftpexists(sp)) {
-      parseContent(sp)
-    } else {
-      runUIwait(Dialog.showMessage("creating sftp directory " + sp + " ..."))
-      sftp.mkdir(sp)
+    val sftpsp = sftpexists(sp)
+    if (sftpsp != null) { // not nice, copied basically from above. but no other way
+      val vf = VFfromLse(sp, sftpsp)
+      if ( !vf.fileName.matches(filterregexp) ) {
+        list += vf
+        if (receiver != null) receiver ! vf
+        if (sftpsp.getAttrs.isDir) {
+          parseContent(sp)
+        }
+      }
     }
+//    else {
+//      runUIwait(Dialog.showMessage("creating sftp directory " + sp + " ..."))
+//      sftp.mkdir(sp)
+//    }
 
     println("parsing done")
     if (receiver != null) receiver ! 'done
@@ -245,13 +237,13 @@ trait GeneralConnection {
   def finish()
 }
 
-// path below baspath!
+// path below baspath with a leading "/"
 class VirtualFile(var path: String, var modTime: Long, var size: Long, var isDir: Int) extends Ordered[VirtualFile] {
   var tagged = false // for cachelist: tagged if local/remote existing
 
   def this() = this("",0,0,0)
-
-  def fileName : String = { path.split("/").last }
+//  def getPathString = if (path == "") "<root>" else path
+  def fileName : String = if (path == "/") "/" else path.split("/").last
   override def toString: String = "["+path+"]:"+modTime+","+size
 
   override def equals(that: Any): Boolean = {
