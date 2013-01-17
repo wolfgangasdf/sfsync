@@ -206,9 +206,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
     var iii = cfs.length
     for (cf <- cfs) {
       iii -= 1
-//      println("***** cf:" + cf)
       var removecf = true
-      println("cf.action=" + cf.action)
       cf.action match {
         case A_MERGE => sys.error("merge not implemented yet!")
         case A_RMLOCAL => { local.deletefile(cf.flocal) ; if (cache.contains(cf.flocal)) Cache.remove(cf.flocal) }
@@ -219,7 +217,6 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
         case A_CACHEONLY => { if (cache.contains(cf.fcache)) Cache.remove(cf.fcache) }
         case _ => removecf = false
       }
-      println("doneaction")
       if (removecf) view ! RemoveCF(cf)
       if (iii % 100 == 0) runUIwait { // give UI time
         view.statusBar.status.text = "synchronize " + iii
