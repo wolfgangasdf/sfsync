@@ -199,6 +199,7 @@ object Main extends JFXApp with Logging {
   println("sfsync version " + version)
   println("java version " + System.getProperty("java.version"))
   println("scala version " + util.Properties.versionString)
+  println("javafx version " + System.getProperty("javafx.runtime.version"))
 
   refreshContent
 

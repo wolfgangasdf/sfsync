@@ -13,6 +13,7 @@ import sfsync.Helpers._
 import scala._
 import collection.mutable.ArrayBuffer
 import sfsync.Main.Dialog
+import scalafx.beans.property.StringProperty
 
 class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer: ArrayBuffer[T], var currIdx: Int, val onChange: () => Unit ) extends VBox {
   var oldidx = -1
@@ -90,12 +91,20 @@ class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer:
   )
 }
 
-
-class MyTextField(labelText: String, fileChooserMode: Int = 0, toolTip: String = "") extends HBox {
+class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: String = "", filter: String = "") extends HBox {
   var tf = new TextField() {
     prefWidth = 500
     text = ""
     if (toolTip != "") tooltip = new Tooltip { text = toolTip }
+    text.onChange({
+      if (filter != "") {
+        if (!text.matches(filter)) {
+          style = "-fx-background-color: red;"
+        } else {
+          style = ""//-fx-background-color: red;"
+        }
+      }
+    })
   }
   var lb = new Label() {
     prefWidth = 200
@@ -107,20 +116,11 @@ class MyTextField(labelText: String, fileChooserMode: Int = 0, toolTip: String =
   content = List(lb, tf)
   spacing = 10
 
-  if (fileChooserMode>0) {
+  if (onButtonClick != null) {
     val butt = new Button("Dir...") {
       onAction = (ae: ActionEvent) => {
-        val fileChooser = new DirectoryChooser
-        val jf = new java.io.File(tf.text.value)
-        if (jf.exists() && jf.canRead) {
-          fileChooser.setInitialDirectory(jf)
-        } else {
-          fileChooser.setInitialDirectory(new java.io.File("/"))
-        }
-        runUI { // TODO: make dialog modal
-          val res = fileChooser.showDialog(Main.stage)
-          if (res != null) tf.text = res.toString
-        }
+        onButtonClick()
+        println("")
       }
     }
     content.add(butt)
@@ -142,10 +142,23 @@ abstract class ServerView(val config: Config) extends BorderPane {
       onServerChange()
     }
   }
+  def fcLocalDir(prop: StringProperty) = {
+    val fileChooser = new DirectoryChooser
+    val jf = new java.io.File(prop.value)
+    if (jf.exists() && jf.canRead) {
+      // TODO: not working, fixed in 2.2.6: http://javafx-jira.kenai.com/browse/RT-23449
+      fileChooser.delegate.setInitialDirectory(jf)
+    }
+    runUI { // TODO: make dialog modal
+      val res = fileChooser.showDialog(Main.stage)
+      if (res != null) prop.value = res.toString
+    }
+  }
+
   class ServerDetailView extends VBox {
-    val tfID = new MyTextField("Cache ID: ",0, "just leave it") { tf.text <==> server.id }
-    val tfFilter = new MyTextField("Filter: ",0, "e.g., (.*12)|(.*e2)") { tf.text <==> server.filterRegexp }
-    val tfLocalFolder = new MyTextField("Local folder: ",1) { tf.text <==> server.localFolder }
+    val tfID = new MyTextField("Cache ID: ",null, "just leave it") { tf.text <==> server.id }
+    val tfFilter = new MyTextField("Filter: ",null, "regex, e.g., (.*12)|(.*e2)") { tf.text <==> server.filterRegexp }
+    val tfLocalFolder = new MyTextField("Local folder: ",() => fcLocalDir(server.localFolder), "/localdir","/.*[^/]") { tf.text <==> server.localFolder }
     val cbSkipEqualFiles = new CheckBox("Skip equal files") { selected <==> server.skipEqualFiles }
     var bClearCache = new Button("Clear cache") { onAction = (ae: ActionEvent) => { Cache.clearCache(tfID.tf.text.value)} }
     content = List(tfLocalFolder,tfFilter,tfID,cbSkipEqualFiles,bClearCache)
@@ -180,10 +193,10 @@ class ProtocolView(val server: Server) extends BorderPane {
     }
   }
   class ProtocolDetailView extends VBox {
-    var tfBaseFolder = new MyTextField("Base folder: ") { tf.text <==> protocol.protocolbasefolder }
-    var tfURI = new MyTextField("Protocol URI: ") { tf.text <==> protocol.protocoluri }
-    var tfExBefore = new MyTextField("Execute before: ",0,"use '#' to separate args") { tf.text <==> protocol.executeBefore }
-    var tfExAfter = new MyTextField("Execute after: ",0,"use '#' to separate args") { tf.text <==> protocol.executeAfter }
+    var tfBaseFolder = new MyTextField("Base folder: ", null, "/remotebasedir", "/.*[^/]") { tf.text <==> protocol.protocolbasefolder }
+    var tfURI = new MyTextField("Protocol URI: ", null, "file:/// or sftp://user@host:port", "(file:///)|(sftp://\\S+@\\S+:\\S+)") { tf.text <==> protocol.protocoluri }
+    var tfExBefore = new MyTextField("Execute before: ", null, "use '#' to separate args") { tf.text <==> protocol.executeBefore }
+    var tfExAfter = new MyTextField("Execute after: ", null, "use '#' to separate args") { tf.text <==> protocol.executeAfter }
     content = List(tfURI, tfBaseFolder, tfExBefore, tfExAfter)
   }
   var lvp = new MyListView[Protocol](() => new Protocol,server.protocols, server.currentProtocol.value, () => protocolChanged())
@@ -206,7 +219,29 @@ class SubFolderView(val server: Server) extends BorderPane {
     }
   }
   class SubFolderDetailView extends VBox {
-    var tfSubFolder = new MyTextField("Subfolder: ",5) { tf.text <==> subfolder.subfolder }
+    def fcSubfolder(basedir: String, sf: StringProperty) = {
+      var inidir = basedir
+      if (sf.value != "") inidir += sf.value
+      println("inidir " + inidir)
+      val fileChooser = new DirectoryChooser
+      val jf = new java.io.File(inidir)
+      if (jf.exists() && jf.canRead) {
+        // TODO: not working, fixed in 2.2.6: http://javafx-jira.kenai.com/browse/RT-23449
+        fileChooser.delegate.setInitialDirectory(jf)
+      }
+      runUI { // TODO: make dialog modal
+      val res = fileChooser.showDialog(Main.stage)
+        if (res != null) {
+          val ress = res.toString
+          if (res.exists() && res.isDirectory && ress.startsWith(basedir)) {
+            var sd = ress.substring(basedir.length)
+            if (sd.startsWith("/")) sd = sd.substring(1)
+            sf.value = sd
+          }
+        }
+      }
+    }
+    var tfSubFolder = new MyTextField("Subfolder: ", () => fcSubfolder(server.localFolder, subfolder.subfolder), "folder/sub","[^/].*[^/]") { tf.text <==> subfolder.subfolder }
     content = List(tfSubFolder)
   }
   var lvp = new MyListView[SubFolder](() => new SubFolder,server.subfolders, server.currentSubFolder.value, () => subfolderChanged())
