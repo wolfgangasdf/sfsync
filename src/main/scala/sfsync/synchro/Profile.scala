@@ -34,7 +34,7 @@ object Actions {
   val A_CACHEONLY = 6
 }
 case object ComparedFile
-class ComparedFile(var flocal: VirtualFile, var fremote: VirtualFile, var fcache: VirtualFile) {
+class ComparedFile(val flocal: VirtualFile, val fremote: VirtualFile, val fcache: VirtualFile) {
   var action: Int = -9
   def isSynced = if (flocal != null) flocal == fremote else false
 
@@ -74,7 +74,7 @@ class ComparedFile(var flocal: VirtualFile, var fremote: VirtualFile, var fcache
     }
   }
   assert(action != -9)
-
+  //println("cf: " + toString())
 }
 
 case class CompareFinished()
@@ -92,8 +92,9 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
   def init() {
     runUIwait { view.statusBar.status.text = "load cached files..." }
     cache = Cache.loadCache(server.id)
-    if (subfolder.subfolder != "")
-      cacherelevant = cache.filter(cf => cf.fileName.startsWith("" + subfolder.subfolder + "/") && cf.fileName != subfolder.subfolder)
+    // TODO: why doesn't the implicit from Helpers work here and i need subfolder.value???
+    if (subfolder.subfolder.value != "")
+      cacherelevant = cache.filter(cf => cf.path.startsWith("/" + subfolder.subfolder.value + "/"))// && cf.fileName != subfolder.subfolder)
     else
       cacherelevant = cache
 
@@ -128,7 +129,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
     runUIwait { view.statusBar.status.text = "list local files..." }
     println("***********************list local")
     var locall = StopWatch.timed("loaded local list in ") {
-      local.listrec(subfolder.subfolder, server.filterRegexp, null)
+      local.listrec(subfolder.subfolder.value, server.filterRegexp, null)
     }
     runUIwait { view.statusBar.local.text = locall.length.toString }
 //    println("***********************result:")
@@ -174,7 +175,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
       }
     })
     val sw1 = new StopWatch
-    remote.listrec(subfolder.subfolder, server.filterRegexp, receiveList)
+    remote.listrec(subfolder.subfolder.value, server.filterRegexp, receiveList)
     sw1.printLapTime("TTTTTTT listrec alone needed ")
     implicit val timeout = Timeout(36500 days)
     Await.result(receiveList ? 'replyWhenDone, Duration.Inf)
