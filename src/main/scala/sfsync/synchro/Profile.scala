@@ -212,12 +212,12 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
       var removecf = true
       cf.action match {
         case A_MERGE => sys.error("merge not implemented yet!")
-        case A_RMLOCAL => { local.deletefile(cf.flocal) ; if (cache.contains(cf.flocal)) Cache.remove(cf.flocal) }
-        case A_RMREMOTE => { remote.deletefile(cf.fremote) ; if (cache.contains(cf.fremote)) Cache.remove(cf.fremote) }
+        case A_RMLOCAL => { local.deletefile(cf.flocal) }
+        case A_RMREMOTE => { remote.deletefile(cf.fremote) ; if (cf.fcache!=null) Cache.remove(cf.fremote) }
         case A_USELOCAL => { remote.putfile(cf.flocal) ; Cache.addupdate(cf.flocal) }
-        case A_USEREMOTE => { remote.getfile(cf.fremote) ; if (!cache.contains(cf.fremote)) Cache.addupdate(cf.fremote) }
-        case A_NOTHING => { if (!cache.contains(cf.fremote)) Cache.addupdate(cf.fremote) }
-        case A_CACHEONLY => { if (cache.contains(cf.fcache)) Cache.remove(cf.fcache) }
+        case A_USEREMOTE => { remote.getfile(cf.fremote) ; if (cf.fremote!=cf.fcache) Cache.addupdate(cf.fremote) }
+        case A_NOTHING => { if (cf.fcache==null) Cache.addupdate(cf.fremote) }
+        case A_CACHEONLY => { Cache.remove(cf.fcache) }
         case _ => removecf = false
       }
       if (removecf) view.act ! RemoveCF(cf)
