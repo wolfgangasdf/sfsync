@@ -38,7 +38,7 @@ class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer:
 
   slist.onChange( { // list has been edited: update obsBuffer... ugly
     for (ii <- 0 until slist.length) {
-      if (slist(ii) != obsBuffer(ii).name) obsBuffer(ii).name = slist(ii)
+      if (slist(ii) != obsBuffer(ii).name) obsBuffer(ii).name.set(slist(ii))
     }
   } )
 
@@ -131,7 +131,7 @@ abstract class ServerView(val config: Config) extends BorderPane {
   minHeight = 160
   def onServerChange()
   var server = new Server
-  def serverChanged() : Unit = {
+  def serverChanged : Unit = {
     val idx = lvs.lvs.getSelectionModel.getSelectedIndices.head
     if (idx > -1) {
       server=config.servers(idx)
@@ -161,7 +161,7 @@ abstract class ServerView(val config: Config) extends BorderPane {
     override def afterCopy(copyidx: Int) = {
       val s1 = new Server
       Store.config.servers(copyidx).id = s1.id
-      Store.config.currentServer = copyidx
+      Store.config.currentServer.set(copyidx)
     }
   }
   top = new Label() { text = "Servers:" }
@@ -175,7 +175,7 @@ class ProtocolView(val server: Server) extends BorderPane {
     val idx = lvp.lvs.getSelectionModel.getSelectedIndex
     if (idx > -1) {
       protocol=server.protocols(idx)
-      server.currentProtocol = idx
+      server.currentProtocol.value = idx
       right = new ProtocolDetailView
     }
   }
@@ -199,8 +199,8 @@ class SubFolderView(val server: Server) extends BorderPane {
     val itm = lvp.lvs.getSelectionModel.getSelectedItem
     if (idx > -1) {
       subfolder=server.subfolders(idx)
-      if (!subfolder.name.equals(itm)) subfolder.name = itm // then it was edited!
-      server.currentSubFolder = idx
+      if (!subfolder.name.equals(itm)) subfolder.name.value = itm // then it was edited!
+      server.currentSubFolder.value = idx
 
       right = new SubFolderDetailView
     }

@@ -13,12 +13,12 @@ import javafx.geometry. {Orientation=>jgo}
 import util.Logging
 import scala._
 import store._
-import javax.swing.JOptionPane
 import javafx.{stage => jfxs}
 import synchro._
 import scala.concurrent.ops.spawn
 import javafx.event.EventHandler
 import Helpers._
+import akka.actor._
 
 object Helpers {
   def runUI( f: => Unit ) {
@@ -47,11 +47,13 @@ object Helpers {
   }
   import scalafx.beans.property._
   implicit def StringPropertyToString(sp: StringProperty) = sp.value
-  implicit def IntegerPropertyToString(sp: IntegerProperty) = sp.value
+  implicit def IntegerPropertyToInt(sp: IntegerProperty) = sp.value
+//  implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
+//  implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
 
   // this only works for serializable objects (no javafx properties)
   def deepCopy[A](a: A)(implicit m: reflect.Manifest[A]): A =
-    util.Marshal.load[A](util.Marshal.dump(a))
+    scala.util.Marshal.load[A](scala.util.Marshal.dump(a))
 }
 
 class MainView extends SplitPane {
@@ -90,6 +92,8 @@ object Main extends JFXApp with Logging {
 
   }
 
+  def system = ActorSystem("some-api") // TODO: needed?
+
   val menuBar = new MenuBar {
     useSystemMenuBar = true
     minWidth = 100
@@ -119,7 +123,7 @@ object Main extends JFXApp with Logging {
         Main.stage.scene().content = cw
         cw.prefWidth <== Main.stage.scene.width
         cw.prefHeight <== Main.stage.scene.height
-        cw.start()
+//        cw.start()
 
         profile = new Profile (cw,mainView.serverView.server, mainView.protocolView.protocol, mainView.subfolderView.subfolder)
         cw.setProfile(profile)
@@ -150,18 +154,18 @@ object Main extends JFXApp with Logging {
     content = List(new Label { text = "Sfsync Version " + version })
   }
 
-  def refreshContent() {
+  def refreshContent = {
     mainView = new MainView
     maincontent.content = List(menuBar,toolBar,mainView,statusBar)
     Main.stage.scene().content = maincontent
     maincontent.prefHeight <== stage.scene.height
     maincontent.prefWidth <== stage.scene.width
     if (Store.config.currentServer.value > -1) {
-      mainView.serverView.serverChanged()
+      mainView.serverView.serverChanged
     }
   }
 
-  stage = new Stage{
+  stage = new JFXApp.PrimaryStage {
     title = "SFSynchro"
     width = 800
     height = 600
@@ -178,8 +182,10 @@ object Main extends JFXApp with Logging {
 //    }
   }
 
+  import akka.actor.ActorDSL._
+  import akka.actor._
   def doCleanup() {
-    if (cw != null) cw ! 'done
+    if (cw != null) cw.act ! 'done
     if (profile != null) profile.finish()
   }
   def doClose() {
@@ -191,9 +197,10 @@ object Main extends JFXApp with Logging {
 
   // startup
   println("sfsync version " + version)
-  println("  using java " + System.getProperty("java.version"))
+  println("java version " + System.getProperty("java.version"))
+  println("scala version " + util.Properties.versionString)
 
-  refreshContent()
+  refreshContent
 
   // https://gist.github.com/1887631
   object Dialog {

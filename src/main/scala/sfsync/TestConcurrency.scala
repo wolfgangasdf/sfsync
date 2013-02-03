@@ -38,7 +38,7 @@ object TestConcurrency extends JFXApp {
     println("after loopwhile!!!!!")
     stat
   }
-  stage = new Stage{
+  stage = new JFXApp.PrimaryStage {
     title = "SFSynchro"
     width = 800
     height = 600
@@ -55,7 +55,7 @@ object TestConcurrency extends JFXApp {
           onAction = (ae: ActionEvent) => {
             spawn {
               while (true) {
-                Thread.sleep(1000);
+                Thread.sleep(1000)
                 println("xxx")
                 val res = runUIwait( Dialog.showTest() )
                 runUI { obslist += "newt" + res ; println("") }

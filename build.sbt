@@ -3,8 +3,16 @@ name := "sfsync"
 version := "0.1"
 
 // scalafx does not work with scala 2.10 yet. WAIT
-//scalaVersion := "2.10.0-RC1"
-scalaVersion := "2.9.2"
+scalaVersion := "2.10.0"
+//scalaVersion := "2.9.2"
+
+////////// intellij doesn't like same output path
+// doesntwork target in Compile <<= baseDirectory(_ / "targetsbt") 
+
+/////////////// akka actors TODO: should work without this but doesn't
+resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/"
+
+libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.1.0"
 
 ////////////////// for compile with javafx
 
@@ -15,12 +23,12 @@ mainClass in (Compile, run) := Some("sfsync.Main")
 //javaHome := Some(file("/Library/Java/JavaVirtualMachines/1.7.0.jdk/Contents/Home"))
 
 ////////////////// locally compiled scalafx!
-libraryDependencies += "org.scalafx" % "scalafx" % "1.0-SNAPSHOT"
+libraryDependencies += "org.scalafx" %% "scalafx-core" % "1.0-SNAPSHOT"
 
-////////////////// file io
-libraryDependencies += "com.github.scala-incubator.io" %% "scala-io-core" % "0.4.1-seq"
+////////////////// file io 
+libraryDependencies += "com.github.scala-incubator.io" %% "scala-io-core" % "0.5.0-SNAPSHOT"
 
-libraryDependencies += "com.github.scala-incubator.io" %% "scala-io-file" % "0.4.1-seq"
+libraryDependencies += "com.github.scala-incubator.io" %% "scala-io-file" % "0.5.0-SNAPSHOT"
 
 ////////////////// sftp
 resolvers += "JAnalyse Repository" at "http://www.janalyse.fr/repository/"

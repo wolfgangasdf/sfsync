@@ -39,6 +39,9 @@ object Tools {
 // further, all javafx properties are NOT serializable :-(
 class Config {
 //  var servers = new sfxc.ObservableBuffer[Server] // THIS does not work :-( if the servers is used by ListView, it crashes the DB.....
+  // TODO: why do i need this, and why cannot I put this in Main.helpers (then many things break)
+//implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
+  implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
   var servers = new ArrayBuffer[Server]
   var currentServer: IntegerProperty = -1
   var currentFilter: IntegerProperty = 0
@@ -52,6 +55,9 @@ class MyList[T] extends ArrayBuffer[T] {
   def add(what: T) = { this += what}
 }
 class Server extends ListableThing {
+  // TODO see above
+  implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
+  implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
   var name: StringProperty = "<new>"
   var id: StringProperty = new java.util.Date().getTime.toString
   var localFolder: StringProperty = ""
@@ -60,11 +66,14 @@ class Server extends ListableThing {
   var currentProtocol: IntegerProperty = -1
   var subfolders = new ArrayBuffer[SubFolder]
   var currentSubFolder: IntegerProperty = -1
-  var skipEqualFiles: BooleanProperty = false
+  var skipEqualFiles: BooleanProperty = BooleanProperty(false)
   override def toString: String = name // used for listview
 }
 
 class Protocol extends ListableThing {
+  // TODO see above
+  implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
+  implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
   var name: StringProperty = "<new>"
   var protocoluri: StringProperty = ""
   var protocolbasefolder: StringProperty = ""
@@ -74,6 +83,9 @@ class Protocol extends ListableThing {
 }
 
 class SubFolder extends ListableThing {
+  // TODO see above
+  implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
+  implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
   var name: StringProperty = "<new>"
   var subfolder: StringProperty = ""
   override def toString: String = name
@@ -133,31 +145,31 @@ object Store {
             if (!sett(1).equals("1")) sys.error("wrong settings version")
             config = new Config()
           }
-          case "servercurr" => { config.currentServer = sett(1).toInt }
-          case "currentFilter" => config.currentFilter = sett(1).toInt
+          case "servercurr" => { config.currentServer.value = sett(1).toInt }
+          case "currentFilter" => config.currentFilter.value = sett(1).toInt
           case "server" => {
             lastserver = new Server { name = sett(1) }
             config.servers += lastserver
           }
-          case "localfolder" => { lastserver.localFolder = sett(1) }
-          case "filterregexp" => { lastserver.filterRegexp = sett(1) }
-          case "id" => { lastserver.id = sett(1) }
-          case "skipequalfiles" => {lastserver.skipEqualFiles = sett(1).toBoolean }
-          case "protocolcurr" => { lastserver.currentProtocol = sett(1).toInt }
+          case "localfolder" => { lastserver.localFolder.value = sett(1) }
+          case "filterregexp" => { lastserver.filterRegexp.value = sett(1) }
+          case "id" => { lastserver.id.value = sett(1) }
+          case "skipequalfiles" => {lastserver.skipEqualFiles.value = sett(1).toBoolean }
+          case "protocolcurr" => { lastserver.currentProtocol.value = sett(1).toInt }
           case "protocol" => {
             lastprotocol = new Protocol { name = sett(1) }
             lastserver.protocols += lastprotocol
           }
-          case "protocoluri" => {lastprotocol.protocoluri = sett(1)}
-          case "protocolbasefolder" => {lastprotocol.protocolbasefolder = sett(1)}
-          case "protocolexbefore" => {lastprotocol.executeBefore = sett(1)}
-          case "protocolexafter" => {lastprotocol.executeAfter = sett(1)}
-          case "subfoldercurr" => { lastserver.currentSubFolder = sett(1).toInt }
+          case "protocoluri" => {lastprotocol.protocoluri.value = sett(1)}
+          case "protocolbasefolder" => {lastprotocol.protocolbasefolder.value = sett(1)}
+          case "protocolexbefore" => {lastprotocol.executeBefore.value = sett(1)}
+          case "protocolexafter" => {lastprotocol.executeAfter.value = sett(1)}
+          case "subfoldercurr" => { lastserver.currentSubFolder.value = sett(1).toInt }
           case "subfolder" => {
             lastsubfolder = new SubFolder { name = sett(1) }
             lastserver.subfolders += lastsubfolder
           }
-          case "subfolderfolder" => {lastsubfolder.subfolder = sett(1)}
+          case "subfolderfolder" => {lastsubfolder.subfolder.value = sett(1)}
           case _ => {println("unknown tag in config file: <" + sett(0) + ">")}
         }
       })

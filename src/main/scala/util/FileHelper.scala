@@ -1,12 +1,5 @@
 package util
 
-/**
- * Created with IntelliJ IDEA.
- * User: wolle
- * Date: 14.10.2012
- * Time: 18:47
- * To change this template use File | Settings | File Templates.
- */
   import java.io._
 
 class FileHelper(file : File) {

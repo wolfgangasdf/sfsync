@@ -1,29 +1,33 @@
 package sfsync
 
+import scala.concurrent.ops.spawn
+
 import scalafx.scene.layout._
 import scalafx.scene.control._
 import scalafx. {collections => sfxc}
 import scalafx.Includes._
+import scalafx.event.ActionEvent
+import scalafx.beans.property.StringProperty
 
 import javafx.{collections => jfxc}
 import javafx.{util => jfxu}
 import javafx.beans.{value => jfxbv}
 import javafx.scene. {control => jfxsc}
-import scalafx.event.ActionEvent
-import scala.concurrent.ops.spawn
 
-import synchro._
-import Actions._
-
-import scalafx.beans.property.StringProperty
-import actors.Actor
+import sfsync.synchro._
+import sfsync.synchro.Actions._
 import sfsync.store.Store
-import sfsync.Helpers._
-import scala.collection
+import Helpers._
+import sfsync.synchro.CompareFinished
+
+import akka.actor.ActorDSL._
+//import akka.actor._
+
 
 // the thing with properties for javafx tableview
 class CompFile(cf_ : ComparedFile) {
   val cf = cf_
+  val bmap = Map(3 -> "M", 54 -> "==")
   val amap = Map(A_MERGE -> "M", A_NOTHING -> "==", A_RMLOCAL -> "<-(rm)", A_RMREMOTE -> "(rm)->",
     A_UNKNOWN -> "?", A_USELOCAL -> "->", A_USEREMOTE -> "<-", A_CACHEONLY -> "C")
   var tmp = ""
@@ -43,7 +47,7 @@ class CompFile(cf_ : ComparedFile) {
   override def toString: String = "CompFile: " + path() + " " + status() + " L:" + detailsLocal + " R:" + detailsRemote
 }
 
-class CompareWindow() extends VBox with Actor {
+class CompareWindow() extends VBox {
   var comparedfiles = new sfxc.ObservableBuffer[ComparedFile]()
   var compfiles =  new sfxc.ObservableBuffer[CompFile]() // for tableview
   var profile: Profile = null
@@ -91,7 +95,7 @@ class CompareWindow() extends VBox with Actor {
   }
   var btBack = new Button("Back") {
     onAction = (ae: ActionEvent) => {
-      Main.refreshContent()
+      Main.refreshContent
     }
   }
 
@@ -142,14 +146,14 @@ class CompareWindow() extends VBox with Actor {
 
   var filterList = new sfxc.ObservableBuffer[String]()
   object F {
-    val all="all"; val changes="changes"; val problems="problems";
+    val all="all"; val changes="changes"; val problems="problems"
     def getAll = (all,changes,problems)
   }
   filterList.addAll (F.all,F.changes,F.problems)
   val cFilter = new ComboBox(filterList) {
     selectionModel.get().select(Store.config.currentFilter)
     onAction = (ae: ActionEvent) => {
-      Store.config.currentFilter = selectionModel.get().getSelectedIndex
+      Store.config.currentFilter.value = selectionModel.get().getSelectedIndex
       updateFilter(selectionModel.get().getSelectedItem)
     }
   }
@@ -196,40 +200,36 @@ class CompareWindow() extends VBox with Actor {
   statusBar.prefWidth <== this.width
 
   // receive compared files!
-  def act() {
+  val act = actor(Main.system)(new Act {
     var doit = true
-    loopWhile(doit) {
-      receive {
-        case cf: ComparedFile => {
-          runUI {
-            comparedfiles.add(cf)
-            if (getFilter(cf)) compfiles.add(new CompFile(cf))
+    become {
+      case cf: ComparedFile => {
+        runUI {
+          comparedfiles.add(cf)
+          if (getFilter(cf)) compfiles.add(new CompFile(cf))
 //            tv.scrollTo(compfiles.size)
-          }
+        }
 //          println("added compfile " + cf)
-        }
-        case CompareFinished => {
-          println("comparefinished!")
-          runUI { updateSyncButton() }
-          runUI { statusBar.status.text = "ready" }
-        }
-        case RemoveCF(cf: ComparedFile) => { // called by synchronize
+      }
+      case x: CompareFinished => {
+        println("comparefinished!")
+        runUI { updateSyncButton() }
+        runUI { statusBar.status.text = "ready" }
+      }
+      case RemoveCF(cf: ComparedFile) => { // called by synchronize
 //          println("cw: remove " + cf + " lengths=" + comparedfiles.size + "," + compfiles.size)
-          runUI {
-            comparedfiles.remove(cf)
-            compfiles.removeAll(compfiles.filter(p => p.cf == cf))
-          }
-        }
-        case 'done => { // this should be called by myself only
-          println("done: sender = " + sender.toString)
-          btSync.setDisable(true)
-          doit = false
-          println("exiting actor cw")
-          exit()
+        runUI {
+          comparedfiles.remove(cf)
+          compfiles.removeAll(compfiles.filter(p => p.cf == cf))
         }
       }
+      case 'done => { // this should be called by myself only
+        println("done: sender = " + sender.toString)
+        btSync.setDisable(true)
+        println("exiting actor cw")
+        context.stop(self)
+      }
     }
-
-  }
+  })
 }
 

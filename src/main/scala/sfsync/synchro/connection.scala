@@ -5,11 +5,10 @@ import scala.util.matching.Regex
 import scala.collection.mutable._
 import scala.Predef._
 import scala.collection.JavaConversions._
-import actors.Actor
+import akka.actor.ActorRef
 import scalax.file.Path
 import com.jcraft.jsch
 import jsch.{SftpATTRS, ChannelSftp}
-import java.io.File
 
 class cachedFile(path: String, modTime: Long, size: Long) {
 }
@@ -17,6 +16,7 @@ class cachedFile(path: String, modTime: Long, size: Long) {
 import sfsync.Helpers._
 
 class LocalConnection extends GeneralConnection {
+
   def deletefile(what: VirtualFile) {
     Path.fromString(remoteBasePath + "/" + what.path).delete(force = true)
 //    println("deleted " + remoteBasePath + what.path)
@@ -28,7 +28,7 @@ class LocalConnection extends GeneralConnection {
     Path.fromString(remoteBasePath + "/" + from.path).copyTo(Path.fromString(localBasePath + "/" + from.path),replaceExisting = true)
   }
   // include the subfolder but root "/" is not allowed!
-  def listrec(subfolder: String, filterregexp: String, receiver: Actor) = {
+  def listrec(subfolder: String, filterregexp: String, receiver: ActorRef) = {
     println("listrec thread=" + Thread.currentThread())
     val list = new ListBuffer[VirtualFile]()
     // scalax.io is horribly slow, there is an issue filed
@@ -45,7 +45,7 @@ class LocalConnection extends GeneralConnection {
     val sp = Path.fromString(remoteBasePath + (if (subfolder.length>0) "/" else "") + subfolder)
     val spf = new java.io.File(sp.path)
     if (spf.exists) {
-      parseContent(spf,true)
+      parseContent(spf, firstTime = true)
     } else {
       runUIwait(Dialog.showMessage("creating local directory " + spf + " ..."))
       spf.mkdir()
@@ -85,10 +85,10 @@ class SftpConnection(var uri: java.net.URI) extends GeneralConnection {
         return sftplse
       }
     }
-    return null
+    null
   }
 
-  def listrec(subfolder: String, filterregexp: String, receiver: Actor) = {
+  def listrec(subfolder: String, filterregexp: String, receiver: ActorRef) = {
     val list = new ListBuffer[VirtualFile]()
     def VFfromLse(fullFilePath: String, lse: ChannelSftp#LsEntry) = {
       new VirtualFile {
@@ -233,7 +233,7 @@ trait GeneralConnection {
   def getfile(from: VirtualFile)
   def putfile(from: VirtualFile)
   def deletefile(what: VirtualFile)
-  def listrec(where: String, filterregexp: String, receiver: Actor): ListBuffer[VirtualFile]
+  def listrec(where: String, filterregexp: String, receiver: ActorRef): ListBuffer[VirtualFile]
   def finish()
 }
 
