@@ -21,12 +21,14 @@ import Helpers._
 import sfsync.synchro.CompareFinished
 
 import akka.actor.ActorDSL._
+import javafx.util.Callback
+import scalafx.scene.control
 
 
 // the thing with properties for javafx tableview
 class CompFile(cf_ : ComparedFile) {
   val cf = cf_
-  val bmap = Map(3 -> "M", 54 -> "==")
+//  val bmap = Map(3 -> "M", 54 -> "==")
   val amap = Map(A_MERGE -> "M", A_NOTHING -> "==", A_RMLOCAL -> "<-(rm)", A_RMREMOTE -> "(rm)->",
     A_UNKNOWN -> "?", A_USELOCAL -> "->", A_USEREMOTE -> "<-", A_CACHEONLY -> "C")
   var tmp = ""
@@ -45,6 +47,7 @@ class CompFile(cf_ : ComparedFile) {
   }
   override def toString: String = "CompFile: " + path() + " " + status() + " L:" + detailsLocal + " R:" + detailsRemote
 }
+object CompFile
 
 class CompareWindow() extends VBox {
   var comparedfiles = new sfxc.ObservableBuffer[ComparedFile]()
@@ -58,9 +61,31 @@ class CompareWindow() extends VBox {
   colPath.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[CompFile, String], jfxbv.ObservableValue[String]] {
     def call(param: jfxsc.TableColumn.CellDataFeatures[CompFile, String]) = param.getValue.path
   })
-  val colStatus = new TableColumn[CompFile, String]("Status") {prefWidth=50/*cellValueFactory = _.value.firstName// DOESNT WORK do below*/ }
+  val colStatus = new TableColumn[CompFile, String]("Status") {
+    prefWidth=50
+    /*cellValueFactory = _.value.firstName// DOESNT WORK do below*/
+  }
   colStatus.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[CompFile, String], jfxbv.ObservableValue[String]] {
-    def call(param: jfxsc.TableColumn.CellDataFeatures[CompFile, String]) = param.getValue.status
+    def call(param: jfxsc.TableColumn.CellDataFeatures[CompFile, String]) = {
+      param.getValue.status
+    }
+  })
+  colStatus.setCellFactory(new Callback[jfxsc.TableColumn[CompFile, String],jfxsc.TableCell[CompFile, String]] {
+    def call(param: jfxsc.TableColumn[CompFile, String]): jfxsc.TableCell[CompFile, String] = {
+      val x = new jfxsc.cell.TextFieldTableCell[CompFile, String]() {
+        override def updateItem(f: String, empty: Boolean) {
+          if (!empty) {
+            super.updateItem(f, empty)
+            val xx = Map(A_MERGE -> "M", A_NOTHING -> "==", A_RMLOCAL -> "<-(rm)", A_RMREMOTE -> "(rm)->",
+              A_UNKNOWN -> "?", A_USELOCAL -> "->", A_USEREMOTE -> "<-", A_CACHEONLY -> "C") // TODO copied from above
+            if (f == xx(A_NOTHING)) setStyle("")
+            else if (f==xx(A_CACHEONLY) || f==xx(A_MERGE) || f==xx(A_UNKNOWN)) setStyle("-fx-background-color: salmon;")
+            else setStyle("-fx-background-color: lightgreen;")
+          }
+        }
+      }
+      x
+    }
   })
   val colDetailsLocal = new TableColumn[CompFile, String]("Local") {prefWidth=200/*cellValueFactory = _.value.firstName// DOESNT WORK do below*/ }
   colDetailsLocal.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[CompFile, String], jfxbv.ObservableValue[String]] {
