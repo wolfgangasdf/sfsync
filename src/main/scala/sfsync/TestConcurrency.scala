@@ -58,7 +58,7 @@ object TestConcurrency extends JFXApp {
                 Thread.sleep(1000)
                 println("xxx")
                 val res = runUIwait( Dialog.showTest() )
-                runUI { obslist += "newt" + res ; println("") }
+                runUI { obslist += "newt" + res ; println("nt") }
                 if (res == true) println("tr") else println("fa")
 
                 println("yyy")

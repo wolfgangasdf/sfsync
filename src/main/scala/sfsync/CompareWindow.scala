@@ -21,7 +21,6 @@ import Helpers._
 import sfsync.synchro.CompareFinished
 
 import akka.actor.ActorDSL._
-//import akka.actor._
 
 
 // the thing with properties for javafx tableview
@@ -53,7 +52,9 @@ class CompareWindow() extends VBox {
   var profile: Profile = null
   def setProfile(profilex: Profile) { profile = profilex }
 
-  val colPath = new TableColumn[CompFile, String]("Path") { /*cellValueFactory = _.value.firstName// DOESNT WORK do below*/ }
+  val colPath = new TableColumn[CompFile, String]("Path") {
+    /*cellValueFactory = _.value.firstName// DOESNT WORK do below*/
+  }
   colPath.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[CompFile, String], jfxbv.ObservableValue[String]] {
     def call(param: jfxsc.TableColumn.CellDataFeatures[CompFile, String]) = param.getValue.path
   })
@@ -71,7 +72,7 @@ class CompareWindow() extends VBox {
   })
 
   var tv = new TableView[CompFile](compfiles) { // only string-listview is properly updated!
-//    columns ++= List(col1) // doesn't work
+    // columns ++= List(col1) // doesn't work
     delegate.getColumns.addAll(
       colDetailsLocal.delegate, colStatus.delegate, colDetailsRemote.delegate, colPath.delegate
     )
@@ -82,7 +83,11 @@ class CompareWindow() extends VBox {
         }
       }
     )
+  }
 
+  def updateSorting = {
+    tv.delegate.getSortOrder().clear()
+    tv.delegate.getSortOrder().add(colPath.delegate)
   }
 
   val btSync = new Button("Synchronize") {
@@ -169,6 +174,7 @@ class CompareWindow() extends VBox {
   def updateFilter(filter: String) {
     compfiles.clear()
     comparedfiles.filter( cf => getFilter(cf) ).foreach(cf => compfiles.add(new CompFile(cf)))
+    runUI { updateSorting }
   }
 
   val toolbar = new ToolBar {
@@ -207,17 +213,14 @@ class CompareWindow() extends VBox {
         runUI {
           comparedfiles.add(cf)
           if (getFilter(cf)) compfiles.add(new CompFile(cf))
-//            tv.scrollTo(compfiles.size)
         }
-//          println("added compfile " + cf)
       }
-      case x: CompareFinished => {
-        println("comparefinished!")
+      case CompareFinished => {
+        runUI { updateSorting }
         runUI { updateSyncButton() }
         runUI { statusBar.status.text = "ready" }
       }
       case RemoveCF(cf: ComparedFile) => { // called by synchronize
-//          println("cw: remove " + cf + " lengths=" + comparedfiles.size + "," + compfiles.size)
         runUI {
           comparedfiles.remove(cf)
           compfiles.removeAll(compfiles.filter(p => p.cf == cf))

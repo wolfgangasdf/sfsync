@@ -120,7 +120,7 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
     val butt = new Button("Dir...") {
       onAction = (ae: ActionEvent) => {
         onButtonClick()
-        println("")
+        print("")
       }
     }
     content.add(butt)
