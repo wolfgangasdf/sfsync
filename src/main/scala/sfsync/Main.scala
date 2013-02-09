@@ -12,6 +12,7 @@ import javafx.geometry. {Orientation=>jgo}
 
 import util.Logging
 import scala._
+import collection.mutable.ArrayBuffer
 import store._
 import javafx.{stage => jfxs}
 import synchro._
@@ -19,8 +20,14 @@ import scala.concurrent.ops.spawn
 import javafx.event.EventHandler
 import Helpers._
 import akka.actor._
+import akka.actor.ActorDSL._
+import akka.actor._
+
 
 object Helpers {
+
+  val insetsstd = scalafx.geometry.Insets(5)
+
   def runUI( f: => Unit ) {
     javafx.application.Platform.runLater( new Runnable() {
       def run() {
@@ -45,6 +52,7 @@ object Helpers {
     }
     stat
   }
+
   import scalafx.beans.property._
   implicit def StringPropertyToString(sp: StringProperty) = sp.value
   implicit def IntegerPropertyToInt(sp: IntegerProperty) = sp.value
@@ -75,10 +83,8 @@ class MainView extends SplitPane {
   var subfolderView : SubFolderView = null
 
   orientation = jgo.VERTICAL
-  dividerPositions = (0.3)
+  delegate.setDividerPositions(Store.config.dividerPositions: _*) // TODO: doesn't work
   items += (serverView, new BorderPane(), new BorderPane())
-
-
 }
 
 object Main extends JFXApp with Logging {
@@ -160,6 +166,7 @@ object Main extends JFXApp with Logging {
     Main.stage.scene().content = maincontent
     maincontent.prefHeight <== stage.scene.height
     maincontent.prefWidth <== stage.scene.width
+    mainView.prefHeight <== stage.scene.height - menuBar.prefHeight - toolBar.prefHeight - statusBar.prefHeight
     if (Store.config.currentServer.value > -1) {
       mainView.serverView.serverChanged
     }
@@ -167,8 +174,8 @@ object Main extends JFXApp with Logging {
 
   stage = new JFXApp.PrimaryStage {
     title = "SFSynchro"
-    width = 800
-    height = 600
+    width = Store.config.width.toDouble
+    height = Store.config.height.toDouble
     scene = new Scene
     delegate.setOnCloseRequest(new EventHandler[jfxs.WindowEvent] {
       def handle(p1: jfxs.WindowEvent) {
@@ -182,8 +189,6 @@ object Main extends JFXApp with Logging {
 //    }
   }
 
-  import akka.actor.ActorDSL._
-  import akka.actor._
   def doCleanup() {
     if (cw != null) cw.act ! 'done
     if (profile != null) profile.finish()
@@ -191,6 +196,9 @@ object Main extends JFXApp with Logging {
   def doClose() {
     println("*************** close requested")
     doCleanup()
+    Store.config.width.value = stage.width.toInt
+    Store.config.height.value = stage.height.toInt
+    Store.config.dividerPositions = ArrayBuffer(mainView.dividerPositions: _*)
     Store.save()
     sys.exit(0)
   }
@@ -225,7 +233,7 @@ object Main extends JFXApp with Logging {
           }
         }
       }
-      dstage.showAndWait()
+      dstage.showAndWait
       res==1
     }
     def showYesNo(msg: String) : Boolean = {
@@ -245,7 +253,7 @@ object Main extends JFXApp with Logging {
           }
         }
       }
-      dstage.showAndWait()
+      dstage.showAndWait
       res==1
     }
     def showInputString(msg: String) : String = {
@@ -259,7 +267,7 @@ object Main extends JFXApp with Logging {
           }
         }
       }
-      dstage.showAndWait()
+      dstage.showAndWait
       res
     }
   }

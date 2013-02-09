@@ -93,9 +93,9 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
     runUIwait { view.statusBar.status.text = "load cached files..." }
     cache = Cache.loadCache(server.id)
     // TODO: why doesn't the implicit from Helpers work here and i need subfolder.value???
-    if (subfolder.subfolder.value != "")
-      cacherelevant = cache.filter(cf => cf.path.startsWith("/" + subfolder.subfolder.value + "/"))// && cf.fileName != subfolder.subfolder)
-    else
+    if (!subfolder.subfolders.isEmpty) {
+      cacherelevant = cache.filter(cf => cf.path.startsWith(subfolder.subfolders.collect( { case s: String => "/" + s + "/"})))
+    } else
       cacherelevant = cache
 
     if (protocol.executeBefore.value != "") {
@@ -128,8 +128,10 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
   def compare() {
     runUIwait { view.statusBar.status.text = "list local files..." }
     println("***********************list local")
-    var locall = StopWatch.timed("loaded local list in ") {
-      local.listrec(subfolder.subfolder.value, server.filterRegexp, null)
+
+    var locall = new ListBuffer[VirtualFile]()
+    StopWatch.timed("loaded local list in ") {
+      for (sf <- subfolder.subfolders) locall ++= local.listrec(sf, server.filterRegexp, null)
     }
     runUIwait { view.statusBar.local.text = locall.length.toString }
 //    println("***********************result:")
@@ -175,7 +177,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
       }
     })
     val sw1 = new StopWatch
-    remote.listrec(subfolder.subfolder.value, server.filterRegexp, receiveList)
+    subfolder.subfolders.map( sf => remote.listrec(sf, server.filterRegexp, receiveList) )
     sw1.printLapTime("TTTTTTT listrec alone needed ")
     implicit val timeout = Timeout(36500 days)
     Await.result(receiveList ? 'replyWhenDone, Duration.Inf)

@@ -1,5 +1,6 @@
 package sfsync
 
+import scala.collection.JavaConversions._
 import scalafx.Includes._
 import scalafx.scene._
 import scalafx.stage._
@@ -14,6 +15,7 @@ import scala._
 import collection.mutable.ArrayBuffer
 import sfsync.Main.Dialog
 import scalafx.beans.property.StringProperty
+import javafx.scene. {input => jfxsi}
 
 class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer: ArrayBuffer[T], var currIdx: Int, val onChange: () => Unit ) extends VBox {
   var oldidx = -1
@@ -92,8 +94,8 @@ class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer:
 }
 
 class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: String = "", filter: String = "") extends HBox {
+  val bwidth = if (onButtonClick != null) 60 else 0
   var tf = new TextField() {
-    prefWidth = 500
     text = ""
     if (toolTip != "") tooltip = new Tooltip { text = toolTip }
     text.onChange({
@@ -113,6 +115,9 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
     delegate.setAlignment(javafx.geometry.Pos.CENTER_RIGHT)
     labelFor = tf
   }
+  lb.prefWidth <== this.prefWidth / 3
+  tf.prefWidth <== this.prefWidth * 2/3 - bwidth
+
   content = List(lb, tf)
   spacing = 10
 
@@ -128,7 +133,7 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
 }
 
 abstract class ServerView(val config: Config) extends BorderPane {
-  minHeight = 160
+  prefHeight = 130
   def onServerChange()
   var server = new Server
   def serverChanged : Unit = {
@@ -137,22 +142,22 @@ abstract class ServerView(val config: Config) extends BorderPane {
       server=config.servers(idx)
       config.currentServer.set(idx)
 
-      right = new ServerDetailView
+      val sdv = new ServerDetailView
+      sdv.prefWidth <== (this.width - lvs.prefWidth)
+      right = sdv
 
       onServerChange()
     }
   }
-  def fcLocalDir(prop: StringProperty) = {
+  def fcLocalDir(prop: StringProperty) = { // TODO: make dialog modal. fcLocalDir exits immediately
     val fileChooser = new DirectoryChooser
     val jf = new java.io.File(prop.value)
     if (jf.exists() && jf.canRead) {
       // TODO: not working, fixed in 2.2.6: http://javafx-jira.kenai.com/browse/RT-23449
       fileChooser.delegate.setInitialDirectory(jf)
     }
-    runUI { // TODO: make dialog modal
-      val res = fileChooser.showDialog(Main.stage)
-      if (res != null) prop.value = res.toString
-    }
+    val res = fileChooser.showDialog(Main.stage)
+    if (res != null) prop.value = res.toString
   }
 
   class ServerDetailView extends VBox {
@@ -161,7 +166,13 @@ abstract class ServerView(val config: Config) extends BorderPane {
     val tfLocalFolder = new MyTextField("Local folder: ",() => fcLocalDir(server.localFolder), "/localdir","/.*[^/]") { tf.text <==> server.localFolder }
     val cbSkipEqualFiles = new CheckBox("Skip equal files") { selected <==> server.skipEqualFiles }
     var bClearCache = new Button("Clear cache") { onAction = (ae: ActionEvent) => { Cache.clearCache(tfID.tf.text.value)} }
-    content = List(tfLocalFolder,tfFilter,tfID,cbSkipEqualFiles,bClearCache)
+    val clist = List(tfLocalFolder,tfFilter,tfID,cbSkipEqualFiles,bClearCache)
+    tfLocalFolder.prefWidth <== this.prefWidth
+    tfFilter.prefWidth <== this.prefWidth
+    tfID.prefWidth <== this.prefWidth
+    cbSkipEqualFiles.prefWidth <== this.prefWidth
+    bClearCache.prefWidth <== this.prefWidth
+    content = clist
     spacing = 5
   }
   var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer, () => serverChanged) {
@@ -171,25 +182,28 @@ abstract class ServerView(val config: Config) extends BorderPane {
         true
       } else false
     }
-    override def afterCopy(copyidx: Int) = {
+    override def afterCopy(copyidx: Int) {
       val s1 = new Server
       Store.config.servers(copyidx).id = s1.id
       Store.config.currentServer.set(copyidx)
     }
   }
+  lvs.margin = insetsstd
   top = new Label() { text = "Servers:" }
   left = lvs
 }
 
 class ProtocolView(val server: Server) extends BorderPane {
-  minHeight = 160
+  prefHeight = 100
   var protocol: Protocol = null
   def protocolChanged() : Unit = {
     val idx = lvp.lvs.getSelectionModel.getSelectedIndex
     if (idx > -1) {
       protocol=server.protocols(idx)
       server.currentProtocol.value = idx
-      right = new ProtocolDetailView
+      val pdv = new ProtocolDetailView
+      pdv.prefWidth <== (this.width - lvp.prefWidth)
+      right = pdv
     }
   }
   class ProtocolDetailView extends VBox {
@@ -197,16 +211,25 @@ class ProtocolView(val server: Server) extends BorderPane {
     var tfURI = new MyTextField("Protocol URI: ", null, "file:/// or sftp://user@host:port", "(file:///)|(sftp://\\S+@\\S+:\\S+)") { tf.text <==> protocol.protocoluri }
     var tfExBefore = new MyTextField("Execute before: ", null, "use '#' to separate args") { tf.text <==> protocol.executeBefore }
     var tfExAfter = new MyTextField("Execute after: ", null, "use '#' to separate args") { tf.text <==> protocol.executeAfter }
+    tfBaseFolder.prefWidth <== this.prefWidth
+    tfURI.prefWidth <== this.prefWidth
+    tfExBefore.prefWidth <== this.prefWidth
+    tfExAfter.prefWidth <== this.prefWidth
     content = List(tfURI, tfBaseFolder, tfExBefore, tfExAfter)
   }
   var lvp = new MyListView[Protocol](() => new Protocol,server.protocols, server.currentProtocol.value, () => protocolChanged())
+  lvp.margin = insetsstd
   top = new Label() { text = "Protocols:" }
   left = lvp
 }
 
 class SubFolderView(val server: Server) extends BorderPane {
-  minHeight = 150
+  prefHeight = 150
   var subfolder: SubFolder= null
+  var lvp = new MyListView[SubFolder](() => new SubFolder,server.subfolders, server.currentSubFolder.value, () => subfolderChanged())
+  lvp.margin = insetsstd
+  top = new Label() { text = "Subfolders:" }
+  left = lvp
   def subfolderChanged() : Unit = {
     val idx = lvp.lvs.getSelectionModel.getSelectedIndex
     val itm = lvp.lvs.getSelectionModel.getSelectedItem
@@ -215,36 +238,82 @@ class SubFolderView(val server: Server) extends BorderPane {
       if (!subfolder.name.equals(itm)) subfolder.name.value = itm // then it was edited!
       server.currentSubFolder.value = idx
 
-      right = new SubFolderDetailView
+      val sfdv =  new SubFolderDetailView
+      right = sfdv
+      sfdv.prefWidth <== (this.width - lvp.prefWidth)
     }
   }
   class SubFolderDetailView extends VBox {
-    def fcSubfolder(basedir: String, sf: StringProperty) = {
-      var inidir = basedir
-      if (sf.value != "") inidir += sf.value
-      println("inidir " + inidir)
+    margin = insetsstd
+    def fcSubfolder(basedir: String, inisf: String) = {
+      var ressf: String = ""
       val fileChooser = new DirectoryChooser
-      val jf = new java.io.File(inidir)
+      val jf = new java.io.File(basedir + inisf)
       if (jf.exists() && jf.canRead) {
-        // TODO: not working, fixed in 2.2.6: http://javafx-jira.kenai.com/browse/RT-23449
         fileChooser.delegate.setInitialDirectory(jf)
       }
-      runUI { // TODO: make dialog modal
+      // TODO: make dialog modal
       val res = fileChooser.showDialog(Main.stage)
-        if (res != null) {
-          val ress = res.toString
-          if (res.exists() && res.isDirectory && ress.startsWith(basedir)) {
-            var sd = ress.substring(basedir.length)
-            if (sd.startsWith("/")) sd = sd.substring(1)
-            sf.value = sd
-          }
+      if (res != null) {
+        ressf = PathToSubdir(res)
+      }
+      ressf
+    }
+
+    def PathToSubdir(file: java.io.File) = {
+      var ressf = ""
+      val path = file.toString
+      if (file.exists && file.isDirectory && path.startsWith(server.localFolder)) {
+        var sd = path.substring(server.localFolder.length)
+        if (sd.startsWith("/")) sd = sd.substring(1)
+        ressf = sd
+      }
+      ressf
+    }
+
+    var lvs = new control.ListView[String]() {
+      editable = true
+      tooltip = "Add or drag'n'drop folders..."
+      items = subfolder.subfolders
+      cellFactory = TextFieldListCell.forListView()
+      onDragDropped = (event: input.DragEvent) => {
+        for (f <- event.dragboard.getFiles) {
+          val sd = PathToSubdir(f)
+          if (sd != "") subfolder.subfolders.add(sd)
+        }
+        event.consume
+      }
+      onDragOver = (event: input.DragEvent) => {
+        if (event.dragboard.hasFiles()) {
+          event.acceptTransferModes(scalafx.scene.input.TransferMode.COPY);
+        } else {
+          event.consume
         }
       }
     }
-    var tfSubFolder = new MyTextField("Subfolder: ", () => fcSubfolder(server.localFolder, subfolder.subfolder), "folder/sub","[^/].*[^/]") { tf.text <==> subfolder.subfolder }
-    content = List(tfSubFolder)
+
+    var controls = new HBox {
+      content = List(
+        new Button("add") {
+          onAction = (ae: ActionEvent) => {
+            val res = fcSubfolder(server.localFolder, lvs.selectionModel.get().getSelectedItem)
+            if (res != "") {
+              subfolder.subfolders.add(res)
+            }
+            print("")
+          }
+        },
+        new Button("delete") {
+          onAction = (ae: ActionEvent) => {
+            lvs.getItems().removeAll(lvs.selectionModel.get().getSelectedItems)
+            print("")
+          }
+        }
+      )
+    }
+
+    content = List(lvs,controls)
+    lvs.prefWidth <== this.width
   }
-  var lvp = new MyListView[SubFolder](() => new SubFolder,server.subfolders, server.currentSubFolder.value, () => subfolderChanged())
-  top = new Label() { text = "Subfolders:" }
-  left = lvp
+
 }

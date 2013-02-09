@@ -8,6 +8,7 @@ import scalax.io.Line
 import Tools._
 import sfsync.Helpers._
 import collection.mutable.{ArrayBuffer, ListBuffer}
+import collection.mutable
 
 
 object DBSettings {
@@ -45,6 +46,9 @@ class Config {
   var servers = new ArrayBuffer[Server]
   var currentServer: IntegerProperty = -1
   var currentFilter: IntegerProperty = 0
+  var width: IntegerProperty = 800
+  var height: IntegerProperty = 600
+  var dividerPositions = new ArrayBuffer[Double]
 }
 
 abstract class ListableThing {
@@ -87,7 +91,7 @@ class SubFolder extends ListableThing {
   implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
   implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
   var name: StringProperty = "<new>"
-  var subfolder: StringProperty = ""
+  var subfolders = new sfxc.ObservableBuffer[String]()
   override def toString: String = name
 }
 
@@ -101,7 +105,13 @@ object Store {
     def saveVal(key: String, what: Property[_,_]) = {
       fff.append(key + "," + what.value + "\n")
     }
+    def saveString(key: String, what: String) = {
+      fff.append(key + "," + what + "\n")
+    }
     fff.write("sfsyncsettingsversion,1\n")
+    saveVal("width", config.width)
+    saveVal("height", config.height)
+    saveString("dividerpositions", config.dividerPositions.mkString("#"))
     saveVal("servercurr", config.currentServer)
     saveVal("currentFilter", config.currentFilter)
     for (server <- config.servers) {
@@ -121,7 +131,9 @@ object Store {
       saveVal("subfoldercurr", server.currentSubFolder)
       for (subf <- server.subfolders) {
         saveVal("subfolder", subf.name)
-        saveVal("subfolderfolder", subf.subfolder)
+        for (subff <- subf.subfolders) {
+          saveString("subfolderfolder", subff)
+        }
       }
     }
     println("-----------/save")
@@ -145,6 +157,9 @@ object Store {
             if (!sett(1).equals("1")) sys.error("wrong settings version")
             config = new Config()
           }
+          case "width" => { config.width.value = sett(1).toInt }
+          case "height" => { config.height.value = sett(1).toInt }
+          case "dividerpositions" => { config.dividerPositions ++= (sett(1).split("#").map(x => x.toDouble))}
           case "servercurr" => { config.currentServer.value = sett(1).toInt }
           case "currentFilter" => config.currentFilter.value = sett(1).toInt
           case "server" => {
@@ -169,7 +184,7 @@ object Store {
             lastsubfolder = new SubFolder { name = sett(1) }
             lastserver.subfolders += lastsubfolder
           }
-          case "subfolderfolder" => {lastsubfolder.subfolder.value = sett(1)}
+          case "subfolderfolder" => {lastsubfolder.subfolders.add(sett(1))}
           case _ => {println("unknown tag in config file: <" + sett(0) + ">")}
         }
       })
