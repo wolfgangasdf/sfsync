@@ -91,7 +91,7 @@ class MainView extends SplitPane {
 
 object Main extends JFXApp with Logging {
 
-  val version = io.Source.fromURL(getClass.getResource("VERSION.txt")).mkString.trim
+  val version = io.Source.fromURL(getClass.getResource("/sfsync/VERSION.txt")).mkString.trim
 
   val menu = new Menu("File") {
 
