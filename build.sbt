@@ -1,6 +1,6 @@
 name := "sfsync"
 
-version := "0.1"
+version := "0.1" // change also sfsync.Main.VERSION
 
 scalaVersion := "2.10.0"
 

@@ -121,7 +121,7 @@ class CompareWindow() extends VBox {
       future {
         profile.synchronize(comparedfiles.toList)
       }
-      print("")
+      getUnit
     }
   }
   var btBack = new Button("Back") {

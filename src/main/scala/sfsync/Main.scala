@@ -25,7 +25,6 @@ import scala.concurrent.{future, blocking, Future, Await}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.implicitConversions
 
-
 object Helpers {
 
   val insetsstd = scalafx.geometry.Insets(5)
@@ -38,7 +37,7 @@ object Helpers {
     })
   }
 
-  def getUnit = {}
+  def getUnit {}
 
   def runUIwait( f: => Any ) : Any = {
     var stat: Any = null
@@ -85,19 +84,18 @@ class MainView extends SplitPane {
   var subfolderView : SubFolderView = null
 
   orientation = jgo.VERTICAL
-  delegate.setDividerPositions(Store.config.dividerPositions: _*) // TODO: doesn't work
   items += (serverView, new BorderPane(), new BorderPane())
 }
 
 object Main extends JFXApp with Logging {
 
-  val version = io.Source.fromURL(getClass.getResource("/sfsync/VERSION.txt")).mkString.trim
+  val VERSION = "0.1" // TODO: read from build.sbt but how?
+  val resv = getClass.getResource("/sfsync/HGVERSION.txt")
+  val version = VERSION + (if (resv != null) " (" + io.Source.fromURL(resv).mkString.trim + ")" else "")
 
   val menu = new Menu("File") {
-
     items.add(new MenuItem("Open"))
     items.add(new MenuItem("Close"))
-
   }
 
   def system = ActorSystem("some-api") // TODO: needed?
@@ -131,15 +129,13 @@ object Main extends JFXApp with Logging {
         Main.stage.scene().content = cw
         cw.prefWidth <== Main.stage.scene.width
         cw.prefHeight <== Main.stage.scene.height
-//        cw.start()
-
         profile = new Profile (cw,mainView.serverView.server, mainView.protocolView.protocol, mainView.subfolderView.subfolder)
         cw.setProfile(profile)
         future { // this is key, do in new thread!
           profile.init()
           profile.compare()
         }
-        print("")
+        getUnit
       }
     },
     new Button("Save settings") {
@@ -163,7 +159,7 @@ object Main extends JFXApp with Logging {
     content = List(new Label { text = "Sfsync Version " + version })
   }
 
-  def refreshContent = {
+  def refreshContent {
     mainView = new MainView
     maincontent.content = List(menuBar,toolBar,mainView,statusBar)
     Main.stage.scene().content = maincontent
@@ -180,30 +176,21 @@ object Main extends JFXApp with Logging {
     width = Store.config.width.toDouble
     height = Store.config.height.toDouble
     scene = new Scene
-    delegate.setOnCloseRequest(new EventHandler[jfxs.WindowEvent] {
-      def handle(p1: jfxs.WindowEvent) {
-        println("*************** close requested " + stage)
-        doClose()
-      }
-    })
-    // this does not work, it is called at startup if contains calls !!!???
-//    onCloseRequest = {
-//      println("*************** close requested " + stage)
-//    }
   }
 
-  def doCleanup() {
-    if (cw != null) cw.act ! 'done
-    if (profile != null) profile.finish()
-  }
-  def doClose() {
-    println("*************** close requested")
+  override def stopApp = {
+    println("*************** stop app")
     doCleanup()
     Store.config.width.value = stage.width.toInt
     Store.config.height.value = stage.height.toInt
     Store.config.dividerPositions = ArrayBuffer(mainView.dividerPositions: _*)
     Store.save()
     sys.exit(0)
+  }
+
+  def doCleanup() {
+    if (cw != null) cw.act ! 'done
+    if (profile != null) profile.finish()
   }
 
   // startup
@@ -213,6 +200,11 @@ object Main extends JFXApp with Logging {
   println("javafx version " + System.getProperty("javafx.runtime.version"))
 
   refreshContent
+
+  // UI initialization: is executed after UI shown
+  runUI({
+    mainView.dividerPositions = Store.config.dividerPositions: _*
+  })
 
   // https://gist.github.com/1887631
   object Dialog {

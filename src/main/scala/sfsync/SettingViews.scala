@@ -58,7 +58,7 @@ class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer:
             obsBuffer += newi
             slist.add(newi.toString)
             onChange
-            print("")
+            getUnit
           }
         },
         new Button("copy") {
@@ -71,7 +71,7 @@ class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer:
               Store.load() // /this clones
               afterCopy(obsBuffer.length - 1)
               Main.refreshContent
-              print("")
+              getUnit
             }
           }
         },
@@ -85,7 +85,7 @@ class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer:
                 onChange
               }
             }
-            print("")
+            getUnit
           }
         }
       )
@@ -125,7 +125,7 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
     val butt = new Button("Dir...") {
       onAction = (ae: ActionEvent) => {
         onButtonClick()
-        print("")
+        getUnit
       }
     }
     content.add(butt)
@@ -300,13 +300,13 @@ class SubFolderView(val server: Server) extends BorderPane {
             if (res != "") {
               subfolder.subfolders.add(res)
             }
-            print("")
+            getUnit
           }
         },
         new Button("delete") {
           onAction = (ae: ActionEvent) => {
             lvs.getItems().removeAll(lvs.selectionModel.get().getSelectedItems)
-            print("")
+            getUnit
           }
         }
       )
