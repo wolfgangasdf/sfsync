@@ -24,6 +24,7 @@ import akka.actor._
 import scala.concurrent.{future, blocking, Future, Await}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.implicitConversions
+import scalafx.geometry.Pos
 
 object Helpers {
 
@@ -37,7 +38,7 @@ object Helpers {
     })
   }
 
-  def getUnit {}
+  def getUnit() {}
 
   def runUIwait( f: => Any ) : Any = {
     var stat: Any = null
@@ -135,7 +136,7 @@ object Main extends JFXApp with Logging {
           profile.init()
           profile.compare()
         }
-        getUnit
+        getUnit()
       }
     },
     new Button("Save settings") {
@@ -159,7 +160,7 @@ object Main extends JFXApp with Logging {
     content = List(new Label { text = "Sfsync Version " + version })
   }
 
-  def refreshContent {
+  def refreshContent() {
     mainView = new MainView
     maincontent.content = List(menuBar,toolBar,mainView,statusBar)
     Main.stage.scene().content = maincontent
@@ -178,7 +179,7 @@ object Main extends JFXApp with Logging {
     scene = new Scene
   }
 
-  override def stopApp = {
+  override def stopApp() {
     println("*************** stop app")
     doCleanup()
     Store.config.width.value = stage.width.toInt
@@ -199,12 +200,15 @@ object Main extends JFXApp with Logging {
   println("scala version " + util.Properties.versionString)
   println("javafx version " + System.getProperty("javafx.runtime.version"))
 
-  refreshContent
+  refreshContent()
 
   // UI initialization: is executed after UI shown
   runUI({
     mainView.dividerPositions = Store.config.dividerPositions: _*
+
+    println("res=" + Dialog.showInputString("huhu asd fa sdf asd fas dfasdf asd fas dfasdfasdf"))
   })
+
 
   // https://gist.github.com/1887631
   object Dialog {
@@ -214,55 +218,71 @@ object Main extends JFXApp with Logging {
       width = 500
       height = 300
     }
-    def showMessage(msg: String) : Boolean = {
-      var res = -1
-      dstage.scene = new Scene {
-        content = new BorderPane {
-          center = new Label { text = msg }
-          bottom = new HBox {
-            content = List(
-              new Button("Ok") {
-                onAction = (ae: ActionEvent) => { res=1; dstage.close }
-              }
-            )
-          }
+    private def showIt(mtype: Int, msg: String) : String  = {
+      var res = "-1"
+      val cont = new BorderPane {
+        style = "-fx-background-color: lightblue;"
+        var tf = new TextField {
+          text = ""
+          onAction = (ae: ActionEvent) => { res = text.value; dstage.close }
         }
-      }
-      dstage.showAndWait
-      res==1
-    }
-    def showYesNo(msg: String) : Boolean = {
-      var res = -1
-      dstage.scene = new Scene {
-        content = new BorderPane {
-          center = new Label { text = msg }
-          bottom = new HBox {
-            content = List(
+        var lab = new Label {
+          text = msg
+          textAlignment = scalafx.scene.text.TextAlignment.CENTER
+        }
+        mtype match {
+          case 1 | 2 => { center = lab }
+          case 3 => { top = lab ; center = tf }
+        }
+        bottom = new HBox {
+          margin = insetsstd
+          spacing = 5
+          alignment = Pos.CENTER
+          content = mtype match {
+            case 1 => List(
+              new Button("Ok") {
+                onAction = (ae: ActionEvent) => { res="1"; dstage.close }
+              })
+            case 2 => List(
               new Button("Yes") {
-                onAction = (ae: ActionEvent) => { res=1; dstage.close }
+                onAction = (ae: ActionEvent) => { res="1"; dstage.close }
               },
               new Button("No") {
-                onAction = (ae: ActionEvent) => { res=0; dstage.close }
+                onAction = (ae: ActionEvent) => { res="0"; dstage.close }
+              }
+            )
+            case 3 => List(
+              new Button("Ok") {
+                onAction = (ae: ActionEvent) => { res=tf.text.value; dstage.close }
+              },
+              new Button("Cancel") {
+                onAction = (ae: ActionEvent) => { res=""; dstage.close }
               }
             )
           }
         }
       }
+      dstage.scene = new Scene {
+        content = cont
+      }
+      cont.prefWidth <== dstage.scene.width
+      cont.prefHeight <== dstage.scene.height
+
       dstage.showAndWait
-      res==1
+      res
+    }
+
+    def showMessage(msg: String) : Boolean = {
+      val res = showIt(1, msg)
+      res == "1"
+    }
+
+    def showYesNo(msg: String) : Boolean = {
+      val res = showIt(2, msg)
+      res == "1"
     }
     def showInputString(msg: String) : String = {
-      var res = ""
-      dstage.scene = new Scene {
-        content = new BorderPane {
-          top = new Label { text = msg }
-          center = new TextField {
-            text = ""
-            onAction = (ae: ActionEvent) => { res = text.value; dstage.close }
-          }
-        }
-      }
-      dstage.showAndWait
+      val res = showIt(3, msg)
       res
     }
   }
