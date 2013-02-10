@@ -205,8 +205,6 @@ object Main extends JFXApp with Logging {
   // UI initialization: is executed after UI shown
   runUI({
     mainView.dividerPositions = Store.config.dividerPositions: _*
-
-    println("res=" + Dialog.showInputString("huhu asd fa sdf asd fas dfasdf asd fas dfasdfasdf"))
   })
 
 

@@ -29,7 +29,6 @@ class LocalConnection extends GeneralConnection {
   }
   // include the subfolder but root "/" is not allowed!
   def listrec(subfolder: String, filterregexp: String, receiver: ActorRef) = {
-    println("listrec thread=" + Thread.currentThread())
     val list = new ListBuffer[VirtualFile]()
     // scalax.io is horribly slow, there is an issue filed
     def parseContent(cc: java.io.File, firstTime: Boolean = false) : Unit = {
@@ -47,8 +46,8 @@ class LocalConnection extends GeneralConnection {
     if (spf.exists) {
       parseContent(spf, firstTime = true)
     } else {
-      runUIwait(Dialog.showMessage("creating local directory " + spf + " ..."))
-      spf.mkdir()
+      if (runUIwait(Dialog.showYesNo("Local directory \n" + spf + "\n doesn't exist. Create?")) == true)
+        spf.mkdir()
     }
     if (receiver != null) receiver ! 'done
     list
