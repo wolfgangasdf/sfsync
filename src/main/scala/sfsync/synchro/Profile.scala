@@ -15,8 +15,7 @@ import akka.pattern.ask
 import akka.util.Timeout
 import scala.concurrent._
 import scala.concurrent.duration._
-
-// for '?'
+import scala.language.{reflectiveCalls, postfixOps}
 
 class TransferProtocol (
   var uri: String,

@@ -2,9 +2,9 @@ name := "sfsync"
 
 version := "0.1"
 
-// scalafx does not work with scala 2.10 yet. WAIT
 scalaVersion := "2.10.0"
-//scalaVersion := "2.9.2"
+
+scalacOptions ++= Seq("-feature", "-deprecation")
 
 ////////// intellij doesn't like same output path
 // doesntwork target in Compile <<= baseDirectory(_ / "targetsbt") 
@@ -19,8 +19,6 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.1.0"
 unmanagedJars in Compile += Attributed.blank(file(System.getenv("JAVA_HOME") + "/jre/lib/jfxrt.jar"))
 
 mainClass in (Compile, run) := Some("sfsync.Main")
-
-//javaHome := Some(file("/Library/Java/JavaVirtualMachines/1.7.0.jdk/Contents/Home"))
 
 ////////////////// locally compiled scalafx!
 libraryDependencies += "org.scalafx" %% "scalafx-core" % "1.0-SNAPSHOT"
@@ -42,13 +40,9 @@ jfxSettings
 
 JFX.mainClass := Some("sfsync.Main")
 
-//JFX.devKit := JFX.jdk("/Library/Java/JavaVirtualMachines/jdk1.7.0_09.jdk/Contents/Home")
-
 JFX.devKit := JFX.jdk(System.getenv("JAVA_HOME"))
 
 JFX.addJfxrtToClasspath := true
-
-
 
 
 ////////////////// old unused

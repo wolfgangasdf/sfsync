@@ -8,8 +8,9 @@ import scalafx.scene.layout._
 import scalafx.scene.control._
 import scalafx.event.ActionEvent
 import scalafx. {collections => sfxc}
-import scala.concurrent.ops._
 import javafx. {stage => jfxs}
+import scala.concurrent.{future}
+import scala.concurrent.ExecutionContext.Implicits.global
 
 object TestConcurrency extends JFXApp {
   var obslist = new sfxc.ObservableBuffer[String]
@@ -53,7 +54,7 @@ object TestConcurrency extends JFXApp {
         }
         bottom = new Button("add many in other thread") {
           onAction = (ae: ActionEvent) => {
-            spawn {
+            future {
               while (true) {
                 Thread.sleep(1000)
                 println("xxx")
@@ -92,7 +93,7 @@ object TestConcurrency extends JFXApp {
           }
         }
       }
-      dstage.showAndWait()
+      dstage.showAndWait
       res==1
     }
   }

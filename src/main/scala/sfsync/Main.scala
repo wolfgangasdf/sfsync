@@ -7,6 +7,7 @@ import scalafx.stage._
 import scalafx.scene.layout._
 import scalafx.scene.control._
 import scalafx.event.ActionEvent
+import scala.language.reflectiveCalls
 
 import javafx.geometry. {Orientation=>jgo}
 
@@ -16,12 +17,13 @@ import collection.mutable.ArrayBuffer
 import store._
 import javafx.{stage => jfxs}
 import synchro._
-import scala.concurrent.ops.spawn
 import javafx.event.EventHandler
 import Helpers._
-import akka.actor._
 import akka.actor.ActorDSL._
 import akka.actor._
+import scala.concurrent.{future, blocking, Future, Await}
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.language.implicitConversions
 
 
 object Helpers {
@@ -60,8 +62,8 @@ object Helpers {
 //  implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
 
   // this only works for serializable objects (no javafx properties)
-  def deepCopy[A](a: A)(implicit m: reflect.Manifest[A]): A =
-    scala.util.Marshal.load[A](scala.util.Marshal.dump(a))
+//  def deepCopy[A](a: A)(implicit m: reflect.Manifest[A]): A =
+//    scala.util.Marshal.load[A](scala.util.Marshal.dump(a))
 }
 
 class MainView extends SplitPane {
@@ -133,10 +135,11 @@ object Main extends JFXApp with Logging {
 
         profile = new Profile (cw,mainView.serverView.server, mainView.protocolView.protocol, mainView.subfolderView.subfolder)
         cw.setProfile(profile)
-        spawn { // this is key, do in new thread!
+        future { // this is key, do in new thread!
           profile.init()
           profile.compare()
         }
+        print("")
       }
     },
     new Button("Save settings") {

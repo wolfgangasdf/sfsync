@@ -7,8 +7,8 @@ import scalax.file.Path
 import scalax.io.Line
 import Tools._
 import sfsync.Helpers._
-import collection.mutable.{ArrayBuffer, ListBuffer}
-import collection.mutable
+import collection.mutable.{ArrayBuffer}
+import scala.language.implicitConversions
 
 
 object DBSettings {

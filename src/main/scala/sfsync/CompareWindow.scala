@@ -1,7 +1,5 @@
 package sfsync
 
-import scala.concurrent.ops.spawn
-
 import scalafx.scene.layout._
 import scalafx.scene.control._
 import scalafx. {collections => sfxc}
@@ -22,7 +20,9 @@ import sfsync.synchro.CompareFinished
 
 import akka.actor.ActorDSL._
 import javafx.util.Callback
-import scalafx.scene.control
+import scala.concurrent.{future}
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.language.{implicitConversions, reflectiveCalls}
 
 
 // the thing with properties for javafx tableview
@@ -118,9 +118,10 @@ class CompareWindow() extends VBox {
   val btSync = new Button("Synchronize") {
     onAction = (ae: ActionEvent) => {
       disable = true
-      spawn {
+      future {
         profile.synchronize(comparedfiles.toList)
       }
+      print("")
     }
   }
   var btBack = new Button("Back") {

@@ -1,6 +1,7 @@
 package util
 
-  import java.io._
+import java.io._
+import scala.language.implicitConversions
 
 class FileHelper(file : File) {
   def write(text : String) : Unit = {
