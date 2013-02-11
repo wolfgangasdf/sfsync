@@ -33,7 +33,7 @@ object Actions {
   val A_CACHEONLY = 6
 }
 case object ComparedFile
-class ComparedFile(val flocal: VirtualFile, val fremote: VirtualFile, val fcache: VirtualFile) {
+class ComparedFile(val flocal: VirtualFile, val fremote: VirtualFile, val fcache: VirtualFile, val newcache: Boolean = false) {
   var action: Int = -9
   def isSynced = if (flocal != null) flocal == fremote else false
 
@@ -45,33 +45,36 @@ class ComparedFile(val flocal: VirtualFile, val fremote: VirtualFile, val fcache
   }
 
   //  def compare(that: VirtualFile): Int =
-
+//if (fremote.path.endsWith("local1.txt")) {
+//  println("huhu: " + toString)
+//}
   // init with best guess
   if (flocal == null && fremote == null && fcache != null) { // cache only?
     action = A_CACHEONLY
   } else  if (flocal == fremote) { // just equal?
     action = A_NOTHING
-  } else if (flocal == null || fremote == null) { // one was deleted or created, which?
-    action = A_UNKNOWN // unknown which was deleted
-    if (flocal==null && fremote==fcache) {
-      action = A_RMREMOTE // locally deleted
-    } else if (fremote==null && flocal==fcache) {
-      action = A_RMLOCAL // remotely deleted
-    } else if (flocal == null && fcache == null) {
-      action = A_USEREMOTE // new remote file
-    } else if (fremote == null && fcache == null) {
-      action = A_USELOCAL // new local file
+  } else if (fcache == null) { // not in remote cache
+    if (newcache) action = A_UNKNOWN // not equal and not in cache. unknown!
+    else {
+      if (flocal != null && fremote == null) action = A_USELOCAL // new local (cache not new)
+      else if (flocal == null && fremote != null) action = A_USEREMOTE // new remote (cache not new)
+      else if (flocal.modTime > fremote.modTime) action = A_USELOCAL // local newer (no cache info)
+      else if (flocal.modTime < fremote.modTime) action = A_USEREMOTE // remote newer (no cache info)
+      else action = A_UNKNOWN // same moddate, different size...
     }
-  } else { // both present, one is modified
-    action = A_UNKNOWN
-    if (flocal == fcache && fcache != null) { // no local modification
-      if (fremote.modTime>fcache.modTime)
-        action = A_USEREMOTE // only if remote newer than cache, else unknown
-    } else if (fremote == fcache && fcache != null) { // local mod, remote not modified
-      if (flocal.modTime > fcache.modTime)  // only if local newer than cache, else unknown
-        action = A_USELOCAL
-    }
+  } else { // in cache, newcache impossible
+    if (flocal == fcache && fremote == null) action = A_RMLOCAL // remote was deleted (local still in cache)
+    else if (flocal == null && fremote == fcache) action = A_RMREMOTE // local was deleted (remote still in cache)
+    // both exist, as does fcache
+    else if (flocal == fcache && fremote.modTime>flocal.modTime) action = A_USEREMOTE // flocal unchanged, remote newer
+    else if (fremote == fcache && flocal.modTime>fremote.modTime) action = A_USELOCAL // fremote unchanged, local newer
+    else if (flocal.modTime>fremote.modTime && fremote.modTime>fcache.modTime)
+      action = A_USELOCAL // both newer than cache but local newer than remote
+    else if (fremote.modTime>flocal.modTime && flocal.modTime>fcache.modTime)
+      action = A_USEREMOTE // both newer than cache but remote newer than local
+    else action = A_UNKNOWN // all other strange things that might occur
   }
+
   assert(action != -9)
   //println("cf: " + toString())
 }
@@ -85,12 +88,17 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
   var cacherelevant: ListBuffer[VirtualFile] = null // only below subdir
   var local: GeneralConnection = null
   var remote: GeneralConnection = null
+  var newcache: Boolean = false
 
   var remotecnt = 0
 
   def init() {
     runUIwait { view.statusBar.status.text = "load cached files..." }
     cache = Cache.loadCache(server.id)
+    if (cache.length == 0) {
+      println("new cache!")
+      newcache = true
+    }
     // TODO: why doesn't the implicit from Helpers work here and i need subfolder.value???
     if (!subfolder.subfolders.isEmpty) {
       cacherelevant = cache.filter(cf => cf.path.startsWith(subfolder.subfolders.collect( { case s: String => "/" + s + "/"})))
@@ -153,7 +161,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
           if (cachef != null) cachef.tagged = true // mark
           val localf = locall.find(x => x.path == rf.path).getOrElse(null)
           locall -= localf
-          val cfnew = new ComparedFile(localf, rf, cachef)
+          val cfnew = new ComparedFile(localf, rf, cachef, newcache)
           if (!server.skipEqualFiles.value || rf != localf) { // TODO test this!!!
             comparedfiles += cfnew
             view.act ! cfnew // send it to view!
@@ -187,13 +195,13 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
     locall.foreach(vf => {
       val cachef = cacherelevant.find(x => x.path == vf.path).getOrElse(null)
       if (cachef != null) cachef.tagged = true // mark
-      val cfnew = new ComparedFile(vf, null, cachef)
+      val cfnew = new ComparedFile(vf, null, cachef, newcache)
       comparedfiles += cfnew
       view.act ! cfnew // send it!
     })
     // add remaining cache-only files for information: local and remote are deleted.
     cacherelevant.filter(vf => !vf.tagged).foreach( vf => {
-      val cfnew = new ComparedFile(null, null, vf)
+      val cfnew = new ComparedFile(null, null, vf, newcache)
       comparedfiles += cfnew
       view.act ! cfnew // send it!
     })
@@ -217,7 +225,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
         case A_RMLOCAL => { local.deletefile(cf.flocal) ; if (cf.fcache!=null) Cache.remove(cf.fcache) }
         case A_RMREMOTE => { remote.deletefile(cf.fremote) ; if (cf.fcache!=null) Cache.remove(cf.fcache) }
         case A_USELOCAL => { remote.putfile(cf.flocal) ; Cache.addupdate(cf.flocal) }
-        case A_USEREMOTE => { remote.getfile(cf.fremote) ; if (cf.fremote!=cf.fcache) Cache.addupdate(cf.fremote) }
+        case A_USEREMOTE => { println("aaa");remote.getfile(cf.fremote) ; println("bbb"); if (cf.fremote!=cf.fcache) Cache.addupdate(cf.fremote) ; println("ccc"); }
         case A_NOTHING => { if (cf.fcache==null) Cache.addupdate(cf.fremote) }
         case A_CACHEONLY => { Cache.remove(cf.fcache) }
         case _ => removecf = false
