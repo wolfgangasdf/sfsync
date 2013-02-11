@@ -16,6 +16,8 @@ import collection.mutable.ArrayBuffer
 import sfsync.Main.Dialog
 import scalafx.beans.property.StringProperty
 import javafx.scene. {input => jfxsi}
+import synchro.MyURI
+import util.matching.Regex
 
 class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer: ArrayBuffer[T], var currIdx: Int, val onChange: () => Unit ) extends VBox {
   var oldidx = -1
@@ -208,7 +210,20 @@ class ProtocolView(val server: Server) extends BorderPane {
   }
   class ProtocolDetailView extends VBox {
     var tfBaseFolder = new MyTextField("Base folder: ", null, "/remotebasedir", "/.*[^/]") { tf.text <==> protocol.protocolbasefolder }
-    var tfURI = new MyTextField("Protocol URI: ", null, "file:/// or sftp://user@host:port", "(file:///)|(sftp://\\S+@\\S+:\\S+)") { tf.text <==> protocol.protocoluri }
+    var tfURI = new MyTextField("Protocol URI: ", null, "file:/// or sftp://user@host:port", "(file:///)|(sftp://\\S+@\\S+:\\S+)") {
+      tf.onAction = (ae: ActionEvent) => {
+        val uri = new MyURI()
+        if (uri.parseString(tf.text.value)) {
+          if (!uri.password.startsWith("##")) {
+            println("encrypt password...")
+            val crypto = new JavaCryptoEncryption("DES")
+            uri.password = "##" + crypto.encrypt(uri.password, "bvfxsdfk")
+            tf.text.value = uri.toURIString()
+          }
+        }
+      }
+      tf.text <==> protocol.protocoluri
+    }
     var tfExBefore = new MyTextField("Execute before: ", null, "use '#' to separate args") { tf.text <==> protocol.executeBefore }
     var tfExAfter = new MyTextField("Execute after: ", null, "use '#' to separate args") { tf.text <==> protocol.executeAfter }
     tfBaseFolder.prefWidth <== this.prefWidth

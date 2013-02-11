@@ -111,13 +111,14 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
     local = new LocalConnection {
       remoteBasePath = server.localFolder.value
     }
-    val uri = new java.net.URI(protocol.protocoluri)
-    println("scheme = " + uri.getScheme)
+    println("puri = " + protocol.protocoluri.value)
+    val uri = MyURI(protocol.protocoluri.value)
+    println("proto = " + uri.protocol)
     runUIwait { view.statusBar.status.text = "ini remote connection..." }
-    remote = uri.getScheme match {
+    remote = uri.protocol match {
       case "sftp" => new SftpConnection(uri)
       case "file" => new LocalConnection
-      case _ => { println("wrong protocol URI scheme: " + uri.getScheme); sys.exit(1) }
+      case _ => { throw new RuntimeException("wrong protocol: " + uri.protocol) }
     }
     runUIwait { view.statusBar.status.text = "ready" }
     remote.localBasePath = server.localFolder.value

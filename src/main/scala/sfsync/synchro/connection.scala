@@ -9,6 +9,7 @@ import akka.actor.ActorRef
 import scalax.file.Path
 import com.jcraft.jsch
 import jsch.{SftpATTRS, ChannelSftp}
+import sfsync.store.{Tools, Store}
 
 class cachedFile(path: String, modTime: Long, size: Long) {
 }
@@ -39,7 +40,7 @@ class LocalConnection extends GeneralConnection {
         if (receiver != null) receiver ! vf
         if (vf.isDir == 1) for (cc <- cc.listFiles()) parseContent(cc)
       }
-      getUnit
+      getUnit()
     }
     val sp = Path.fromString(remoteBasePath + (if (subfolder.length>0) "/" else "") + subfolder)
     val spf = new java.io.File(sp.path)
@@ -55,7 +56,44 @@ class LocalConnection extends GeneralConnection {
   def finish() {}
 }
 
-class SftpConnection(var uri: java.net.URI) extends GeneralConnection {
+class MyURI(var protocol: String, var username: String, var password: String, var host: String, var port: String) {
+  val regexinet = new Regex("""(\S+)://(\S+)@(\S+):(\S+)""")
+  def this() = this("","","","","")
+  def parseString(s: String): Boolean = {
+    s match {
+      case "file:///" => { protocol = "file" ; true }
+      case regexinet(prot1, userinfo, host1, port1) => {
+        protocol = prot1
+        host = host1
+        port = port1
+        val uis = userinfo.split(":")
+        uis.length match {
+          case 1 => { username = uis(0); password = "" }
+          case 2 => { username = uis(0); password = uis(1) }
+        }
+        true
+      }
+      case _ => { false }
+    }
+  }
+  def toURIString() = {
+    protocol + "://" + username + ":" + password + "@" + host + ":" + port
+  }
+  override def toString() = {
+    s"$protocol,$username,$host,$port"
+  }
+}
+object MyURI {
+  def apply(s: String) = {
+    val u = new MyURI()
+    if (!u.parseString(s))
+      throw new RuntimeException("URI in wrong format: " + s)
+    u
+  }
+}
+
+
+class SftpConnection(var uri: MyURI) extends GeneralConnection {
   def deletefile(what: VirtualFile) {
     if (what.isDir == 1)
       sftp.rmdir(remoteBasePath + "/" + what.path)
@@ -144,10 +182,13 @@ class SftpConnection(var uri: java.net.URI) extends GeneralConnection {
 
   import scala.collection.immutable.Map
 
-  class MyUserInfo extends jsch.UserInfo with jsch.UIKeyboardInteractive {
-    def getPassword : String = {
-      val res = runUIwait(Dialog.showInputString("Enter password:"))
-      res.asInstanceOf[String]
+  class MyUserInfo(val user: String, val password: String) extends jsch.UserInfo with jsch.UIKeyboardInteractive {
+    var getPassCount = 0
+    def getPassword = {
+      println(s"getPassword passcount = $getPassCount pass=$password")
+      getPassCount += 1
+      if (getPassCount < 2 && password != "") password
+      else runUIwait(Dialog.showInputString("Enter password:")).asInstanceOf[String]
     }
     def promptYesNo(str: String) : Boolean = {
       runUIwait(Dialog.showYesNo(str)) == true
@@ -185,9 +226,6 @@ class SftpConnection(var uri: java.net.URI) extends GeneralConnection {
 
   var jSch = new jsch.JSch
 
-  println("urxi=" + uri.getScheme)
-
-//  val prvkey: Array[Byte] = scalax.file.Path.fromString("/Users/wolle/.ssh/id_dsa").bytes.toArray
   var prvkeypath = ""
   var knownhostspath = ""
   val osname = System.getProperty("os.name")
@@ -205,10 +243,18 @@ class SftpConnection(var uri: java.net.URI) extends GeneralConnection {
   if (Path.fromString(prvkeypath).exists) prvkey = Path.fromString(prvkeypath).bytes.toArray
   if (Path.fromString(knownhostspath).exists) jSch.setKnownHosts(knownhostspath)
 
-  jSch.addIdentity(uri.getUserInfo,prvkey,null,Array[Byte]())
-  var session = jSch.getSession(uri.getUserInfo, uri.getHost, uri.getPort)
+  var password = uri.password
+  if (password != "") {
+    println(s"have pass: $password")
+    if (password.startsWith("##")) { // decode password
+      password = Tools.crypto.decrypt(password.substring(2), "bvfxsdfk")
+      println(s"decode passw: $password")
+    }
+  }
+  jSch.addIdentity(uri.username,prvkey,null,Array[Byte]())
+  var session = jSch.getSession(uri.username, uri.host, uri.port.toInt)
 
-  var ui = new MyUserInfo
+  var ui = new MyUserInfo(uri.username, password)
   session.setUserInfo(ui)
   session.connect()
   val sftp = session.openChannel("sftp").asInstanceOf[jsch.ChannelSftp]

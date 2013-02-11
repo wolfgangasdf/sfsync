@@ -9,6 +9,7 @@ import Tools._
 import sfsync.Helpers._
 import collection.mutable.{ArrayBuffer}
 import scala.language.implicitConversions
+import scala.util.matching.Regex
 
 
 object DBSettings {
@@ -32,7 +33,32 @@ object Tools {
     //    println(tag+" , " + content)
     List(tag,content)
   }
+  val crypto = new JavaCryptoEncryption("DES")
 }
+
+class JavaCryptoEncryption(algorithmName: String) {
+  import javax.crypto.spec.SecretKeySpec
+  import javax.crypto.Cipher
+  val b64enc = new sun.misc.BASE64Encoder()
+  val b64dec = new sun.misc.BASE64Decoder()
+  def encrypt(bytes: String, secret: String): String = {
+    val secretKey = new SecretKeySpec(secret.getBytes("UTF-8"), algorithmName)
+    val encipher = Cipher.getInstance(algorithmName + "/ECB/PKCS5Padding")
+    encipher.init(Cipher.ENCRYPT_MODE, secretKey)
+    val res = encipher.doFinal(bytes.getBytes("UTF-8"))
+    b64enc.encode(res).replaceAll("/", "-")
+  }
+
+  def decrypt(bytes: String, secret: String): String = {
+    val secretKey = new SecretKeySpec(secret.getBytes("UTF-8"), algorithmName)
+    val encipher = Cipher.getInstance(algorithmName + "/ECB/PKCS5Padding")
+    encipher.init(Cipher.DECRYPT_MODE, secretKey)
+    val bytes2 = bytes.replaceAll("-","/")
+    val res = encipher.doFinal(b64dec.decodeBuffer(bytes2))
+    new String(res, "UTF-8")
+  }
+}
+
 
 // list types:
 // sfxc.ObservableBuffer[Server] needed for ListView. turns out to be useless since need [String].....

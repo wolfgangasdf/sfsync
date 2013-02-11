@@ -7,6 +7,7 @@ import com.jcraft.jsch.ChannelSftp._
 import concurrent.Await
 import concurrent.duration.Duration
 import scalafx.beans.property.IntegerProperty
+import java.security.{Key, KeyStore}
 
 //import akka.actor.{ActorRefFactory, ActorSystem}
 
@@ -195,4 +196,74 @@ object TestScalaSubString extends App {
   println("3=" + s.substring(3))
   println("4=" + s.substring(4))
   println("5=" + s.substring(5))
+}
+
+
+object TestKeystore extends App {
+  val ks = KeyStore.getInstance("KeychainStore", "Apple")
+  ks.load(null, "x".toCharArray)
+//  val sk: javax.crypto.SecretKey = "asdf"
+//  val kse = new KeyStore.SecretKeyEntry(sk)
+//  val kspp = new KeyStore.PasswordProtection("asdf".toCharArray)
+//  ks.setEntry("sfsynctest", kse, kspp)
+//  ks.getEntry("sfsynctest", kspp)
+//  ks.aliases().foreach(x => println("alias: " + x))
+//  ks.setKeyEntry("asdf","asdf".getBytes,null)
+  val key = new Key {
+  def getEncoded: Array[Byte] = "asdf".getBytes()
+
+  def getFormat: String = "asdf"
+
+  def getAlgorithm: String = "SSLv3HMac-SHA"
+}
+//  ks.setKeyEntry("testsfsync","key".getBytes(),null)
+  ks.setKeyEntry("testsfsync",key,"aaa".toCharArray,null)
+
+  println("asdf = " + ks.getKey("newton.pks.mpg.de", "asdf".toCharArray))
+
+//  ks.aliases().foreach(x => {
+//    if ( ks.isKeyEntry(x)) {
+//      println("alias: " + x + " iskey=" + ks.isKeyEntry(x))
+//      println("-> " + ks.getKey(x, "asdf".toCharArray))
+//    }
+//  })
+
+//  ks.getEntry("newton.pks.mpg.de",null)
+//  println("asdf=" + ks.getKey("sfsynctest","".toCharArray))
+//  ks.setKeyEntry("sfsynctest","asdf".getBytes(),null)
+
+}
+
+object EncryptionTest extends App {
+
+  class JavaCryptoEncryption(algorithmName: String) {
+
+    import javax.crypto.spec.SecretKeySpec
+    import javax.crypto.Cipher
+    val b64enc = new sun.misc.BASE64Encoder()
+    val b64dec = new sun.misc.BASE64Decoder()
+    def encrypt(bytes: String, secret: String): String = {
+      val secretKey = new SecretKeySpec(secret.getBytes("UTF-8"), algorithmName)
+      val encipher = Cipher.getInstance(algorithmName + "/ECB/PKCS5Padding")
+      encipher.init(Cipher.ENCRYPT_MODE, secretKey)
+      val res = encipher.doFinal(bytes.getBytes("UTF-8"))
+      b64enc.encode(res)
+    }
+
+    def decrypt(bytes: String, secret: String): String = {
+      val secretKey = new SecretKeySpec(secret.getBytes("UTF-8"), algorithmName)
+      val encipher = Cipher.getInstance(algorithmName + "/ECB/PKCS5Padding")
+      encipher.init(Cipher.DECRYPT_MODE, secretKey)
+      val res = encipher.doFinal(b64dec.decodeBuffer(bytes))
+      new String(res, "UTF-8")
+    }
+
+  }
+
+  object DES extends JavaCryptoEncryption("DES")
+
+  val e1 = DES.encrypt("secret", "huhupass")
+  println(s"e1=$e1")
+  val d1 = DES.decrypt("0vmYC8J01+Q=", "huhupass")
+  println(s"d1=$d1")
 }
