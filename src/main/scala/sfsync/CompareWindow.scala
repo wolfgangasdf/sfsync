@@ -147,8 +147,10 @@ class CompareWindow() extends VBox {
   var btRmRemote = createActionButton("Delete remote", A_RMREMOTE)
   var btMerge = createActionButton("Merge", A_MERGE)
   var btNothing = createActionButton("Do nothing", A_NOTHING)
+  List(btRmLocal, btUseLocal, btMerge, btNothing, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
 
   def updateSyncButton() {
+    println("update sync button")
     var canSync = true
     for (cf <- comparedfiles) { // TODO: here was concurr. mod excp after compare
       if (cf.action == A_UNKNOWN) canSync = false
@@ -157,20 +159,21 @@ class CompareWindow() extends VBox {
   }
 
   def updateActionButtons() {
+    println("update action buttons")
     var allLocalPresenet = true
     var allRemotePresent = true
     var allEqual = true
-    List(btRmLocal, btUseLocal, btMerge, btNothing, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(false))
     for (idx <- tv.selectionModel.get().getSelectedItems) {
       val cf = idx.cf
       if (cf.flocal == null) { allLocalPresenet = false }
       if (cf.fremote == null) { allRemotePresent = false }
       if (!cf.isSynced) allEqual = false
     }
-    if (!allLocalPresenet) List(btUseLocal,btRmLocal).foreach(bb => bb.setDisable(true))
-    if (!allRemotePresent) List(btUseRemote,btRmRemote).foreach(bb => bb.setDisable(true))
-    if (!(allLocalPresenet && allRemotePresent)) btMerge.setDisable(true)
+    List(btRmLocal, btUseLocal, btMerge, btNothing, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
     if (allEqual) List(btRmLocal, btUseLocal, btMerge, btNothing, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
+    else if ((allLocalPresenet && allRemotePresent)) List(btUseLocal,btUseRemote,btMerge).foreach(bb=>bb.setDisable(false))
+    else if (allLocalPresenet) List(btUseLocal,btRmLocal).foreach(bb => bb.setDisable(false))
+    else if (allRemotePresent) List(btUseRemote,btRmRemote).foreach(bb => bb.setDisable(false))
   }
 
   var bv = new HBox { content = List(btSync, btRmLocal, btUseLocal, btMerge, btNothing, btUseRemote, btRmRemote, btBack) }

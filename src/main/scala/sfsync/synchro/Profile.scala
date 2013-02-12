@@ -44,10 +44,6 @@ class ComparedFile(val flocal: VirtualFile, val fremote: VirtualFile, val fcache
     that.isInstanceOf[ComparedFile] && (this.hashCode() == that.asInstanceOf[ComparedFile].hashCode())
   }
 
-  //  def compare(that: VirtualFile): Int =
-//if (fremote.path.endsWith("local1.txt")) {
-//  println("huhu: " + toString)
-//}
   // init with best guess
   if (flocal == null && fremote == null && fcache != null) { // cache only?
     action = A_CACHEONLY
@@ -68,12 +64,13 @@ class ComparedFile(val flocal: VirtualFile, val fremote: VirtualFile, val fcache
     // both exist, as does fcache
     else if (flocal == fcache && fremote.modTime>flocal.modTime) action = A_USEREMOTE // flocal unchanged, remote newer
     else if (fremote == fcache && flocal.modTime>fremote.modTime) action = A_USELOCAL // fremote unchanged, local newer
-    else if (flocal.modTime>fremote.modTime && fremote.modTime>fcache.modTime)
-      action = A_USELOCAL // both newer than cache but local newer than remote
-    else if (fremote.modTime>flocal.modTime && flocal.modTime>fcache.modTime)
-      action = A_USEREMOTE // both newer than cache but remote newer than local
+//    else if (flocal.modTime>fremote.modTime && fremote.modTime>fcache.modTime)
+//      action = A_USELOCAL // both newer than cache but local newer than remote
+//    else if (fremote.modTime>flocal.modTime && flocal.modTime>fcache.modTime)
+//      action = A_USEREMOTE // both newer than cache but remote newer than local
     else action = A_UNKNOWN // all other strange things that might occur
   }
+  println("CF: " + toString)
 
   assert(action != -9)
   //println("cf: " + toString())
@@ -85,7 +82,7 @@ case class RemoveCF(cf: ComparedFile)
 class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfolder: SubFolder) {
   var comparedfiles = scalafx.collections.ObservableBuffer[ComparedFile]()
   var cache: ListBuffer[VirtualFile] = null
-  var cacherelevant: ListBuffer[VirtualFile] = null // only below subdir
+  var cacherelevant = new ListBuffer[VirtualFile] // only below subdir
   var local: GeneralConnection = null
   var remote: GeneralConnection = null
   var newcache: Boolean = false
@@ -99,12 +96,14 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
       println("new cache!")
       newcache = true
     }
-    // TODO: why doesn't the implicit from Helpers work here and i need subfolder.value???
-    if (!subfolder.subfolders.isEmpty) {
-      cacherelevant = cache.filter(cf => cf.path.startsWith(subfolder.subfolders.collect( { case s: String => "/" + s + "/"})))
+    var cacheall = false
+    subfolder.subfolders.foreach(x => {if (x == "") cacheall = true})
+    if (subfolder.subfolders.isEmpty) cacheall = true
+    if (!cacheall) {
+      subfolder.subfolders.foreach(x => {cacherelevant ++= cache.filter(cf => cf.path.startsWith("/" + x + "/"))})
+//      cacherelevant = cache.filter(cf => cf.path.startsWith(subfolder.subfolders.collect( { case s: String => "/" + s + "/"})))
     } else
       cacherelevant = cache
-
     if (protocol.executeBefore.value != "") {
       runUIwait { view.statusBar.status.text = "execute 'before'..." }
       import sys.process._
@@ -225,7 +224,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
         case A_RMLOCAL => { local.deletefile(cf.flocal) ; if (cf.fcache!=null) Cache.remove(cf.fcache) }
         case A_RMREMOTE => { remote.deletefile(cf.fremote) ; if (cf.fcache!=null) Cache.remove(cf.fcache) }
         case A_USELOCAL => { remote.putfile(cf.flocal) ; Cache.addupdate(cf.flocal) }
-        case A_USEREMOTE => { println("aaa");remote.getfile(cf.fremote) ; println("bbb"); if (cf.fremote!=cf.fcache) Cache.addupdate(cf.fremote) ; println("ccc"); }
+        case A_USEREMOTE => { remote.getfile(cf.fremote) ; if (cf.fremote!=cf.fcache) Cache.addupdate(cf.fremote) }
         case A_NOTHING => { if (cf.fcache==null) Cache.addupdate(cf.fremote) }
         case A_CACHEONLY => { Cache.remove(cf.fcache) }
         case _ => removecf = false

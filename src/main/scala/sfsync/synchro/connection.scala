@@ -110,7 +110,11 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
   }
   def getfile(from: VirtualFile) {
     val lp = localBasePath + "/" + from.path
-    sftp.get(remoteBasePath + "/" + from.path, lp) // TODO: progressmonitor!
+    if (from.isDir == 1) {
+      Path.fromString(lp).createDirectory()
+    } else {
+      sftp.get(remoteBasePath + "/" + from.path, lp) // TODO: progressmonitor!
+    }
     Path.fromString(lp).lastModified = from.modTime
   }
 

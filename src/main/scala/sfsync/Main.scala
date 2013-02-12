@@ -94,6 +94,9 @@ object Main extends JFXApp with Logging {
   val resv = getClass.getResource("/sfsync/HGVERSION.txt")
   val version = VERSION + (if (resv != null) " (" + io.Source.fromURL(resv).mkString.trim + ")" else "")
 
+  // run checks
+  Checks.CheckComparedFile
+
   val menu = new Menu("File") {
     items.add(new MenuItem("Open"))
     items.add(new MenuItem("Close"))
@@ -286,3 +289,4 @@ object Main extends JFXApp with Logging {
   }
 
 }
+

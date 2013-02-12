@@ -1,4 +1,4 @@
-package sfsync.testconc
+package sfsynctests
 
 import scalafx.application.JFXApp
 import scalafx.Includes._
@@ -9,7 +9,7 @@ import scalafx.scene.control._
 import scalafx.event.ActionEvent
 import scalafx. {collections => sfxc}
 import javafx. {stage => jfxs}
-import scala.concurrent.{future}
+import scala.concurrent.future
 import scala.concurrent.ExecutionContext.Implicits.global
 
 object TestConcurrency extends JFXApp {
