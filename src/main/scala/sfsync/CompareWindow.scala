@@ -117,13 +117,15 @@ class CompareWindow() extends VBox {
 
   val btSync = new Button("Synchronize") {
     onAction = (ae: ActionEvent) => {
-      disable = true
+      // disable = true doesn't work
       future {
         profile.synchronize(comparedfiles.toList)
       }
       getUnit
     }
   }
+  btSync.setDisable(true)
+
   var btBack = new Button("Back") {
     onAction = (ae: ActionEvent) => {
       Main.refreshContent

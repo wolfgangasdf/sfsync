@@ -64,16 +64,10 @@ class ComparedFile(val flocal: VirtualFile, val fremote: VirtualFile, val fcache
     // both exist, as does fcache
     else if (flocal == fcache && fremote.modTime>flocal.modTime) action = A_USEREMOTE // flocal unchanged, remote newer
     else if (fremote == fcache && flocal.modTime>fremote.modTime) action = A_USELOCAL // fremote unchanged, local newer
-//    else if (flocal.modTime>fremote.modTime && fremote.modTime>fcache.modTime)
-//      action = A_USELOCAL // both newer than cache but local newer than remote
-//    else if (fremote.modTime>flocal.modTime && flocal.modTime>fcache.modTime)
-//      action = A_USEREMOTE // both newer than cache but remote newer than local
-    else action = A_UNKNOWN // all other strange things that might occur
+    else action = A_UNKNOWN // both changed and all other strange things that might occur
   }
-  println("CF: " + toString)
-
+//  println("CF: " + toString)
   assert(action != -9)
-  //println("cf: " + toString())
 }
 
 case class CompareFinished()
