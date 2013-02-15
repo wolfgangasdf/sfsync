@@ -24,26 +24,27 @@ import scala.concurrent.{future}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.{implicitConversions, reflectiveCalls}
 
+object CF {
+  val amap = Map(A_MERGE -> "M", A_NOTHING -> "==", A_RMLOCAL -> "<-(rm)", A_RMREMOTE -> "(rm)->",
+    A_UNKNOWN -> "?", A_USELOCAL -> "->", A_USEREMOTE -> "<-", A_CACHEONLY -> "C", A_RMBOTH -> "<-rm->")
+}
 
 // the thing with properties for javafx tableview
 class CompFile(cf_ : ComparedFile) {
   val cf = cf_
-//  val bmap = Map(3 -> "M", 54 -> "==")
-  val amap = Map(A_MERGE -> "M", A_NOTHING -> "==", A_RMLOCAL -> "<-(rm)", A_RMREMOTE -> "(rm)->",
-    A_UNKNOWN -> "?", A_USELOCAL -> "->", A_USEREMOTE -> "<-", A_CACHEONLY -> "C")
   var tmp = ""
   if (cf.flocal != null) tmp=cf.flocal.path
   else if (cf.fremote != null) tmp=cf.fremote.path
   else if (cf.fcache != null) tmp=cf.fcache.path
   val path = new StringProperty(this, "path", tmp)
-  val status = new StringProperty(this, "status", amap(cf.action))
+  val status = new StringProperty(this, "status", CF.amap(cf.action))
   val dformat = new java.text.SimpleDateFormat("dd-MM-yyyy HH:mm:ss")
   val detailsLocal = new StringProperty(this, "detailsl",
     (if (cf.flocal != null) dformat.format(new java.util.Date(cf.flocal.modTime)) + "," + cf.flocal.size else "none"))
   val detailsRemote = new StringProperty(this, "detailsr",
     (if (cf.fremote != null) dformat.format(new java.util.Date(cf.fremote.modTime)) + "," + cf.fremote.size else "none"))
   def changeAction() {
-    status.set(amap(cf.action))
+    status.set(CF.amap(cf.action))
   }
   override def toString: String = "CompFile: " + path() + " " + status() + " L:" + detailsLocal + " R:" + detailsRemote
 }
@@ -76,8 +77,7 @@ class CompareWindow() extends VBox {
         override def updateItem(f: String, empty: Boolean) {
           if (!empty) {
             super.updateItem(f, empty)
-            val xx = Map(A_MERGE -> "M", A_NOTHING -> "==", A_RMLOCAL -> "<-(rm)", A_RMREMOTE -> "(rm)->",
-              A_UNKNOWN -> "?", A_USELOCAL -> "->", A_USEREMOTE -> "<-", A_CACHEONLY -> "C") // TODO copied from above
+            val xx = CF.amap
             if (f == xx(A_NOTHING)) setStyle("")
             else if (f==xx(A_CACHEONLY) || f==xx(A_MERGE) || f==xx(A_UNKNOWN)) setStyle("-fx-background-color: salmon;")
             else setStyle("-fx-background-color: lightgreen;")
@@ -149,7 +149,8 @@ class CompareWindow() extends VBox {
   var btRmRemote = createActionButton("Delete remote", A_RMREMOTE)
   var btMerge = createActionButton("Merge", A_MERGE)
   var btNothing = createActionButton("Do nothing", A_NOTHING)
-  List(btRmLocal, btUseLocal, btMerge, btNothing, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
+  var btRmBoth = createActionButton("Delete both", A_RMBOTH)
+  List(btRmLocal, btUseLocal, btMerge, btNothing, btRmBoth, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
 
   def updateSyncButton() {
     println("update sync button")
@@ -162,23 +163,29 @@ class CompareWindow() extends VBox {
 
   def updateActionButtons() {
     println("update action buttons")
-    var allLocalPresenet = true
-    var allRemotePresent = true
+    var (allLocalPresenet, oneLocalPresent, allRemotePresent, oneRemotePresent) = (true, false, true, false)
     var allEqual = true
+    var legal = true
+    var existCheck: (Boolean,Boolean) = null // allow only changing of items where existence is equal
     for (idx <- tv.selectionModel.get().getSelectedItems) {
       val cf = idx.cf
-      if (cf.flocal == null) { allLocalPresenet = false }
-      if (cf.fremote == null) { allRemotePresent = false }
+      if (existCheck == null)
+        existCheck = (cf.flocal!=null,cf.fremote!=null)
+      else if (existCheck != (cf.flocal!=null,cf.fremote!=null)) legal = false
+      if (cf.flocal == null) allLocalPresenet = false else oneLocalPresent = true
+      if (cf.fremote == null) allRemotePresent = false  else oneRemotePresent = true
       if (!cf.isSynced) allEqual = false
     }
-    List(btRmLocal, btUseLocal, btMerge, btNothing, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
-    if (allEqual) List(btRmLocal, btUseLocal, btMerge, btNothing, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
-    else if ((allLocalPresenet && allRemotePresent)) List(btUseLocal,btUseRemote,btMerge).foreach(bb=>bb.setDisable(false))
-    else if (allLocalPresenet) List(btUseLocal,btRmLocal).foreach(bb => bb.setDisable(false))
-    else if (allRemotePresent) List(btUseRemote,btRmRemote).foreach(bb => bb.setDisable(false))
+    List(btRmLocal, btUseLocal, btMerge, btNothing, btRmBoth, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
+    if (legal) {
+      if (allEqual) btRmBoth.setDisable(false)
+      else if ((allLocalPresenet && allRemotePresent)) List(btUseLocal,btUseRemote,btMerge,btRmBoth).foreach(bb=>bb.setDisable(false))
+      else if (allLocalPresenet) List(btUseLocal,btRmLocal).foreach(bb => bb.setDisable(false))
+      else if (allRemotePresent) List(btUseRemote,btRmRemote).foreach(bb => bb.setDisable(false))
+    }
   }
 
-  var bv = new HBox { content = List(btSync, btRmLocal, btUseLocal, btMerge, btNothing, btUseRemote, btRmRemote, btBack) }
+  var bv = new HBox { content = List(btSync, btRmLocal, btUseLocal, btMerge, btNothing, btRmBoth, btUseRemote, btRmRemote, btBack) }
 
   var filterList = new sfxc.ObservableBuffer[String]()
   object F {

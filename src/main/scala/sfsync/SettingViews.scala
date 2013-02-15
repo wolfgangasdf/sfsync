@@ -15,9 +15,9 @@ import scala._
 import collection.mutable.ArrayBuffer
 import sfsync.Main.Dialog
 import scalafx.beans.property.StringProperty
-import javafx.scene. {input => jfxsi}
 import synchro.MyURI
-import util.matching.Regex
+import java.net.URLDecoder
+import java.io.File
 
 class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer: ArrayBuffer[T], var currIdx: Int, val onChange: () => Unit ) extends VBox {
   var oldidx = -1
@@ -218,7 +218,7 @@ class ProtocolView(val server: Server) extends BorderPane {
             println("encrypt password...")
             val crypto = new JavaCryptoEncryption("DES")
             uri.password = "##" + crypto.encrypt(uri.password, "bvfxsdfk")
-            tf.text.value = uri.toURIString()
+            tf.text.value = uri.toURIString
           }
         }
       }
@@ -277,8 +277,10 @@ class SubFolderView(val server: Server) extends BorderPane {
 
     def PathToSubdir(file: java.io.File) = {
       var ressf = ""
-      val path = file.toString
-      if (file.exists && file.isDirectory && path.startsWith(server.localFolder)) {
+      // bug in javafx: filename is url-encoded string, .exists() = false
+      val path = URLDecoder.decode(file.getPath,"UTF-8")
+      val realfile = new File(path)
+      if (realfile.exists && realfile.isDirectory && path.startsWith(server.localFolder)) {
         var sd = path.substring(server.localFolder.length)
         if (sd.startsWith("/")) sd = sd.substring(1)
         ressf = sd

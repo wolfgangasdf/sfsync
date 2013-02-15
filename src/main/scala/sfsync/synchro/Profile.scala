@@ -31,6 +31,7 @@ object Actions {
   val A_RMLOCAL = 4
   val A_RMREMOTE = 5
   val A_CACHEONLY = 6
+  val A_RMBOTH = 7
 }
 case object ComparedFile
 class ComparedFile(val flocal: VirtualFile, val fremote: VirtualFile, val fcache: VirtualFile, val newcache: Boolean = false) {
@@ -215,8 +216,8 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
       var removecf = true
       cf.action match {
         case A_MERGE => sys.error("merge not implemented yet!")
-        case A_RMLOCAL => { local.deletefile(cf.flocal) ; if (cf.fcache!=null) Cache.remove(cf.fcache) }
-        case A_RMREMOTE => { remote.deletefile(cf.fremote) ; if (cf.fcache!=null) Cache.remove(cf.fcache) }
+        case A_RMLOCAL|A_RMBOTH => { local.deletefile(cf.flocal) ; if (cf.fcache!=null) Cache.remove(cf.fcache) }
+        case A_RMREMOTE|A_RMBOTH => { remote.deletefile(cf.fremote) ; if (cf.fcache!=null) Cache.remove(cf.fcache) }
         case A_USELOCAL => { remote.putfile(cf.flocal) ; Cache.addupdate(cf.flocal) }
         case A_USEREMOTE => { remote.getfile(cf.fremote) ; if (cf.fremote!=cf.fcache) Cache.addupdate(cf.fremote) }
         case A_NOTHING => { if (cf.fcache==null) Cache.addupdate(cf.fremote) }

@@ -10,6 +10,7 @@ import scalax.file.Path
 import com.jcraft.jsch
 import jsch.{SftpATTRS, ChannelSftp}
 import sfsync.store.{Tools, Store}
+import java.text.Normalizer
 
 class cachedFile(path: String, modTime: Long, size: Long) {
 }
@@ -33,7 +34,11 @@ class LocalConnection extends GeneralConnection {
     val list = new ListBuffer[VirtualFile]()
     // scalax.io is horribly slow, there is an issue filed
     def parseContent(cc: java.io.File, firstTime: Boolean = false) : Unit = {
-      val strippedPath: String = if (cc.getPath == remoteBasePath) "/" else cc.getPath.substring(remoteBasePath.length)
+      // on mac 10.8 with oracle java 7, filenames are encoded with strange 'decomposed unicode'. grr
+      // this is in addition to the bug that LC_CTYPE is not set. grrr
+      // don't use cc.getPath directly!!
+      val fixedPath = Normalizer.normalize(cc.getPath, Normalizer.Form.NFC)
+      val strippedPath: String = if (fixedPath == remoteBasePath) "/" else fixedPath.substring(remoteBasePath.length)
       val vf = new VirtualFile(strippedPath, cc.lastModified(), cc.length, if (cc.isDirectory) 1 else 0)
       if ( !vf.fileName.matches(filterregexp) ) {
         list += vf
@@ -76,10 +81,10 @@ class MyURI(var protocol: String, var username: String, var password: String, va
       case _ => { false }
     }
   }
-  def toURIString() = {
+  def toURIString = {
     protocol + "://" + username + ":" + password + "@" + host + ":" + port
   }
-  override def toString() = {
+  override def toString = {
     s"$protocol,$username,$host,$port"
   }
 }
@@ -159,7 +164,7 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
           }
         }
       }
-      getUnit
+      getUnit()
     }
     println("searching " + remoteBasePath + "/" + subfolder)
     val sp = remoteBasePath + (if (subfolder.length>0) "/" else "") + subfolder
@@ -189,7 +194,7 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
   class MyUserInfo(val user: String, val password: String) extends jsch.UserInfo with jsch.UIKeyboardInteractive {
     var getPassCount = 0
     def getPassword = {
-      println(s"getPassword passcount = $getPassCount pass=$password")
+      println(s"getPassword passcount = $getPassCount")
       getPassCount += 1
       if (getPassCount < 2 && password != "") password
       else runUIwait(Dialog.showInputString("Enter password:")).asInstanceOf[String]
@@ -249,10 +254,8 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
 
   var password = uri.password
   if (password != "") {
-    println(s"have pass: $password")
     if (password.startsWith("##")) { // decode password
       password = Tools.crypto.decrypt(password.substring(2), "bvfxsdfk")
-      println(s"decode passw: $password")
     }
   }
   jSch.addIdentity(uri.username,prvkey,null,Array[Byte]())

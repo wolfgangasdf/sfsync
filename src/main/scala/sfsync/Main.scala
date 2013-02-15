@@ -17,11 +17,10 @@ import collection.mutable.ArrayBuffer
 import store._
 import javafx.{stage => jfxs}
 import synchro._
-import javafx.event.EventHandler
 import Helpers._
 import akka.actor.ActorDSL._
 import akka.actor._
-import scala.concurrent.{future, blocking, Future, Await}
+import scala.concurrent.future
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.implicitConversions
 import scalafx.geometry.Pos
@@ -36,6 +35,10 @@ object Helpers {
         f
       }
     })
+  }
+
+  def toHexString(s: String, encoding: String) = {
+    s.getBytes(encoding).map("%02x " format _).mkString
   }
 
   def getUnit() {}
@@ -95,7 +98,7 @@ object Main extends JFXApp with Logging {
   val version = VERSION + (if (resv != null) " (" + io.Source.fromURL(resv).mkString.trim + ")" else "")
 
   // run checks
-  Checks.CheckComparedFile
+  Checks.CheckComparedFile()
 
   val menu = new Menu("File") {
     items.add(new MenuItem("Open"))
@@ -202,7 +205,14 @@ object Main extends JFXApp with Logging {
   println("java version " + System.getProperty("java.version"))
   println("scala version " + util.Properties.versionString)
   println("javafx version " + System.getProperty("javafx.runtime.version"))
-
+  println("LC_CTYPE=" + System.getenv("LC_CTYPE"))
+  System.getProperty("os.name") match {
+    case "Mac OS X" => {
+      if (System.getenv("LC_CTYPE") == null) {
+        println("!!!!!!!!!!! set LC_CTYPE variable for correct foreign character handling!")
+      }
+    }
+  }
   refreshContent()
 
   // UI initialization: is executed after UI shown
