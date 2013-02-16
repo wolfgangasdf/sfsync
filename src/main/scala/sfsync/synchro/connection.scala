@@ -262,7 +262,7 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
   val sftp = session.openChannel("sftp").asInstanceOf[jsch.ChannelSftp]
   sftp.connect(5000)
   if (!sftp.isConnected) {
-    sys.error("sftp not connected!")
+    throw new Exception("sftp not connected!")
   }
 
   def finish() {

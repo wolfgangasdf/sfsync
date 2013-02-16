@@ -103,7 +103,7 @@ class Profile  (view: CompareScene, server: Server, protocol: Protocol, subfolde
       import sys.process._
       val res = protocol.executeBefore.value.split("#").toSeq.!
       if (res != 0) {
-        sys.error("error executing 'before' command!")
+        throw new Exception("error executing 'before' command!")
       }
     }
 
@@ -243,7 +243,7 @@ class Profile  (view: CompareScene, server: Server, protocol: Protocol, subfolde
       import sys.process._
       val res = protocol.executeAfter.value.split("#").toSeq.!
       if (res != 0) {
-        sys.error("error executing 'after' command!")
+        throw new Exception("error executing 'after' command!")
       }
     }
   }
