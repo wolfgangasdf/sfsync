@@ -85,9 +85,14 @@ class MainScene(stage: Stage) extends Scene {
     menus.add(menu)
   }
   class MainView extends SplitPane {
+    var firstStart = true
     var serverView = new ServerView(Store.config) {
       def onServerChange() {
-        val tmpdp = ArrayBuffer(dividerPositions: _*)
+        var tmpdp =  ArrayBuffer(dividerPositions: _*)
+        if (firstStart) {
+          firstStart = false
+          tmpdp = ArrayBuffer(Store.config.dividerPositions: _*)
+        }
         protocolView = new ProtocolView(server)
         subfolderView = new SubFolderView(server)
         items(1) = protocolView
@@ -98,6 +103,7 @@ class MainScene(stage: Stage) extends Scene {
         if (server.currentSubFolder.value > -1) {
           subfolderView.subfolderChanged()
         }
+        println("dp=" + tmpdp)
         dividerPositions = tmpdp: _*
       }
     }
@@ -139,7 +145,6 @@ class MainScene(stage: Stage) extends Scene {
     content = List(new Label { text = "Sfsync Version " + Main.version })
   }
 
-  def refreshContent() {
     mainView = new MainView
     maincontent.content = List(menuBar,toolBar,mainView,statusBar)
     maincontent.prefHeight <== height
@@ -148,12 +153,8 @@ class MainScene(stage: Stage) extends Scene {
     if (Store.config.currentServer.value > -1) {
       mainView.serverView.serverChanged()
     }
-  }
 
   content = maincontent
-  refreshContent()
-
-  mainView.dividerPositions = Store.config.dividerPositions: _*
 }
 
 object Main extends JFXApp with Logging {
@@ -206,11 +207,11 @@ object Main extends JFXApp with Logging {
 
   override def stopApp() {
     println("*************** stop app")
-    doCleanup()
     Store.config.width.value = stage.width.toInt
     Store.config.height.value = stage.height.toInt
     Store.config.dividerPositions = ArrayBuffer(mainScene.mainView.dividerPositions: _*)
     Store.save()
+    doCleanup()
     sys.exit(0)
   }
 
