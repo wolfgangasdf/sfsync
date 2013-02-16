@@ -127,22 +127,32 @@ object Main extends JFXApp with Logging {
   var mainView: MainView = null
   var maincontent = new VBox
 
+  def runCompare() {
+    doCleanup()
+    cw = new CompareWindow()
+    Main.stage.scene().content = cw
+    cw.prefWidth <== Main.stage.scene.width
+    cw.prefHeight <== Main.stage.scene.height
+    profile = new Profile (cw,mainView.serverView.server, mainView.protocolView.protocol, mainView.subfolderView.subfolder)
+    cw.setProfile(profile)
+    future { // this is key, do in new thread!
+      try {
+        profile.init()
+        profile.compare()
+      } catch {
+        case e: Exception => {
+          runUIwait(Dialog.showMessage(e.getMessage))
+          doCleanup()
+          refreshContent()
+        }
+      }
+    }
+  }
+
   val toolBar = new ToolBar {
     content = List(new Button("Compare") {
       onAction = (ae: ActionEvent) => {
-        doCleanup()
-
-        cw = new CompareWindow()
-        Main.stage.scene().content = cw
-        cw.prefWidth <== Main.stage.scene.width
-        cw.prefHeight <== Main.stage.scene.height
-        profile = new Profile (cw,mainView.serverView.server, mainView.protocolView.protocol, mainView.subfolderView.subfolder)
-        cw.setProfile(profile)
-        future { // this is key, do in new thread!
-          profile.init()
-          profile.compare()
-        }
-        unit()
+        runCompare()
       }
     },
     new Button("Save settings") {

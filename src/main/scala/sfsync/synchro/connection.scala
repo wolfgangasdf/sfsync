@@ -179,11 +179,6 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
         }
       }
     }
-//    else {
-//      runUIwait(Dialog.showMessage("creating sftp directory " + sp + " ..."))
-//      sftp.mkdir(sp)
-//    }
-
     println("parsing done")
     if (receiver != null) receiver ! 'done
     list

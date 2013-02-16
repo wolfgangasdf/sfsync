@@ -16,6 +16,7 @@ import akka.util.Timeout
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.{reflectiveCalls, postfixOps}
+import sfsync.Main.Dialog
 
 class TransferProtocol (
   var uri: String,
@@ -88,6 +89,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
     if (cache.length == 0) {
       println("new cache!")
       newcache = true
+      if (!subfolder.subfolders.contains("")) throw new scala.Exception("Cache empty: sync all files on first run!")
     }
     var cacheall = false
     subfolder.subfolders.foreach(x => {if (x == "") cacheall = true})
