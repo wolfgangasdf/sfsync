@@ -259,10 +259,9 @@ object Cache {
   }
 
   def saveCache(name: String) {
-    val fff = new java.io.File(name)
+    val fff = new java.io.File(getCacheFilename(name))
     if (fff.exists) fff.delete()
-    val out = new java.io.BufferedWriter(new java.io.FileWriter(fff))
-
+    val out = new java.io.BufferedWriter(new java.io.FileWriter(fff),1000000)
     for (cf <- cache) {
       out.write("" + cf.modTime + "," + cf.isDir + "," + cf.size + "," + cf.path + "\n")
     }
