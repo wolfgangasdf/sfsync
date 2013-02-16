@@ -17,7 +17,14 @@ import sfsync.Main.Dialog
 import scalafx.beans.property.StringProperty
 import synchro.MyURI
 import java.net.URLDecoder
-import java.io.File
+
+object SVHelpers {
+  def getDroppedFile(file: java.io.File) = {
+    // bug in javafx: filename is url-encoded string, .exists() = false
+    val path = URLDecoder.decode(file.getPath,"UTF-8")
+    new java.io.File(path)
+  }
+}
 
 class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer: ArrayBuffer[T], var currIdx: Int, val onChange: () => Unit ) extends VBox {
   var oldidx = -1
@@ -27,8 +34,6 @@ class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer:
     editable = true
     items = slist
     cellFactory = TextFieldListCell.forListView()
-
-//    prefHeight = 200
     selectionModel.get().clearSelection()
     selectionModel.get().select(currIdx)
   }
@@ -95,7 +100,7 @@ class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer:
   )
 }
 
-class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: String = "", filter: String = "") extends HBox {
+class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: String = "", filter: String = "", canDropFile: Boolean = false) extends HBox {
   val bwidth = if (onButtonClick != null) 60 else 0
   var tf = new TextField() {
     text = ""
@@ -109,6 +114,22 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
         }
       }
     })
+    if (canDropFile) {
+      onDragDropped = (event: input.DragEvent) => {
+        if (event.dragboard.getFiles.length == 1) {
+          val f = SVHelpers.getDroppedFile(event.dragboard.getFiles.head)
+          text = f.getPath
+        }
+        event.consume
+      }
+      onDragOver = (event: input.DragEvent) => {
+        if (event.dragboard.hasFiles()) {
+          event.acceptTransferModes(scalafx.scene.input.TransferMode.COPY);
+        } else {
+          event.consume
+        }
+      }
+    }
   }
   var lb = new Label() {
     prefWidth = 200
@@ -165,7 +186,11 @@ abstract class ServerView(val config: Config) extends BorderPane {
   class ServerDetailView extends VBox {
     val tfID = new MyTextField("Cache ID: ",null, "just leave it") { tf.text <==> server.id }
     val tfFilter = new MyTextField("Filter: ",null, "regex, e.g., (.*12)|(.*e2)") { tf.text <==> server.filterRegexp }
-    val tfLocalFolder = new MyTextField("Local folder: ",() => fcLocalDir(server.localFolder), "/localdir","/.*[^/]") { tf.text <==> server.localFolder }
+    val tfLocalFolder = new MyTextField(
+      "Local folder: ",
+      () => fcLocalDir(server.localFolder), "/localdir","/.*[^/]",
+      canDropFile = true
+    ) { tf.text <==> server.localFolder }
     val cbSkipEqualFiles = new CheckBox("Skip equal files") { selected <==> server.skipEqualFiles }
     var bClearCache = new Button("Clear cache") { onAction = (ae: ActionEvent) => { Cache.clearCache(tfID.tf.text.value)} }
     val clist = List(tfLocalFolder,tfFilter,tfID,cbSkipEqualFiles,bClearCache)
@@ -209,7 +234,7 @@ class ProtocolView(val server: Server) extends BorderPane {
     }
   }
   class ProtocolDetailView extends VBox {
-    var tfBaseFolder = new MyTextField("Base folder: ", null, "/remotebasedir", "/.*[^/]") { tf.text <==> protocol.protocolbasefolder }
+    var tfBaseFolder = new MyTextField("Base folder: ", null, "/remotebasedir", "/.*[^/]", canDropFile = true) { tf.text <==> protocol.protocolbasefolder }
     var tfURI = new MyTextField("Protocol URI: ", null, "file:/// or sftp://user@host:port", "(file:///)|(sftp://\\S+@\\S+:\\S+)") {
       tf.onAction = (ae: ActionEvent) => {
         val uri = new MyURI()
@@ -277,11 +302,9 @@ class SubFolderView(val server: Server) extends BorderPane {
 
     def PathToSubdir(file: java.io.File) = {
       var ressf = ""
-      // bug in javafx: filename is url-encoded string, .exists() = false
-      val path = URLDecoder.decode(file.getPath,"UTF-8")
-      val realfile = new File(path)
-      if (realfile.exists && realfile.isDirectory && path.startsWith(server.localFolder)) {
-        var sd = path.substring(server.localFolder.length)
+      val realfile = SVHelpers.getDroppedFile(file)
+      if (realfile.exists && realfile.isDirectory && realfile.getPath.startsWith(server.localFolder)) {
+        var sd = realfile.getPath.substring(server.localFolder.length)
         if (sd.startsWith("/")) sd = sd.substring(1)
         ressf = sd
       }
