@@ -61,7 +61,7 @@ class JavaCryptoEncryption(algorithmName: String) {
 class Config {
   // implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
   implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
-  var servers = new ArrayBuffer[Server]
+  var servers = new sfxc.ObservableBuffer[Server]
   var currentServer: IntegerProperty = -1
   var currentFilter: IntegerProperty = 0
   var width: IntegerProperty = 800
@@ -69,23 +69,24 @@ class Config {
   var dividerPositions = new ArrayBuffer[Double]
 }
 
-abstract class ListableThing {
-  var name: StringProperty
+class ListableThing extends Ordered[ListableThing] {
+  var name: StringProperty = StringProperty("<new>")
+  def compare(that: ListableThing): Int = this.name.compareTo(that.name)
 }
 
 class MyList[T] extends ArrayBuffer[T] {
   def add(what: T) = { this += what}
 }
+
 class Server extends ListableThing {
   implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
   implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
-  var name: StringProperty = "<new>"
   var id: StringProperty = new java.util.Date().getTime.toString
   var localFolder: StringProperty = ""
   var filterRegexp: StringProperty = ""
-  var protocols = new ArrayBuffer[Protocol]
+  var protocols = new sfxc.ObservableBuffer[Protocol]
   var currentProtocol: IntegerProperty = -1
-  var subfolders = new ArrayBuffer[SubFolder]
+  var subfolders = new sfxc.ObservableBuffer[SubFolder]
   var currentSubFolder: IntegerProperty = -1
   var skipEqualFiles: BooleanProperty = BooleanProperty(value = false)
   override def toString: String = name // used for listview
@@ -94,7 +95,6 @@ class Server extends ListableThing {
 class Protocol extends ListableThing {
   implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
   implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
-  var name: StringProperty = "<new>"
   var protocoluri: StringProperty = ""
   var protocolbasefolder: StringProperty = ""
   var executeBefore: StringProperty = ""
@@ -105,7 +105,6 @@ class Protocol extends ListableThing {
 class SubFolder extends ListableThing {
   implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
   implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
-  var name: StringProperty = "<new>"
   var subfolders = new sfxc.ObservableBuffer[String]()
   override def toString: String = name
 }

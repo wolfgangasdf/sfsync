@@ -12,11 +12,13 @@ import scalafx.event.ActionEvent
 import sfsync.store._
 import sfsync.Helpers._
 import scala._
-import collection.mutable.ArrayBuffer
 import sfsync.Main.Dialog
 import scalafx.beans.property.StringProperty
 import synchro.MyURI
 import java.net.URLDecoder
+import scalafx.util.StringConverter
+//import javafx.{util => jfxu, event => jfxe}
+//import javafx.scene.{control => jfxsc}
 
 object SVHelpers {
   def getDroppedFile(file: java.io.File) = {
@@ -28,20 +30,35 @@ object SVHelpers {
 
 class MyListView[T <: ListableThing](
     val factory: () => T = null,
-    var obsBuffer: ArrayBuffer[T],
+    var obsBuffer: sfxc.ObservableBuffer[T],
     var currIdx: Int,
     val onChange: () => Unit
     ) extends VBox {
+
+  def sortit() { obsBuffer.sort((x,y) => x.name.compareTo(y.name)<0) }
+
+  sortit()
+
   var oldidx = -1
-  var slist = new sfxc.ObservableBuffer[String]()
-  obsBuffer.foreach(cf => slist.add(cf.toString))
-  var lvs = new control.ListView[String]() {
+  var lvs = new control.ListView[T]() {
     editable = true
-    items = slist
-    cellFactory = TextFieldListCell.forListView()
+    items = obsBuffer
     selectionModel.get().clearSelection()
     selectionModel.get().select(currIdx)
   }
+  lvs.cellFactory = TextFieldListCell.forListView(new StringConverter[T] {
+    def fromString(string: String): T = {
+      // this is only called (?) if editing is finished. overwrite old name
+      val xx = lvs.getSelectionModel.getSelectedItem
+      if (xx != null) {
+        xx.name.value = string
+        sortit()
+      }
+      xx
+    }
+    def toString(t: T): String = t.toString
+  })
+
 
   lvs.getSelectionModel.getSelectedIndices.onChange( (aaa,bbb) => {
     val newidx = lvs.getSelectionModel.getSelectedIndex
@@ -49,13 +66,7 @@ class MyListView[T <: ListableThing](
       oldidx = newidx
       onChange()
     }
-  } )
-
-  slist.onChange( { // list has been edited: update obsBuffer... ugly
-    for (ii <- 0 until slist.length) {
-      if (slist(ii) != obsBuffer(ii).name) obsBuffer(ii).name.set(slist(ii))
-    }
-  } )
+  })
 
   def beforeDelete(what: T) = true
   def afterCopy(copyidx: Int) {} // ugly: is called from somewhere
@@ -68,7 +79,7 @@ class MyListView[T <: ListableThing](
           onAction = (ae: ActionEvent) => {
             val newi = factory()
             obsBuffer += newi
-            slist.add(newi.toString)
+            sortit()
             onChange
             unit()
           }
@@ -79,6 +90,7 @@ class MyListView[T <: ListableThing](
             if (idx >= 0) {
               // it is very hard to clone a not-serializable object, so this hack:
               obsBuffer += obsBuffer(idx) // this clones
+              sortit()
               Store.save()
               Store.load() // /this clones
               afterCopy(obsBuffer.length - 1)
@@ -92,7 +104,6 @@ class MyListView[T <: ListableThing](
             if (idx >= 0) {
               if (beforeDelete(obsBuffer(idx))) {
                 obsBuffer.remove(idx)
-                slist.remove(idx)
                 onChange
               }
             }
@@ -275,10 +286,8 @@ class SubFolderView(val server: Server) extends BorderPane {
   left = lvp
   def subfolderChanged() {
     val idx = lvp.lvs.getSelectionModel.getSelectedIndex
-    val itm = lvp.lvs.getSelectionModel.getSelectedItem
     if (idx > -1) {
       subfolder=server.subfolders(idx)
-      if (!subfolder.name.equals(itm)) subfolder.name.value = itm // then it was edited!
       server.currentSubFolder.value = idx
 
       val sfdv =  new SubFolderDetailView
