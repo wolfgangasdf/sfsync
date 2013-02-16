@@ -75,7 +75,7 @@ object TestConcurrency extends JFXApp {
 
   object Dialog {
     val dstage = new Stage(jfxs.StageStyle.UTILITY) {
-      initOwner(stage) // TODO remove
+      initOwner(stage)
       initModality(jfxs.Modality.APPLICATION_MODAL)
       width = 500
       height = 300

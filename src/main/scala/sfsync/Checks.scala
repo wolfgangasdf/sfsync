@@ -29,8 +29,8 @@ object Checks {
     assert((new ComparedFile(lfp0m1s0, rfp0m0s0, null,true)).action == A_UNKNOWN) // not equal and not in cache. unknown!
     assert((new ComparedFile(lfp0m0s0, null, null)).action == A_USELOCAL) // new local (cache not new)
     assert((new ComparedFile(null, rfp0m0s0, null)).action == A_USEREMOTE) // new remote (cache not new)
-    assert((new ComparedFile(lfp0m1s0, rfp0m0s0, null)).action == A_USELOCAL) // local newer (no cache info)
-    assert((new ComparedFile(lfp0m0s0, rfp0m1s0, null)).action == A_USEREMOTE) // remote newer (no cache info)
+    assert((new ComparedFile(lfp0m1s0, rfp0m0s0, null)).action == A_UNKNOWN) // local newer (no cache info)
+    assert((new ComparedFile(lfp0m0s0, rfp0m1s0, null)).action == A_UNKNOWN) // remote newer (no cache info)
     assert((new ComparedFile(lfp0m0s0, rfp0m0s1, null)).action == A_UNKNOWN) // same moddate, different size...
     // in cache
     assert((new ComparedFile(lfp0m0s0, null, cfp0m0s0)).action == A_RMLOCAL) // remote was deleted (local still in cache)

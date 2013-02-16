@@ -7,9 +7,8 @@ import scalax.file.Path
 import scalax.io.Line
 import Tools._
 import sfsync.Helpers._
-import collection.mutable.{ArrayBuffer}
+import collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
-import scala.util.matching.Regex
 
 
 object DBSettings {
@@ -59,15 +58,8 @@ class JavaCryptoEncryption(algorithmName: String) {
   }
 }
 
-
-// list types:
-// sfxc.ObservableBuffer[Server] needed for ListView. turns out to be useless since need [String].....
-// ArrayBuffer[Server] is needed for db4o
-// further, all javafx properties are NOT serializable :-(
 class Config {
-//  var servers = new sfxc.ObservableBuffer[Server] // THIS does not work :-( if the servers is used by ListView, it crashes the DB.....
-  // TODO: why do i need this, and why cannot I put this in Main.helpers (then many things break)
-//implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
+  // implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
   implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
   var servers = new ArrayBuffer[Server]
   var currentServer: IntegerProperty = -1
@@ -85,7 +77,6 @@ class MyList[T] extends ArrayBuffer[T] {
   def add(what: T) = { this += what}
 }
 class Server extends ListableThing {
-  // TODO see above
   implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
   implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
   var name: StringProperty = "<new>"
@@ -96,12 +87,11 @@ class Server extends ListableThing {
   var currentProtocol: IntegerProperty = -1
   var subfolders = new ArrayBuffer[SubFolder]
   var currentSubFolder: IntegerProperty = -1
-  var skipEqualFiles: BooleanProperty = BooleanProperty(false)
+  var skipEqualFiles: BooleanProperty = BooleanProperty(value = false)
   override def toString: String = name // used for listview
 }
 
 class Protocol extends ListableThing {
-  // TODO see above
   implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
   implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
   var name: StringProperty = "<new>"
@@ -113,7 +103,6 @@ class Protocol extends ListableThing {
 }
 
 class SubFolder extends ListableThing {
-  // TODO see above
   implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
   implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
   var name: StringProperty = "<new>"
@@ -128,10 +117,10 @@ object Store {
   def save() {
     println("-----------save " + config)
     val fff = Path.fromString(DBSettings.getSettingPath)
-    def saveVal(key: String, what: Property[_,_]) = {
+    def saveVal(key: String, what: Property[_,_]) {
       fff.append(key + "," + what.value + "\n")
     }
-    def saveString(key: String, what: String) = {
+    def saveString(key: String, what: String) {
       fff.append(key + "," + what + "\n")
     }
     fff.write("sfsyncsettingsversion,1\n")
@@ -259,7 +248,6 @@ object Cache {
   def remove(vf: VirtualFile) {
     if (cache.contains(vf)) {
       cache -= vf
-//      println(" removed from cache " + vf)
     } else {
       println(" error: cache doesn't contain " + vf)
     }
@@ -267,11 +255,8 @@ object Cache {
 
   def addupdate(vf: VirtualFile) {
     val vfs = cache.filter(p => p.path == vf.path)
-//    println(" addup: found " + vfs)
     cache --= vfs
     cache += vf
-    val vfs2 = cache.filter(p => p.path == vf.path)
-//    println(" after: found " + vfs2)
   }
 
   def saveCache(name: String) {
@@ -281,7 +266,6 @@ object Cache {
     }
     fff.doCreateFile()
     for (cf <- cache) {
-//      println("  savecache: " + cf)
       fff.append("" + cf.modTime + "," + cf.isDir + "," + cf.size + "," + cf.path + "\n")
     }
     println("***** cache saved!")

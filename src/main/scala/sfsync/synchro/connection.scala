@@ -8,8 +8,8 @@ import scala.collection.JavaConversions._
 import akka.actor.ActorRef
 import scalax.file.Path
 import com.jcraft.jsch
-import jsch.{SftpATTRS, ChannelSftp}
-import sfsync.store.{Tools, Store}
+import jsch.ChannelSftp
+import sfsync.store.Tools
 import java.text.Normalizer
 
 class cachedFile(path: String, modTime: Long, size: Long) {
@@ -33,7 +33,7 @@ class LocalConnection extends GeneralConnection {
   def listrec(subfolder: String, filterregexp: String, receiver: ActorRef) = {
     val list = new ListBuffer[VirtualFile]()
     // scalax.io is horribly slow, there is an issue filed
-    def parseContent(cc: java.io.File, firstTime: Boolean = false) : Unit = {
+    def parseContent(cc: java.io.File, firstTime: Boolean = false) {
       // on mac 10.8 with oracle java 7, filenames are encoded with strange 'decomposed unicode'. grr
       // this is in addition to the bug that LC_CTYPE is not set. grrr
       // don't use cc.getPath directly!!
@@ -45,7 +45,7 @@ class LocalConnection extends GeneralConnection {
         if (receiver != null) receiver ! vf
         if (vf.isDir == 1) for (cc <- cc.listFiles()) parseContent(cc)
       }
-      getUnit()
+      unit()
     }
     val sp = Path.fromString(remoteBasePath + (if (subfolder.length>0) "/" else "") + subfolder)
     val spf = new java.io.File(sp.path)
@@ -110,7 +110,7 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
     if (from.isDir == 1)
       sftp.mkdir(rp)
     else
-      sftp.put(localBasePath + "/" + from.path, rp) // TODO: progressmonitor!
+      sftp.put(localBasePath + "/" + from.path, rp)
     sftp.setMtime(rp, (from.modTime/1000).toInt)
   }
   def getfile(from: VirtualFile) {
@@ -118,7 +118,7 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
     if (from.isDir == 1) {
       Path.fromString(lp).createDirectory()
     } else {
-      sftp.get(remoteBasePath + "/" + from.path, lp) // TODO: progressmonitor!
+      sftp.get(remoteBasePath + "/" + from.path, lp)
     }
     Path.fromString(lp).lastModified = from.modTime
   }
@@ -145,7 +145,7 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
         isDir = if (lse.getAttrs.isDir) 1 else 0
       }
     }
-    def parseContent(folder: String): Unit = {
+    def parseContent(folder: String) {
       println("parsing " + folder )
       val xx = sftp.ls(folder)
       val tmp = new ListBuffer[ChannelSftp#LsEntry]
@@ -164,7 +164,7 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
           }
         }
       }
-      getUnit()
+      unit()
     }
     println("searching " + remoteBasePath + "/" + subfolder)
     val sp = remoteBasePath + (if (subfolder.length>0) "/" else "") + subfolder
@@ -281,7 +281,6 @@ trait GeneralConnection {
   var localBasePath: String = ""
   var remoteBasePath: String = ""
   var filterregex: Regex = new Regex(""".*""")
-  // TODO: time diff thing
   def getfile(from: VirtualFile)
   def putfile(from: VirtualFile)
   def deletefile(what: VirtualFile)

@@ -9,7 +9,7 @@ scalacOptions ++= Seq("-feature", "-deprecation")
 ////////// intellij doesn't like same output path
 // doesntwork target in Compile <<= baseDirectory(_ / "targetsbt") 
 
-/////////////// akka actors TODO: should work without this but doesn't
+/////////////// akka actors (should work without this but doesn't)
 resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/"
 
 libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.1.0"

@@ -7,7 +7,6 @@ import scalafx.Includes._
 import scalafx.event.ActionEvent
 import scalafx.beans.property.StringProperty
 
-import javafx.{collections => jfxc}
 import javafx.{util => jfxu}
 import javafx.beans.{value => jfxbv}
 import javafx.scene. {control => jfxsc}
@@ -20,7 +19,7 @@ import sfsync.synchro.CompareFinished
 
 import akka.actor.ActorDSL._
 import javafx.util.Callback
-import scala.concurrent.{future}
+import scala.concurrent.future
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.{implicitConversions, reflectiveCalls}
 
@@ -110,25 +109,24 @@ class CompareWindow() extends VBox {
     )
   }
 
-  def updateSorting = {
-    tv.delegate.getSortOrder().clear()
-    tv.delegate.getSortOrder().add(colPath.delegate)
+  def updateSorting() {
+    tv.delegate.getSortOrder.clear()
+    tv.delegate.getSortOrder.add(colPath.delegate)
   }
 
   val btSync = new Button("Synchronize") {
     onAction = (ae: ActionEvent) => {
-      // disable = true doesn't work
       future {
         profile.synchronize(comparedfiles.toList)
       }
-      getUnit
+      unit()
     }
   }
   btSync.setDisable(true)
 
   var btBack = new Button("Back") {
     onAction = (ae: ActionEvent) => {
-      Main.refreshContent
+      Main.refreshContent()
     }
   }
 
@@ -155,7 +153,7 @@ class CompareWindow() extends VBox {
   def updateSyncButton() {
     println("update sync button")
     var canSync = true
-    for (cf <- comparedfiles) { // TODO: here was concurr. mod excp after compare
+    for (cf <- comparedfiles) {
       if (cf.action == A_UNKNOWN) canSync = false
     }
     btSync.setDisable(!canSync)
@@ -212,7 +210,7 @@ class CompareWindow() extends VBox {
   def updateFilter(filter: String) {
     compfiles.clear()
     comparedfiles.filter( cf => getFilter(cf) ).foreach(cf => compfiles.add(new CompFile(cf)))
-    runUI { updateSorting }
+    runUI { updateSorting() }
   }
 
   val toolbar = new ToolBar {
@@ -254,7 +252,7 @@ class CompareWindow() extends VBox {
         }
       }
       case CompareFinished => {
-        runUI { updateSorting }
+        runUI { updateSorting() }
         runUI { updateSyncButton() }
         runUI { statusBar.status.text = "ready" }
       }

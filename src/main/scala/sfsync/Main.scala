@@ -41,7 +41,7 @@ object Helpers {
     s.getBytes(encoding).map("%02x " format _).mkString
   }
 
-  def getUnit() {}
+  def unit() {}
 
   def runUIwait( f: => Any ) : Any = {
     var stat: Any = null
@@ -105,7 +105,7 @@ object Main extends JFXApp with Logging {
     items.add(new MenuItem("Close"))
   }
 
-  def system = ActorSystem("some-api") // TODO: needed?
+  def system = ActorSystem("sfsyncactors")
 
   val menuBar = new MenuBar {
     useSystemMenuBar = true
@@ -142,7 +142,7 @@ object Main extends JFXApp with Logging {
           profile.init()
           profile.compare()
         }
-        getUnit()
+        unit()
       }
     },
     new Button("Save settings") {
@@ -174,7 +174,7 @@ object Main extends JFXApp with Logging {
     maincontent.prefWidth <== stage.scene.width
     mainView.prefHeight <== stage.scene.height - menuBar.prefHeight - toolBar.prefHeight - statusBar.prefHeight
     if (Store.config.currentServer.value > -1) {
-      mainView.serverView.serverChanged
+      mainView.serverView.serverChanged()
     }
   }
 
@@ -224,7 +224,7 @@ object Main extends JFXApp with Logging {
   // https://gist.github.com/1887631
   object Dialog {
     val dstage = new Stage(jfxs.StageStyle.UTILITY) {
-      initOwner(Main.stage) // TODO remove
+      initOwner(Main.stage)
       initModality(jfxs.Modality.APPLICATION_MODAL)
       width = 500
       height = 300

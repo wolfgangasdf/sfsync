@@ -38,7 +38,7 @@ class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer:
     selectionModel.get().select(currIdx)
   }
 
-  lvs.getSelectionModel().getSelectedIndices.onChange( (aaa,bbb) => {
+  lvs.getSelectionModel.getSelectedIndices.onChange( (aaa,bbb) => {
     val newidx = lvs.getSelectionModel.getSelectedIndex
     if (oldidx != newidx) { // onChange is called 4 times if entry edited (looses selection)
       oldidx = newidx
@@ -53,7 +53,7 @@ class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer:
   } )
 
   def beforeDelete(what: T) = true
-  def afterCopy(copyidx: Int) = {} // ugly: is called from somewhere
+  def afterCopy(copyidx: Int) {} // ugly: is called from somewhere
 
   content = List(
     lvs,
@@ -65,7 +65,7 @@ class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer:
             obsBuffer += newi
             slist.add(newi.toString)
             onChange
-            getUnit
+            unit()
           }
         },
         new Button("copy") {
@@ -77,8 +77,8 @@ class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer:
               Store.save()
               Store.load() // /this clones
               afterCopy(obsBuffer.length - 1)
-              Main.refreshContent
-              getUnit
+              Main.refreshContent()
+              unit()
             }
           }
         },
@@ -92,7 +92,7 @@ class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer:
                 onChange
               }
             }
-            getUnit
+            unit()
           }
         }
       )
@@ -123,8 +123,8 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
         event.consume
       }
       onDragOver = (event: input.DragEvent) => {
-        if (event.dragboard.hasFiles()) {
-          event.acceptTransferModes(scalafx.scene.input.TransferMode.COPY);
+        if (event.dragboard.hasFiles) {
+          event.acceptTransferModes(scalafx.scene.input.TransferMode.COPY)
         } else {
           event.consume
         }
@@ -148,7 +148,7 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
     val butt = new Button("Dir...") {
       onAction = (ae: ActionEvent) => {
         onButtonClick()
-        getUnit
+        unit()
       }
     }
     content.add(butt)
@@ -159,7 +159,7 @@ abstract class ServerView(val config: Config) extends BorderPane {
   prefHeight = 130
   def onServerChange()
   var server = new Server
-  def serverChanged : Unit = {
+  def serverChanged() {
     val idx = lvs.lvs.getSelectionModel.getSelectedIndices.head
     if (idx > -1) {
       server=config.servers(idx)
@@ -172,11 +172,10 @@ abstract class ServerView(val config: Config) extends BorderPane {
       onServerChange()
     }
   }
-  def fcLocalDir(prop: StringProperty) = { // TODO: make dialog modal. fcLocalDir exits immediately
+  def fcLocalDir(prop: StringProperty) {
     val fileChooser = new DirectoryChooser
     val jf = new java.io.File(prop.value)
     if (jf.exists() && jf.canRead) {
-      // TODO: not working, fixed in 2.2.6: http://javafx-jira.kenai.com/browse/RT-23449
       fileChooser.delegate.setInitialDirectory(jf)
     }
     val res = fileChooser.showDialog(Main.stage)
@@ -202,7 +201,7 @@ abstract class ServerView(val config: Config) extends BorderPane {
     content = clist
     spacing = 5
   }
-  var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer, () => serverChanged) {
+  var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer, () => serverChanged()) {
     override def beforeDelete(what: Server) = {
       if (Dialog.showYesNo("Really delete server " + what)) {
         Cache.clearCache(what.id)
@@ -223,7 +222,7 @@ abstract class ServerView(val config: Config) extends BorderPane {
 class ProtocolView(val server: Server) extends BorderPane {
   prefHeight = 100
   var protocol: Protocol = null
-  def protocolChanged() : Unit = {
+  def protocolChanged() {
     val idx = lvp.lvs.getSelectionModel.getSelectedIndex
     if (idx > -1) {
       protocol=server.protocols(idx)
@@ -270,7 +269,7 @@ class SubFolderView(val server: Server) extends BorderPane {
   lvp.margin = insetsstd
   top = new Label() { text = "Subfolders:" }
   left = lvp
-  def subfolderChanged() : Unit = {
+  def subfolderChanged() {
     val idx = lvp.lvs.getSelectionModel.getSelectedIndex
     val itm = lvp.lvs.getSelectionModel.getSelectedItem
     if (idx > -1) {
@@ -324,8 +323,8 @@ class SubFolderView(val server: Server) extends BorderPane {
         event.consume
       }
       onDragOver = (event: input.DragEvent) => {
-        if (event.dragboard.hasFiles()) {
-          event.acceptTransferModes(scalafx.scene.input.TransferMode.COPY);
+        if (event.dragboard.hasFiles) {
+          event.acceptTransferModes(scalafx.scene.input.TransferMode.COPY)
         } else {
           event.consume
         }
@@ -340,13 +339,13 @@ class SubFolderView(val server: Server) extends BorderPane {
             if (res != "") {
               subfolder.subfolders.add(res)
             }
-            getUnit
+            unit()
           }
         },
         new Button("delete") {
           onAction = (ae: ActionEvent) => {
-            lvs.getItems().removeAll(lvs.selectionModel.get().getSelectedItems)
-            getUnit
+            lvs.getItems.removeAll(lvs.selectionModel.get().getSelectedItems)
+            unit()
           }
         }
       )

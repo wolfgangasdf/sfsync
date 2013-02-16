@@ -55,9 +55,7 @@ class ComparedFile(val flocal: VirtualFile, val fremote: VirtualFile, val fcache
     else {
       if (flocal != null && fremote == null) action = A_USELOCAL // new local (cache not new)
       else if (flocal == null && fremote != null) action = A_USEREMOTE // new remote (cache not new)
-      else if (flocal.modTime > fremote.modTime) action = A_USELOCAL // local newer (no cache info)
-      else if (flocal.modTime < fremote.modTime) action = A_USEREMOTE // remote newer (no cache info)
-      else action = A_UNKNOWN // same moddate, different size...
+      else action = A_UNKNOWN // not in cache but both present
     }
   } else { // in cache, newcache impossible
     if (flocal == fcache && fremote == null) action = A_RMLOCAL // remote was deleted (local still in cache)
@@ -156,12 +154,12 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
           val localf = locall.find(x => x.path == rf.path).getOrElse(null)
           locall -= localf
           val cfnew = new ComparedFile(localf, rf, cachef, newcache)
-          if (!server.skipEqualFiles.value || rf != localf) { // TODO test this!!!
+          if (!server.skipEqualFiles.value || rf != localf) {
             comparedfiles += cfnew
             view.act ! cfnew // send it to view!
           } else {
-            // for save cache later, only in case 'synchronize' is pressed it's saved!
-            if (cachef == null) Cache.addupdate(rf) // it should work, but TODO test this!!!
+            // make sure cache is up to date!
+            Cache.addupdate(rf)
           }
         }
         case 'done => {
