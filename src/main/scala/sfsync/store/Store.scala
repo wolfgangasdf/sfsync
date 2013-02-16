@@ -259,15 +259,16 @@ object Cache {
   }
 
   def saveCache(name: String) {
-    val fff = Path.fromString(getCacheFilename(name))
-    if (fff.exists) {
-      fff.delete(force = true)
-    }
-    fff.doCreateFile()
+    val fff = new java.io.File(name)
+    if (fff.exists) fff.delete()
+    val out = new java.io.BufferedWriter(new java.io.FileWriter(fff))
+
     for (cf <- cache) {
-      fff.append("" + cf.modTime + "," + cf.isDir + "," + cf.size + "," + cf.path + "\n")
+      out.write("" + cf.modTime + "," + cf.isDir + "," + cf.size + "," + cf.path + "\n")
     }
+    out.close
     println("***** cache saved!")
+    // forget scalax.io.file: much too slow
   }
 
   def clearCache(name: String) {

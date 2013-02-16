@@ -91,6 +91,7 @@ class Profile  (view: CompareScene, server: Server, protocol: Protocol, subfolde
       if (!subfolder.subfolders.contains("")) throw new scala.Exception("Cache empty: sync all files on first run!")
     }
     var cacheall = false
+    cacherelevant = new ListBuffer[VirtualFile]
     subfolder.subfolders.foreach(x => {if (x == "") cacheall = true})
     if (subfolder.subfolders.isEmpty) cacheall = true
     if (!cacheall) {
@@ -135,10 +136,6 @@ class Profile  (view: CompareScene, server: Server, protocol: Protocol, subfolde
       for (sf <- subfolder.subfolders) locall ++= local.listrec(sf, server.filterRegexp, null)
     }
     runUIwait { view.statusBar.local.text = locall.length.toString }
-//    println("***********************result:")
-//    locall.foreach(vf => println(vf))
-//    println("***********************cache" + cache)
-//    cache.foreach(vf => println(vf))
     runUIwait { view.statusBar.status.text = "compare to remote files..." }
     println("***********************receive remote list")
 
