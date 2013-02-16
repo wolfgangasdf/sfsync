@@ -233,19 +233,17 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
   var prvkeypath = ""
   var knownhostspath = ""
   val osname = System.getProperty("os.name")
-  println("osname=" + osname)
-  osname match {
-    case "Mac OS X" => {
-      println("mac")
+  if (isMac || isLinux) {
       prvkeypath = System.getProperty("user.home") + "/.ssh/id_dsa"
       knownhostspath = System.getProperty("user.home") + "/.ssh/known_hosts"
-    }
-    case _ => { throw new Exception("not supported os :" +  osname) }
+  } else println("Can't get private key file, os not supported yet." )
+  if (prvkeypath != "") {
+    println("prv key: " + prvkeypath)
+    var prvkey: Array[Byte] = null
+    if (Path.fromString(prvkeypath).exists) prvkey = Path.fromString(prvkeypath).bytes.toArray
+    if (Path.fromString(knownhostspath).exists) jSch.setKnownHosts(knownhostspath)
+    jSch.addIdentity(uri.username,prvkey,null,Array[Byte]())
   }
-  println("prv key: " + prvkeypath)
-  var prvkey: Array[Byte] = null
-  if (Path.fromString(prvkeypath).exists) prvkey = Path.fromString(prvkeypath).bytes.toArray
-  if (Path.fromString(knownhostspath).exists) jSch.setKnownHosts(knownhostspath)
 
   var password = uri.password
   if (password != "") {
@@ -253,7 +251,6 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
       password = Tools.crypto.decrypt(password.substring(2), "bvfxsdfk")
     }
   }
-  jSch.addIdentity(uri.username,prvkey,null,Array[Byte]())
   var session = jSch.getSession(uri.username, uri.host, uri.port.toInt)
 
   var ui = new MyUserInfo(uri.username, password)

@@ -10,13 +10,23 @@ import sfsync.Helpers._
 import collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
 
-
 object DBSettings {
-  def dbpath = "/Unencrypted_Data/softwaredevelopment/sfsync-tmp/sfsyncsettings"
+  def settpath = {
+    var res = ""
+    if (isMac) res = System.getProperty("user.home") + "/Library/SFSync"
+    else if (isLinux) res = System.getProperty("user.home") + "/.sfsync"
+    else if (isWin) res = System.getenv("APPDATA") + "/SFSync"
+    else throw new Exception("operating system not found")
+    res
+  }
+
+  def dbpath = settpath + "/sfsyncsettings"
   def getSettingPath = DBSettings.dbpath + ".txt"
   def getLines = {
     val fff = Path.fromString(getSettingPath)
     if (!fff.exists) {
+      println("creating setting file " + fff.path)
+      fff.doCreateParents()
       fff.doCreateFile()
     }
     fff.lines(Line.Terminators.NewLine, includeTerminator = true)

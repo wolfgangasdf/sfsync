@@ -37,6 +37,10 @@ object Helpers {
     })
   }
 
+  def isMac = System.getProperty("os.name").toLowerCase.contains("mac")
+  def isLinux = System.getProperty("os.name").toLowerCase.contains("nix")
+  def isWin = System.getProperty("os.name").toLowerCase.contains("win")
+
   def toHexString(s: String, encoding: String) = {
     s.getBytes(encoding).map("%02x " format _).mkString
   }
@@ -160,11 +164,13 @@ object Main extends JFXApp with Logging {
   Checks.CheckComparedFile()
 
   // startup
-  println("sfsync version " + version)
-  println("java version " + System.getProperty("java.version"))
-  println("scala version " + util.Properties.versionString)
-  println("javafx version " + System.getProperty("javafx.runtime.version"))
-  println("LC_CTYPE=" + System.getenv("LC_CTYPE"))
+  println("sfsync version = " + version)
+  println("java.version = " + System.getProperty("java.version"))
+  println("scala version = " + util.Properties.versionString)
+  println("javafx.runtime.version = " + System.getProperty("javafx.runtime.version"))
+  println("LC_CTYPE = " + System.getenv("LC_CTYPE"))
+  println("(isMac,isLinux,isWin) = " + List(isMac,isLinux,isWin).mkString(","))
+  println("settings path = " + DBSettings.settpath)
   System.getProperty("os.name") match {
     case "Mac OS X" => {
       if (System.getenv("LC_CTYPE") == null) {
