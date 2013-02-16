@@ -88,11 +88,7 @@ class MainScene(stage: Stage) extends Scene {
     var firstStart = true
     var serverView = new ServerView(Store.config) {
       def onServerChange() {
-        var tmpdp =  ArrayBuffer(dividerPositions: _*)
-        if (firstStart) {
-          firstStart = false
-          tmpdp = ArrayBuffer(Store.config.dividerPositions: _*)
-        }
+        val tmpdp =  ArrayBuffer(dividerPositions: _*)
         protocolView = new ProtocolView(server)
         subfolderView = new SubFolderView(server)
         items(1) = protocolView
@@ -132,10 +128,13 @@ class MainScene(stage: Stage) extends Scene {
       },
       new Button("test") {
         onAction = (ae: ActionEvent) => {
+          println("dividerpos: " + ArrayBuffer(mainView.dividerPositions: _*))
         }
       },
       new Button("test2") {
         onAction = (ae: ActionEvent) => {
+          val tmpdp = ArrayBuffer(Store.config.dividerPositions: _*)
+          mainView.dividerPositions = tmpdp: _*
         }
       }
     )
@@ -155,6 +154,11 @@ class MainScene(stage: Stage) extends Scene {
     }
 
   content = maincontent
+
+  // ini after UI shown
+  runUI({
+    mainView.setDividerPositions(Store.config.dividerPositions: _*)
+  })
 }
 
 object Main extends JFXApp with Logging {
