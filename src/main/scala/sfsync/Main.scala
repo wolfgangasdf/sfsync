@@ -87,6 +87,7 @@ class MainScene(stage: Stage) extends Scene {
   class MainView extends SplitPane {
     var serverView = new ServerView(Store.config) {
       def onServerChange() {
+        val tmpdp = ArrayBuffer(dividerPositions: _*)
         protocolView = new ProtocolView(server)
         subfolderView = new SubFolderView(server)
         items(1) = protocolView
@@ -97,6 +98,7 @@ class MainScene(stage: Stage) extends Scene {
         if (server.currentSubFolder.value > -1) {
           subfolderView.subfolderChanged()
         }
+        dividerPositions = tmpdp: _*
       }
     }
     var protocolView : ProtocolView = null
@@ -182,7 +184,7 @@ object Main extends JFXApp with Logging {
   def system = ActorSystem("sfsyncactors")
 
   stage = new JFXApp.PrimaryStage {
-    title = "SFSynchro"
+    title = "SFSync"
     width = Store.config.width.toDouble
     height = Store.config.height.toDouble
     scene = new Scene

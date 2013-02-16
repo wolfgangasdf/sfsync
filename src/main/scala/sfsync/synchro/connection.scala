@@ -146,7 +146,6 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
       }
     }
     def parseContent(folder: String) {
-      println("parsing " + folder )
       val xx = sftp.ls(folder)
       val tmp = new ListBuffer[ChannelSftp#LsEntry]
       for (obj <- xx ) { tmp += obj.asInstanceOf[ChannelSftp#LsEntry] } // doesn't work otherwise!

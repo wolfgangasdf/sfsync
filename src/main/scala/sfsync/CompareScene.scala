@@ -176,6 +176,7 @@ class CompareScene() extends Scene {
       if (!cf.isSynced) allEqual = false
     }
     List(btRmLocal, btUseLocal, btMerge, btNothing, btRmBoth, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
+    btNothing.setDisable(false) // this only updates cache with remote file
     if (legal) {
       if (allEqual) btRmBoth.setDisable(false)
       else if ((allLocalPresenet && allRemotePresent)) List(btUseLocal,btUseRemote,btMerge,btRmBoth).foreach(bb=>bb.setDisable(false))
@@ -218,20 +219,18 @@ class CompareScene() extends Scene {
     content = List(cFilter)
   }
 
+  object Status {
+    var status: StringProperty = StringProperty("?")
+    var local = StringProperty("?")
+    var remote = StringProperty("?")
+    List(status,local,remote).map(x => x.onChange(
+      statusBar.lab.text = "Local:" + local.value + "  Remote: " + remote.value + "  | " + status.value
+    ))
+  }
+
   val statusBar = new ToolBar {
-    var local = new Label { text = "?" }
-    var remote = new Label { text = "?" }
-    var status = new Label { text = "?" }
-    content = List(
-      new Label { text = "Local: " },
-      local,
-      new Label { text = "Status: " },
-      status,
-      new Label { text = "Remote: " },
-      remote
-    )
-//    spacing = 10
-    List(local,remote,status).map(f => f.prefWidth = 150)
+    var lab = new Label() { text = "?" }
+    content = List(lab)
   }
 
   // receive compared files!
@@ -247,7 +246,7 @@ class CompareScene() extends Scene {
       case CompareFinished => {
         runUI { updateSorting() }
         runUI { updateSyncButton() }
-        runUI { statusBar.status.text = "ready" }
+        runUI { Status.status.value = "ready" }
       }
       case RemoveCF(cf: ComparedFile) => { // called by synchronize
         runUI {

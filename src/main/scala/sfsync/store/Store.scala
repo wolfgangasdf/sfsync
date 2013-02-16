@@ -275,7 +275,7 @@ object Cache {
     for (cf <- cache) {
       out.write("" + cf.modTime + "," + cf.isDir + "," + cf.size + "," + cf.path + "\n")
     }
-    out.close
+    out.close()
     println("***** cache saved!")
     // forget scalax.io.file: much too slow
   }
