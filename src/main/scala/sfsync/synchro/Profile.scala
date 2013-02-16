@@ -158,7 +158,6 @@ class Profile  (view: CompareScene, server: Server, protocol: Protocol, subfolde
           if (!server.skipEqualFiles.value || rf != localf) {
             comparedfiles += cfnew
             view.act ! cfnew // send it to view!
-            println("p: sent, " + view.act.isTerminated)
           } else {
             // make sure cache is up to date!
             Cache.addupdate(rf)

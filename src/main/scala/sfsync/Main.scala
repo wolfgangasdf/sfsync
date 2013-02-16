@@ -186,12 +186,15 @@ object Main extends JFXApp with Logging {
   var compareScene: CompareScene = null
 
   def setCompareScene() {
-    if (compareScene != null) doCleanup()
+    doCleanup()
     compareScene = new CompareScene
     stage.scene = compareScene
   }
 
-  def setMainScene() { stage.scene = mainScene }
+  def setMainScene() {
+    stage.scene = mainScene
+    doCleanup()
+  }
 
   override def stopApp() {
     println("*************** stop app")
@@ -224,7 +227,7 @@ object Main extends JFXApp with Logging {
         profile.compare()
       } catch {
         case e: Exception => {
-          runUIwait(Main.Dialog.showMessage(e.getMessage))
+          runUIwait(Main.Dialog.showMessage("Exception: " + e + "\n" + e.getMessage))
           runUI {
             setMainScene()
             doCleanup()
