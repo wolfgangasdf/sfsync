@@ -285,7 +285,7 @@ trait GeneralConnection {
 
 // path below baspath with a leading "/"
 class VirtualFile(var path: String, var modTime: Long, var size: Long, var isDir: Int) extends Ordered[VirtualFile] {
-  var tagged = false // for cachelist: tagged if local/remote existing
+  var tagged = false // for cachelist: tagged if local/remote existing, does not need to be added "cacheonly"
 
   def this() = this("",0,0,0)
 //  def getPathString = if (path == "") "<root>" else path

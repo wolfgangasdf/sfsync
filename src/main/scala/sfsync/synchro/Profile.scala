@@ -155,12 +155,13 @@ class Profile  (view: CompareScene, server: Server, protocol: Protocol, subfolde
           val localf = locall.find(x => x.path == rf.path).getOrElse(null)
           locall -= localf
           val cfnew = new ComparedFile(localf, rf, cachef, newcache)
-          if (!server.skipEqualFiles.value || rf != localf) {
+          if (server.skipEqualFiles.value && rf == localf) {
+            // files equal, just make sure cache is up to date!
+            rf.tagged = true // so it does not appear as 'cacheonly'
+            if (cachef == null) Cache.addupdate(rf) // only store non-existing cache files
+          } else { // send to view
             comparedfiles += cfnew
             view.act ! cfnew // send it to view!
-          } else {
-            // make sure cache is up to date!
-            Cache.addupdate(rf)
           }
         }
         case 'done => {
