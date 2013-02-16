@@ -53,6 +53,7 @@ class MyListView[T <: ListableThing](
       if (xx != null) {
         xx.name.value = string
         sortit()
+        lvs.getSelectionModel.select(xx)
       }
       xx
     }
@@ -69,7 +70,6 @@ class MyListView[T <: ListableThing](
   })
 
   def beforeDelete(what: T) = true
-  def afterCopy(copyidx: Int) {} // ugly: is called from somewhere
 
   content = List(
     lvs,
@@ -80,22 +80,10 @@ class MyListView[T <: ListableThing](
             val newi = factory()
             obsBuffer += newi
             sortit()
+            lvs.selectionModel.get().clearSelection()
+            lvs.selectionModel.get().select(newi)
             onChange
             unit()
-          }
-        },
-        new Button("copy") {
-          onAction = (ae: ActionEvent) => {
-            val idx = lvs.selectionModel.get().getSelectedIndex
-            if (idx >= 0) {
-              // it is very hard to clone a not-serializable object, so this hack:
-              obsBuffer += obsBuffer(idx) // this clones
-              sortit()
-              Store.save()
-              Store.load() // /this clones
-              afterCopy(obsBuffer.length - 1)
-              unit()
-            }
           }
         },
         new Button("delete") {
@@ -104,6 +92,8 @@ class MyListView[T <: ListableThing](
             if (idx >= 0) {
               if (beforeDelete(obsBuffer(idx))) {
                 obsBuffer.remove(idx)
+                lvs.selectionModel.get().clearSelection()
+                lvs.selectionModel.get().select(0)
                 onChange
               }
             }
@@ -222,11 +212,6 @@ abstract class ServerView(val config: Config) extends BorderPane {
         Cache.clearCache(what.id)
         true
       } else false
-    }
-    override def afterCopy(copyidx: Int) {
-      val s1 = new Server
-      Store.config.servers(copyidx).id = s1.id
-      Store.config.currentServer.set(copyidx)
     }
   }
   lvs.margin = insetsstd
