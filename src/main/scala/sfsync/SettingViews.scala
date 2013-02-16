@@ -26,7 +26,12 @@ object SVHelpers {
   }
 }
 
-class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer: ArrayBuffer[T], var currIdx: Int, val onChange: () => Unit ) extends VBox {
+class MyListView[T <: ListableThing](
+    val factory: () => T = null,
+    var obsBuffer: ArrayBuffer[T],
+    var currIdx: Int,
+    val onChange: () => Unit
+    ) extends VBox {
   var oldidx = -1
   var slist = new sfxc.ObservableBuffer[String]()
   obsBuffer.foreach(cf => slist.add(cf.toString))
@@ -77,7 +82,6 @@ class MyListView[T <: ListableThing](val factory: () => T = null, var obsBuffer:
               Store.save()
               Store.load() // /this clones
               afterCopy(obsBuffer.length - 1)
-              Main.refreshContent()
               unit()
             }
           }

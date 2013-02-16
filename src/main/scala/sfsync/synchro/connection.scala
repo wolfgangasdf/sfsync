@@ -240,7 +240,7 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
       prvkeypath = System.getProperty("user.home") + "/.ssh/id_dsa"
       knownhostspath = System.getProperty("user.home") + "/.ssh/known_hosts"
     }
-    case _ => { println("not supported:" +  osname) ; sys.exit(1) }
+    case _ => { throw new Exception("not supported os :" +  osname) }
   }
   println("prv key: " + prvkeypath)
   var prvkey: Array[Byte] = null

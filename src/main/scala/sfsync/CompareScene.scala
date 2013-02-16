@@ -22,6 +22,7 @@ import javafx.util.Callback
 import scala.concurrent.future
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.{implicitConversions, reflectiveCalls}
+import scalafx.scene.Scene
 
 object CF {
   val amap = Map(A_MERGE -> "M", A_NOTHING -> "==", A_RMLOCAL -> "<-(rm)", A_RMREMOTE -> "(rm)->",
@@ -49,7 +50,7 @@ class CompFile(cf_ : ComparedFile) {
 }
 object CompFile
 
-class CompareWindow() extends VBox {
+class CompareScene() extends Scene {
   var comparedfiles = new sfxc.ObservableBuffer[ComparedFile]()
   var compfiles =  new sfxc.ObservableBuffer[CompFile]() // for tableview
   var profile: Profile = null
@@ -126,7 +127,7 @@ class CompareWindow() extends VBox {
 
   var btBack = new Button("Back") {
     onAction = (ae: ActionEvent) => {
-      Main.refreshContent()
+      Main.setMainScene()
     }
   }
 
@@ -233,14 +234,6 @@ class CompareWindow() extends VBox {
     List(local,remote,status).map(f => f.prefWidth = 150)
   }
 
-
-  content = List(toolbar,tv,bv,statusBar)
-  tv.selectionModel.get().setSelectionMode(javafx.scene.control.SelectionMode.MULTIPLE)
-  colPath.prefWidth <== (this.width - colStatus.prefWidth-1 - colDetailsLocal.prefWidth - colDetailsRemote.prefWidth)
-  tv.prefHeight <== (this.height - bv.prefHeight)
-  bv.prefWidth <== this.width
-  statusBar.prefWidth <== this.width
-
   // receive compared files!
   val act = actor(Main.system)(new Act {
     var doit = true
@@ -270,5 +263,16 @@ class CompareWindow() extends VBox {
       }
     }
   })
+
+  // init
+  content = new VBox {
+    content = List(toolbar,tv,bv,statusBar)
+  }
+  tv.selectionModel.get().setSelectionMode(javafx.scene.control.SelectionMode.MULTIPLE)
+  colPath.prefWidth <== (this.width - colStatus.prefWidth-1 - colDetailsLocal.prefWidth - colDetailsRemote.prefWidth)
+  tv.prefHeight <== (this.height - toolbar.height - bv.height - statusBar.height-40) // TODO
+  bv.prefWidth <== this.width
+  statusBar.prefWidth <== this.width
+
 }
 

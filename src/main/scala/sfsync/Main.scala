@@ -69,98 +69,55 @@ object Helpers {
 //    scala.util.Marshal.load[A](scala.util.Marshal.dump(a))
 }
 
-class MainView extends SplitPane {
-  var serverView = new ServerView(Store.config) {
-    def onServerChange() {
-      protocolView = new ProtocolView(server)
-      subfolderView = new SubFolderView(server)
-      items(1) = protocolView
-      items(2) = subfolderView
-      if (server.currentProtocol.value > -1) {
-        protocolView.protocolChanged()
-      }
-      if (server.currentSubFolder.value > -1) {
-        subfolderView.subfolderChanged()
-      }
-    }
-  }
-  var protocolView : ProtocolView = null
-  var subfolderView : SubFolderView = null
-
-  orientation = jgo.VERTICAL
-  items += (serverView, new BorderPane(), new BorderPane())
-}
-
-object Main extends JFXApp with Logging {
-
-  val VERSION = "0.1" // TODO: read from build.sbt but how?
-  val resv = getClass.getResource("/sfsync/HGVERSION.txt")
-  val version = VERSION + (if (resv != null) " (" + io.Source.fromURL(resv).mkString.trim + ")" else "")
-
-  // run checks
-  Checks.CheckComparedFile()
-
+class MainScene(stage: Stage) extends Scene {
   val menu = new Menu("File") {
     items.add(new MenuItem("Open"))
     items.add(new MenuItem("Close"))
   }
-
-  def system = ActorSystem("sfsyncactors")
 
   val menuBar = new MenuBar {
     useSystemMenuBar = true
     minWidth = 100
     menus.add(menu)
   }
-
-//  var spv : SplitPane = null
-
-  def lookupTextField(id: String) : TextField = {
-    val yy = stage.scene.get.lookup(id)
-    yy.getClass
-    val tf : TextField  = yy.asInstanceOf[javafx.scene.control.TextField]
-    tf
-  }
-
-  var profile: Profile = null
-  var cw: CompareWindow = null
-  var mainView: MainView = null
-  var maincontent = new VBox
-
-  def runCompare() {
-    doCleanup()
-    cw = new CompareWindow()
-    Main.stage.scene().content = cw
-    cw.prefWidth <== Main.stage.scene.width
-    cw.prefHeight <== Main.stage.scene.height
-    profile = new Profile (cw,mainView.serverView.server, mainView.protocolView.protocol, mainView.subfolderView.subfolder)
-    cw.setProfile(profile)
-    future { // this is key, do in new thread!
-      try {
-        profile.init()
-        profile.compare()
-      } catch {
-        case e: Exception => {
-          runUIwait(Dialog.showMessage(e.getMessage))
-          doCleanup()
-          refreshContent()
+  class MainView extends SplitPane {
+    var serverView = new ServerView(Store.config) {
+      def onServerChange() {
+        protocolView = new ProtocolView(server)
+        subfolderView = new SubFolderView(server)
+        items(1) = protocolView
+        items(2) = subfolderView
+        if (server.currentProtocol.value > -1) {
+          protocolView.protocolChanged()
+        }
+        if (server.currentSubFolder.value > -1) {
+          subfolderView.subfolderChanged()
         }
       }
     }
+    var protocolView : ProtocolView = null
+    var subfolderView : SubFolderView = null
+
+    orientation = jgo.VERTICAL
+    items += (serverView, new BorderPane(), new BorderPane())
   }
+
+  var cw: CompareScene = null
+  var mainView: MainView = null
+  var maincontent = new VBox
 
   val toolBar = new ToolBar {
     content = List(new Button("Compare") {
       onAction = (ae: ActionEvent) => {
-        runCompare()
+        Main.runCompare()
       }
     },
-    new Button("Save settings") {
-      onAction = (ae: ActionEvent) => {
-        Store.save()
-        println("store saved!")
-      }
-    },
+      new Button("Save settings") {
+        onAction = (ae: ActionEvent) => {
+          Store.save()
+          println("store saved!")
+        }
+      },
       new Button("test") {
         onAction = (ae: ActionEvent) => {
         }
@@ -173,42 +130,34 @@ object Main extends JFXApp with Logging {
   }
 
   val statusBar = new ToolBar {
-    content = List(new Label { text = "Sfsync Version " + version })
+    content = List(new Label { text = "Sfsync Version " + Main.version })
   }
 
   def refreshContent() {
     mainView = new MainView
     maincontent.content = List(menuBar,toolBar,mainView,statusBar)
-    Main.stage.scene().content = maincontent
-    maincontent.prefHeight <== stage.scene.height
-    maincontent.prefWidth <== stage.scene.width
-    mainView.prefHeight <== stage.scene.height - menuBar.prefHeight - toolBar.prefHeight - statusBar.prefHeight
+    maincontent.prefHeight <== height
+    maincontent.prefWidth <== width
+    mainView.prefHeight <== height - menuBar.prefHeight - toolBar.prefHeight - statusBar.prefHeight
     if (Store.config.currentServer.value > -1) {
       mainView.serverView.serverChanged()
     }
   }
 
-  stage = new JFXApp.PrimaryStage {
-    title = "SFSynchro"
-    width = Store.config.width.toDouble
-    height = Store.config.height.toDouble
-    scene = new Scene
-  }
+  content = maincontent
+  refreshContent()
 
-  override def stopApp() {
-    println("*************** stop app")
-    doCleanup()
-    Store.config.width.value = stage.width.toInt
-    Store.config.height.value = stage.height.toInt
-    Store.config.dividerPositions = ArrayBuffer(mainView.dividerPositions: _*)
-    Store.save()
-    sys.exit(0)
-  }
+  mainView.dividerPositions = Store.config.dividerPositions: _*
+}
 
-  def doCleanup() {
-    if (cw != null) cw.act ! 'done
-    if (profile != null) profile.finish()
-  }
+object Main extends JFXApp with Logging {
+
+  val VERSION = "0.1" // TODO: read from build.sbt but how?
+  val resv = getClass.getResource("/sfsync/HGVERSION.txt")
+  val version = VERSION + (if (resv != null) " (" + io.Source.fromURL(resv).mkString.trim + ")" else "")
+
+  // run checks
+  Checks.CheckComparedFile()
 
   // startup
   println("sfsync version " + version)
@@ -223,13 +172,74 @@ object Main extends JFXApp with Logging {
       }
     }
   }
-  refreshContent()
+
+  def system = ActorSystem("sfsyncactors")
+
+  stage = new JFXApp.PrimaryStage {
+    title = "SFSynchro"
+    width = Store.config.width.toDouble
+    height = Store.config.height.toDouble
+    scene = new Scene
+  }
+
+  val mainScene = new MainScene(stage)
+  var compareScene: CompareScene = null
+
+  def setCompareScene() {
+    if (compareScene != null) doCleanup()
+    compareScene = new CompareScene
+    stage.scene = compareScene
+  }
+
+  def setMainScene() { stage.scene = mainScene }
+
+  override def stopApp() {
+    println("*************** stop app")
+    doCleanup()
+    Store.config.width.value = stage.width.toInt
+    Store.config.height.value = stage.height.toInt
+    Store.config.dividerPositions = ArrayBuffer(mainScene.mainView.dividerPositions: _*)
+    Store.save()
+    sys.exit(0)
+  }
+
+  def doCleanup() {
+    if (compareScene != null) {
+      compareScene.act ! 'done
+      compareScene = null
+    }
+    if (profile != null) profile.finish()
+  }
+
+  var profile: Profile = null
+
+  def runCompare() {
+    doCleanup()
+    setCompareScene()
+    profile = new Profile (compareScene, mainScene.mainView.serverView.server, mainScene.mainView.protocolView.protocol, mainScene.mainView.subfolderView.subfolder)
+    compareScene.setProfile(profile)
+    future { // this is key, do in new thread!
+      try {
+        profile.init()
+        profile.compare()
+      } catch {
+        case e: Exception => {
+          runUIwait(Main.Dialog.showMessage(e.getMessage))
+          runUI {
+            setMainScene()
+            doCleanup()
+          }
+        }
+      }
+    }
+  }
+
+  // init
+  setMainScene()
 
   // UI initialization: is executed after UI shown
-  runUI({
-    mainView.dividerPositions = Store.config.dividerPositions: _*
-  })
-
+  //  runUI({
+  //  })
 
   // https://gist.github.com/1887631
   object Dialog {

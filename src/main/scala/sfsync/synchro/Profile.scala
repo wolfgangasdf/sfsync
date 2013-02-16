@@ -8,7 +8,7 @@ import scala.collection.mutable.ListBuffer
 import Actions._
 import akka.actor.ActorDSL._
 import sfsync.store._
-import sfsync.{Main, CompareWindow}
+import sfsync.{Main, CompareScene}
 import sfsync.Helpers._
 import util.StopWatch
 import akka.pattern.ask
@@ -16,7 +16,6 @@ import akka.util.Timeout
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.{reflectiveCalls, postfixOps}
-import sfsync.Main.Dialog
 
 class TransferProtocol (
   var uri: String,
@@ -73,7 +72,7 @@ class ComparedFile(val flocal: VirtualFile, val fremote: VirtualFile, val fcache
 case class CompareFinished()
 case class RemoveCF(cf: ComparedFile)
 
-class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfolder: SubFolder) {
+class Profile  (view: CompareScene, server: Server, protocol: Protocol, subfolder: SubFolder) {
   var comparedfiles = scalafx.collections.ObservableBuffer[ComparedFile]()
   var cache: ListBuffer[VirtualFile] = null
   var cacherelevant = new ListBuffer[VirtualFile] // only below subdir
@@ -159,6 +158,7 @@ class Profile  (view: CompareWindow, server: Server, protocol: Protocol, subfold
           if (!server.skipEqualFiles.value || rf != localf) {
             comparedfiles += cfnew
             view.act ! cfnew // send it to view!
+            println("p: sent, " + view.act.isTerminated)
           } else {
             // make sure cache is up to date!
             Cache.addupdate(rf)
