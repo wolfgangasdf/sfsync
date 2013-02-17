@@ -23,11 +23,6 @@ mainClass in (Compile, run) := Some("sfsync.Main")
 ////////////////// locally compiled scalafx!
 libraryDependencies += "org.scalafx" %% "scalafx-core" % "1.0-SNAPSHOT"
 
-////////////////// file io 
-libraryDependencies += "com.github.scala-incubator.io" %% "scala-io-core" % "0.5.0-SNAPSHOT"
-
-libraryDependencies += "com.github.scala-incubator.io" %% "scala-io-file" % "0.5.0-SNAPSHOT"
-
 ////////////////// sftp
 resolvers += "JAnalyse Repository" at "http://www.janalyse.fr/repository/"
 
@@ -46,6 +41,12 @@ JFX.addJfxrtToClasspath := true
 
 
 ////////////////// old unused
+
+////////////////// file io 
+// libraryDependencies += "com.github.scala-incubator.io" %% "scala-io-core" % "0.5.0-SNAPSHOT"
+
+// libraryDependencies += "com.github.scala-incubator.io" %% "scala-io-file" % "0.5.0-SNAPSHOT"
+
 
 //libraryDependencies += "org.apache.derby" % "derby" % "10.9.1.0"
 

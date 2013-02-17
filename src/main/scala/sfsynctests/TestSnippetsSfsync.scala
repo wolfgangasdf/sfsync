@@ -2,74 +2,8 @@ package sfsynctests
 
 import akka.actor.{ActorRef, Actor}
 import collection.mutable.ListBuffer
-import scalax.file.Path
 import util.StopWatch
 import sfsync.synchro.{ComparedFile, VirtualFile}
-
-object TestListRecSpeed extends App {
-  def listrec(subfolder: String, filterregexp: String, receiver: ActorRef) = {
-    //    println("searching " + remoteBasePath + "/" + subfolder)
-    val list = new ListBuffer[VirtualFile]()
-    def parseContent(folder: Path) : Unit = {
-      //      println("parsing " + folder)
-      for (cc <- folder.children().toList.sorted) { // sorted slow but faster for cache find
-      val vf = new VirtualFile {
-          path=cc.path
-          modTime = cc.lastModified
-          size = cc.size.get
-          isDir = if (cc.isDirectory) 1 else 0
-        }
-        if ( !vf.fileName.matches(filterregexp) ) {
-          list += vf
-          if (receiver != null) receiver ! vf
-          if (cc.isDirectory) {
-            parseContent(cc)
-          }
-        }
-      }
-    }
-    val sp = Path.fromString(subfolder)
-    println("sp=" + sp)
-    if (sp.exists) parseContent(sp)
-    if (receiver != null) receiver ! 'done
-    list
-  }
-  val sw1 = new StopWatch
-  listrec("/Unencrypted_Data/tempnospotlight/teststorelargelocal","",null)
-  println("loaded local list in " + sw1.timeIt )
-}
-
-object TestListRecSpeed1 extends App {
-  def listrec(subfolder: String, filterregexp: String, receiver: Actor) = {
-    //    println("searching " + remoteBasePath + "/" + subfolder)
-    val list = new ListBuffer[VirtualFile]()
-    var numfiles = 0
-    def parseContent(folder: Path) : Unit = {
-      //      println("parsing " + folder)
-      //      for (cc <- folder.children().toList.sorted) { // sorted slow but faster for cache find
-      for (cc <- folder.children().toList) { // sorted costs 0.7 sec, toList nothing
-      val vf = new VirtualFile(cc.path, cc.lastModified, cc.size.get, if (cc.isDirectory) 1 else 0) // 0.3sec!!!
-        if (!vf.fileName.matches(filterregexp)) {
-          list += vf
-          //          if (receiver != null) receiver ! vf
-          if (cc.isDirectory) {
-            parseContent(cc)
-          }
-          numfiles += 1
-        }
-      }
-    }
-    val sp = Path.fromString(subfolder)
-    //    println("sp=" + sp)
-    if (sp.exists) parseContent(sp)
-    //    if (receiver != null) receiver ! 'done
-    //    list
-    numfiles
-  }
-  val sw1 = new StopWatch
-  val nf = listrec("/Unencrypted_Data/tempnospotlight/teststorelargelocal","",null)
-  println("loaded local list1 (" + nf + ") in " + sw1.timeIt )
-}
 
 object TestListRecSpeed1java extends App {
   var numfiles = 0

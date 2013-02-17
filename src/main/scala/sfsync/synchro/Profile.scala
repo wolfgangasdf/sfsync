@@ -141,7 +141,7 @@ class Profile  (view: CompareScene, server: Server, protocol: Protocol, subfolde
 
     val sw = new StopWatch
     val receiveList = actor(Main.system)(new Act {
-      var finished = false
+      var finished = subfolder.subfolders.length
       become {
         case rf: VirtualFile => {
           remotecnt += 1
@@ -167,13 +167,15 @@ class Profile  (view: CompareScene, server: Server, protocol: Protocol, subfolde
           }
         }
         case 'done => {
-          finished = true
-          println("receiveList: remotelistfinished!")
-          runUI {
-            view.Status.remote.value = remotecnt.toString
+          finished -= 1
+          if (finished == 0) {
+            println("receiveList: remotelistfinished!")
+            runUI {
+              view.Status.remote.value = remotecnt.toString
+            }
           }
         }
-        case 'replyWhenDone => if (finished) {
+        case 'replyWhenDone => if (finished==0) {
           sender ! 'done
           println("exit actor receiveList")
           context.stop(self)
@@ -210,7 +212,6 @@ class Profile  (view: CompareScene, server: Server, protocol: Protocol, subfolde
   def synchronize(cfs: List[ComparedFile]) {
     println("synchronize...")
     runUIwait { view.Status.status.value = "synchronize..." }
-    println("aaaaa...")
     val sw = new StopWatch
     val swd = new StopWatch
     var iii = cfs.length
@@ -227,15 +228,22 @@ class Profile  (view: CompareScene, server: Server, protocol: Protocol, subfolde
         swd.restart()
       }
       var removecf = true
-      cf.action match {
-        case A_MERGE => sys.error("merge not implemented yet!")
-        case A_RMLOCAL|A_RMBOTH => { local.deletefile(cf.flocal) ; if (cf.fcache!=null) Cache.remove(cf.fcache) }
-        case A_RMREMOTE|A_RMBOTH => { remote.deletefile(cf.fremote) ; if (cf.fcache!=null) Cache.remove(cf.fcache) }
-        case A_USELOCAL => { remote.putfile(cf.flocal) ; Cache.addupdate(cf.flocal) }
-        case A_USEREMOTE => { remote.getfile(cf.fremote) ; if (cf.fremote!=cf.fcache) Cache.addupdate(cf.fremote) }
-        case A_NOTHING => { if (cf.fcache==null) Cache.addupdate(cf.fremote) }
-        case A_CACHEONLY => { Cache.remove(cf.fcache) }
-        case _ => removecf = false
+      try {
+        cf.action match {
+          case A_MERGE => sys.error("merge not implemented yet!")
+          case A_RMLOCAL|A_RMBOTH => { local.deletefile(cf.flocal) ; if (cf.fcache!=null) Cache.remove(cf.fcache) }
+          case A_RMREMOTE|A_RMBOTH => { remote.deletefile(cf.fremote) ; if (cf.fcache!=null) Cache.remove(cf.fcache) }
+          case A_USELOCAL => { remote.putfile(cf.flocal) ; Cache.addupdate(cf.flocal) }
+          case A_USEREMOTE => { remote.getfile(cf.fremote) ; if (cf.fremote!=cf.fcache) Cache.addupdate(cf.fremote) }
+          case A_NOTHING => { if (cf.fcache==null) Cache.addupdate(cf.fremote) }
+          case A_CACHEONLY => { Cache.remove(cf.fcache) }
+          case _ => removecf = false
+        }
+      } catch {
+        case e: Exception => {
+          println("exception:" + e)
+          throw new Exception("Exception while synchronizing: \n" + e)
+        }
       }
       if (removecf) view.act ! RemoveCF(cf)
     }

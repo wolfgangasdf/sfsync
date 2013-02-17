@@ -23,7 +23,8 @@ import scalafx.util.StringConverter
 object SVHelpers {
   def getDroppedFile(file: java.io.File) = {
     // bug in javafx: filename is url-encoded string, .exists() = false
-    val path = URLDecoder.decode(file.getPath,"UTF-8")
+    val path = toJavaPathSeparator(URLDecoder.decode(file.getPath,"UTF-8"))
+    println("getdrfile=" + path)
     new java.io.File(path)
   }
 }
@@ -123,7 +124,7 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
       onDragDropped = (event: input.DragEvent) => {
         if (event.dragboard.getFiles.length == 1) {
           val f = SVHelpers.getDroppedFile(event.dragboard.getFiles.head)
-          text = f.getPath
+          text = toJavaPathSeparator(f.getPath)
         }
         event.consume
       }
@@ -300,6 +301,7 @@ class SubFolderView(val server: Server) extends BorderPane {
     def PathToSubdir(file: java.io.File) = {
       var ressf = ""
       val realfile = SVHelpers.getDroppedFile(file)
+      println("ptsd: " + realfile.getCanonicalPath + " " + realfile.exists() + " " + realfile.getPath.startsWith(server.localFolder))
       if (realfile.exists && realfile.isDirectory && realfile.getPath.startsWith(server.localFolder)) {
         var sd = realfile.getPath.substring(server.localFolder.length)
         if (sd.startsWith("/")) sd = sd.substring(1)

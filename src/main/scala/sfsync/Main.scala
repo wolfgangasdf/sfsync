@@ -24,10 +24,18 @@ import scala.concurrent.future
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.implicitConversions
 import scalafx.geometry.Pos
+import java.nio.charset.Charset
 
 object Helpers {
 
+  val filecharset = Charset.forName("UTF-8")
+
   val insetsstd = scalafx.geometry.Insets(5)
+
+  def toJavaPathSeparator(in: String) = {
+    if (isWin) in.replaceAll("""\\""", "/")
+    else in
+  }
 
   def runUI( f: => Unit ) {
     javafx.application.Platform.runLater( new Runnable() {
@@ -99,7 +107,6 @@ class MainScene(stage: Stage) extends Scene {
         if (server.currentSubFolder.value > -1) {
           subfolderView.subfolderChanged()
         }
-        println("dp=" + tmpdp)
         dividerPositions = tmpdp: _*
       }
     }
@@ -178,11 +185,9 @@ object Main extends JFXApp with Logging {
   println("LC_CTYPE = " + System.getenv("LC_CTYPE"))
   println("(isMac,isLinux,isWin) = " + List(isMac,isLinux,isWin).mkString(","))
   println("settings path = " + DBSettings.settpath)
-  System.getProperty("os.name") match {
-    case "Mac OS X" => {
-      if (System.getenv("LC_CTYPE") == null) {
-        println("!!!!!!!!!!! set LC_CTYPE variable for correct foreign character handling!")
-      }
+  if (isMac) {
+    if (System.getenv("LC_CTYPE") == null) {
+      println("!!!!!!!!!!! set LC_CTYPE variable for correct foreign character handling!")
     }
   }
 

@@ -53,26 +53,26 @@ object ActorTest extends App{
 
 
 
-import scalax.file._
-import scalax.io._
+//import scalax.file._
+//import scalax.io._
 
-object TestTextStore extends App {
-  val pad = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-  val fff = Path.fromString("/tmp/testtextstore.txt")
-  1 match {
-    case 0 => { //write
-      for (i <- 0 until 100000) {
-        fff.append("line" + i + pad + "\n")
-      }
-    }
-    case 1 => { // read
-    val lll = fff.lines(Line.Terminators.NewLine, includeTerminator = true)
-      val l2 = lll.filter(ff => ff.startsWith("line123"))
-      l2.foreach(ss => println(ss))
-    }
-  }
-
-}
+//object TestTextStore extends App {
+//  val pad = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+//  val fff = Path.fromString("/tmp/testtextstore.txt")
+//  1 match {
+//    case 0 => { //write
+//      for (i <- 0 until 100000) {
+//        fff.append("line" + i + pad + "\n")
+//      }
+//    }
+//    case 1 => { // read
+//    val lll = fff.lines(Line.Terminators.NewLine, includeTerminator = true)
+//      val l2 = lll.filter(ff => ff.startsWith("line123"))
+//      l2.foreach(ss => println(ss))
+//    }
+//  }
+//
+//}
 
 
 import fr.janalyse.ssh.SSH
@@ -113,82 +113,82 @@ import com.jcraft.jsch
 import jsch.ChannelSftp
 import scala.collection.JavaConversions._
 
-object TestJsch extends App {
-
-  class MyJschLogger extends jsch.Logger {
-    val name = Map(jsch.Logger.DEBUG -> "DEBUG: ",
-      jsch.Logger.INFO -> "INFO: ",
-      jsch.Logger.WARN -> "WARN: ",
-      jsch.Logger.ERROR -> "ERROR: ",
-      jsch.Logger.FATAL -> "FATAL: ")
-
-    def isEnabled(level: Int) = true
-
-    def log(level: Int, message: String) {
-      println(name(level) + message)
-    }
-
-  }
-  jsch.JSch.setLogger(new MyJschLogger)
-
-  var jSch = new jsch.JSch
-
-  val prvkey: Array[Byte] = scalax.file.Path.fromString("/Users/wolle/.ssh/id_dsa").bytes.toArray
-  jSch.addIdentity("wolle",prvkey,null,Array[Byte]())
-  var session = jSch.getSession("wolle", "localhost", 22)
-//  jSch.addIdentity("loeffler",prvkey,null,Array[Byte]())
-//  var session = jSch.getSession("loeffler", "data01.physics.leidenuniv.nl", 22);
-
-  var ui = new MyUserInfo
-  session.setUserInfo(ui)
-  session.connect()
-  val sftp = session.openChannel("sftp").asInstanceOf[jsch.ChannelSftp]
-
-  sftp.connect(5000)
-  if (sftp.isConnected) {
-    val files = sftp.ls("/tmp/testlocal")
-    println("files=" + files)
-    for (obj <- files) {
-      val lse = obj.asInstanceOf[ChannelSftp#LsEntry]
-      println("file: " + lse.getFilename )
-    }
-    sftp.disconnect()
-  }
-  session.disconnect()
-
-
-  class MyUserInfo extends jsch.UserInfo with jsch.UIKeyboardInteractive {
-    def getPassword() : String = {
-      val foo=JOptionPane.showInputDialog(null,"Enter password!")
-      foo
-    }
-    def promptYesNo(str: String) : Boolean = {
-      val options: Array[AnyRef]=Array( "yes", "no" )
-      val foo=JOptionPane.showOptionDialog(null,
-        str,
-        "Warning",
-        JOptionPane.DEFAULT_OPTION,
-        JOptionPane.WARNING_MESSAGE,
-        null, options, options(1))
-      foo==0
-    }
-
-    def promptKeyboardInteractive(destination: String, name: String, instruction: String, prompt: Array[String], echo: Array[Boolean]): Array[String] = null
-
-    def getPassphrase: String = ""
-
-    def promptPassword(message: String): Boolean = { println("prompt pwd") ; true }
-
-    def promptPassphrase(message: String): Boolean = { println("prompt pwd") ; true }
-
-    def showMessage(message: String) { println("message: " + message) }
-  }
-
-}
-
-object TestFileName extends App {
-  Path.fromString("/tmp") ** "*" foreach { ppp => println(ppp.path) }
-}
+//object TestJsch extends App {
+//
+//  class MyJschLogger extends jsch.Logger {
+//    val name = Map(jsch.Logger.DEBUG -> "DEBUG: ",
+//      jsch.Logger.INFO -> "INFO: ",
+//      jsch.Logger.WARN -> "WARN: ",
+//      jsch.Logger.ERROR -> "ERROR: ",
+//      jsch.Logger.FATAL -> "FATAL: ")
+//
+//    def isEnabled(level: Int) = true
+//
+//    def log(level: Int, message: String) {
+//      println(name(level) + message)
+//    }
+//
+//  }
+//  jsch.JSch.setLogger(new MyJschLogger)
+//
+//  var jSch = new jsch.JSch
+//
+//  val prvkey: Array[Byte] = scalax.file.Path.fromString("/Users/wolle/.ssh/id_dsa").bytes.toArray
+//  jSch.addIdentity("wolle",prvkey,null,Array[Byte]())
+//  var session = jSch.getSession("wolle", "localhost", 22)
+////  jSch.addIdentity("loeffler",prvkey,null,Array[Byte]())
+////  var session = jSch.getSession("loeffler", "data01.physics.leidenuniv.nl", 22);
+//
+//  var ui = new MyUserInfo
+//  session.setUserInfo(ui)
+//  session.connect()
+//  val sftp = session.openChannel("sftp").asInstanceOf[jsch.ChannelSftp]
+//
+//  sftp.connect(5000)
+//  if (sftp.isConnected) {
+//    val files = sftp.ls("/tmp/testlocal")
+//    println("files=" + files)
+//    for (obj <- files) {
+//      val lse = obj.asInstanceOf[ChannelSftp#LsEntry]
+//      println("file: " + lse.getFilename )
+//    }
+//    sftp.disconnect()
+//  }
+//  session.disconnect()
+//
+//
+//  class MyUserInfo extends jsch.UserInfo with jsch.UIKeyboardInteractive {
+//    def getPassword() : String = {
+//      val foo=JOptionPane.showInputDialog(null,"Enter password!")
+//      foo
+//    }
+//    def promptYesNo(str: String) : Boolean = {
+//      val options: Array[AnyRef]=Array( "yes", "no" )
+//      val foo=JOptionPane.showOptionDialog(null,
+//        str,
+//        "Warning",
+//        JOptionPane.DEFAULT_OPTION,
+//        JOptionPane.WARNING_MESSAGE,
+//        null, options, options(1))
+//      foo==0
+//    }
+//
+//    def promptKeyboardInteractive(destination: String, name: String, instruction: String, prompt: Array[String], echo: Array[Boolean]): Array[String] = null
+//
+//    def getPassphrase: String = ""
+//
+//    def promptPassword(message: String): Boolean = { println("prompt pwd") ; true }
+//
+//    def promptPassphrase(message: String): Boolean = { println("prompt pwd") ; true }
+//
+//    def showMessage(message: String) { println("message: " + message) }
+//  }
+//
+//}
+//
+//object TestFileName extends App {
+//  Path.fromString("/tmp") ** "*" foreach { ppp => println(ppp.path) }
+//}
 
 
 object TestScalaSubString extends App {

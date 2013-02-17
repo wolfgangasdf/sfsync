@@ -3,19 +3,19 @@ package sfsync.store
 import sfsync.synchro.VirtualFile
 import scalafx.{collections => sfxc}
 import scalafx.beans.property._
-import scalax.file.Path
-import scalax.io.Line
 import Tools._
 import sfsync.Helpers._
 import collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
+import java.nio.file._
+import java.nio.charset.Charset
 
 object DBSettings {
   def settpath = {
     var res = ""
     if (isMac) res = System.getProperty("user.home") + "/Library/SFSync"
     else if (isLinux) res = System.getProperty("user.home") + "/.sfsync"
-    else if (isWin) res = System.getenv("APPDATA") + "/SFSync"
+    else if (isWin) res = toJavaPathSeparator(System.getenv("APPDATA")) + "/SFSync"
     else throw new Exception("operating system not found")
     res
   }
@@ -23,13 +23,13 @@ object DBSettings {
   def dbpath = settpath + "/sfsyncsettings"
   def getSettingPath = DBSettings.dbpath + ".txt"
   def getLines = {
-    val fff = Path.fromString(getSettingPath)
-    if (!fff.exists) {
-      println("creating setting file " + fff.path)
-      fff.doCreateParents()
-      fff.doCreateFile()
+    val fff = Paths.get(getSettingPath)
+    if (!Files.exists(fff)) {
+      println("creating setting file " + fff.toString)
+      Files.createDirectories(fff.getParent)
+      Files.createFile(fff)
     }
-    fff.lines(Line.Terminators.NewLine, includeTerminator = true)
+    Files.readAllLines(fff, filecharset).toArray
   }
 }
 
@@ -125,14 +125,16 @@ object Store {
 
   def save() {
     println("-----------save " + config)
-    val fff = Path.fromString(DBSettings.getSettingPath)
+    val fff = Paths.get(DBSettings.getSettingPath)
+    Files.delete(fff)
+    Files.createFile(fff)
     def saveVal(key: String, what: Property[_,_]) {
-      fff.append(key + "," + what.value + "\n")
+      Files.write(fff, (key + "," + what.value + "\n").getBytes(filecharset),StandardOpenOption.APPEND)
     }
     def saveString(key: String, what: String) {
-      fff.append(key + "," + what + "\n")
+      Files.write(fff, (key + "," + what + "\n").getBytes(filecharset),StandardOpenOption.APPEND)
     }
-    fff.write("sfsyncsettingsversion,1\n")
+    Files.write(fff, "sfsyncsettingsversion,1\n".getBytes, StandardOpenOption.APPEND)
     saveVal("width", config.width)
     saveVal("height", config.height)
     saveString("dividerpositions", config.dividerPositions.mkString("#"))
@@ -177,7 +179,6 @@ object Store {
         val sett = splitsetting(lll.toString)
         sett(0) match {
           case "sfsyncsettingsversion" => {
-            println("sett=<" + sett(1) + ">")
             if (!sett(1).equals("1")) sys.error("wrong settings version")
             config = new Config()
           }
@@ -234,12 +235,12 @@ object Cache {
   def getCacheFilename(name: String) = DBSettings.dbpath + "-cache" + name + ".txt"
   def loadCache(name: String) : ListBuffer[VirtualFile] = {
     cache = new ListBuffer[VirtualFile]()
-    val fff = Path.fromString(getCacheFilename(name))
-    if (!fff.exists) {
+    val fff = Paths.get(getCacheFilename(name))
+    if (!Files.exists(fff)) {
       println("create cache file!")
-      fff.doCreateFile()
+      Files.createFile(fff)
     }
-    val lines = fff.lines(Line.Terminators.NewLine, includeTerminator = true)
+    val lines = Files.readAllLines(fff, filecharset).toArray
     lines.foreach(lll => {
       var sett = splitsetting(lll.toString)
       val vf = new VirtualFile
@@ -281,23 +282,24 @@ object Cache {
   }
 
   def clearCache(name: String) {
-    val fff = Path.fromString(getCacheFilename(name))
-    if (fff.exists) {
-      fff.delete(force = true)
+    val fff = Paths.get(getCacheFilename(name))
+    if (Files.exists(fff)) {
+      Files.delete(fff)
     }
   }
 
 }
 
 object TestStoreMakeMany extends App {
-  val basef = Path.fromString("/Unencrypted_Data/tempnospotlight/teststorelargelocal")
-  basef.exists && sys.error("basef exists")
-  basef.createDirectory()
+  val basefs = "/Unencrypted_Data/tempnospotlight/teststorelargelocal"
+  val basef = Paths.get(basefs)
+  Files.exists(basef) && sys.error("basef exists")
+  Files.createDirectory(basef)
   for(i <- 1 to 200) {
-    val baseff = basef / ("folder" + i)
-    baseff.createDirectory()
+    val sfs = basefs + "/" + "folder" + i
+    Files.createDirectory(Paths.get(sfs))
     for (j<- 1 to 100) {
-      baseff / ("file" + i + "-" + j) doCreateFile()
+      Files.createFile(Paths.get(sfs, "file" + i + "-" + j))
     }
   }
   println("done")

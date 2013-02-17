@@ -6,11 +6,12 @@ import scala.collection.mutable._
 import scala.Predef._
 import scala.collection.JavaConversions._
 import akka.actor.ActorRef
-import scalax.file.Path
 import com.jcraft.jsch
 import jsch.ChannelSftp
 import sfsync.store.Tools
 import java.text.Normalizer
+import java.nio.file._
+import attribute.FileTime
 
 class cachedFile(path: String, modTime: Long, size: Long) {
 }
@@ -20,40 +21,42 @@ import sfsync.Helpers._
 class LocalConnection extends GeneralConnection {
 
   def deletefile(what: VirtualFile) {
-    Path.fromString(remoteBasePath + "/" + what.path).delete(force = true)
+    Files.delete(Paths.get(remoteBasePath + "/" + what.path))
 //    println("deleted " + remoteBasePath + what.path)
   }
   def putfile(from: VirtualFile) {
-    Path.fromString(localBasePath + "/" + from.path).copyTo(Path.fromString(remoteBasePath + "/" + from.path),replaceExisting = true)
+    Files.copy(Paths.get(localBasePath + "/" + from.path), Paths.get(remoteBasePath + "/" + from.path), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES)
   }
   def getfile(from: VirtualFile) {
-    Path.fromString(remoteBasePath + "/" + from.path).copyTo(Path.fromString(localBasePath + "/" + from.path),replaceExisting = true)
+    Files.copy(Paths.get(remoteBasePath + "/" + from.path), Paths.get(localBasePath + "/" + from.path), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES)
   }
   // include the subfolder but root "/" is not allowed!
   def listrec(subfolder: String, filterregexp: String, receiver: ActorRef) = {
     val list = new ListBuffer[VirtualFile]()
     // scalax.io is horribly slow, there is an issue filed
-    def parseContent(cc: java.io.File, firstTime: Boolean = false) {
+    def parseContent(cc: Path, firstTime: Boolean = false) {
       // on mac 10.8 with oracle java 7, filenames are encoded with strange 'decomposed unicode'. grr
       // this is in addition to the bug that LC_CTYPE is not set. grrr
       // don't use cc.getPath directly!!
-      val fixedPath = Normalizer.normalize(cc.getPath, Normalizer.Form.NFC)
+      val fixedPath = Normalizer.normalize(cc.toString, Normalizer.Form.NFC)
       val strippedPath: String = if (fixedPath == remoteBasePath) "/" else fixedPath.substring(remoteBasePath.length)
-      val vf = new VirtualFile(strippedPath, cc.lastModified(), cc.length, if (cc.isDirectory) 1 else 0)
+      val vf = new VirtualFile(strippedPath, Files.getLastModifiedTime(cc).toMillis, Files.size(cc), if (Files.isDirectory(cc)) 1 else 0)
       if ( !vf.fileName.matches(filterregexp) ) {
         list += vf
         if (receiver != null) receiver ! vf
-        if (vf.isDir == 1) for (cc <- cc.listFiles()) parseContent(cc)
+        if (vf.isDir == 1) {
+          val dir = Files.newDirectoryStream(cc)
+          for (cc <- dir) parseContent(cc)
+        }
       }
       unit()
     }
-    val sp = Path.fromString(remoteBasePath + (if (subfolder.length>0) "/" else "") + subfolder)
-    val spf = new java.io.File(sp.path)
-    if (spf.exists) {
-      parseContent(spf, firstTime = true)
+    val sp = Paths.get(remoteBasePath + (if (subfolder.length>0) "/" else "") + subfolder)
+    if (Files.exists(sp)) {
+      parseContent(sp, firstTime = true)
     } else {
-      if (runUIwait(Dialog.showYesNo("Local directory \n" + spf + "\n doesn't exist. Create?")) == true)
-        spf.mkdir()
+      if (runUIwait(Dialog.showYesNo("Local directory \n" + sp + "\n doesn't exist. Create?")) == true)
+        Files.createDirectories(sp)
     }
     if (receiver != null) receiver ! 'done
     list
@@ -116,18 +119,18 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
   def getfile(from: VirtualFile) {
     val lp = localBasePath + "/" + from.path
     if (from.isDir == 1) {
-      Path.fromString(lp).createDirectory()
+      Files.createDirectory(Paths.get(lp))
     } else {
       sftp.get(remoteBasePath + "/" + from.path, lp)
     }
-    Path.fromString(lp).lastModified = from.modTime
+    Files.setLastModifiedTime(Paths.get(lp), FileTime.fromMillis(from.modTime))
   }
 
   def sftpexists(sp: String): ChannelSftp#LsEntry = {
-    val xx = sftp.ls(Path.fromString(sp).parent.get.path)
+    val xx = sftp.ls(Paths.get(sp).getParent.toString)
     for (obj <- xx) {
       val sftplse = obj.asInstanceOf[ChannelSftp#LsEntry]
-      if (sftplse.getFilename == Path.fromString(sp).name) {
+      if (sftplse.getFilename == Paths.get(sp).getFileName.toString) {
         return sftplse
       }
     }
@@ -146,6 +149,7 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
       }
     }
     def parseContent(folder: String) {
+      println("parseContent: " + folder)
       val xx = sftp.ls(folder)
       val tmp = new ListBuffer[ChannelSftp#LsEntry]
       for (obj <- xx ) { tmp += obj.asInstanceOf[ChannelSftp#LsEntry] } // doesn't work otherwise!
@@ -239,8 +243,8 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
   if (prvkeypath != "") {
     println("prv key: " + prvkeypath)
     var prvkey: Array[Byte] = null
-    if (Path.fromString(prvkeypath).exists) prvkey = Path.fromString(prvkeypath).bytes.toArray
-    if (Path.fromString(knownhostspath).exists) jSch.setKnownHosts(knownhostspath)
+    if (Files.exists(Paths.get(prvkeypath))) prvkey = Files.readAllBytes(Paths.get(prvkeypath))
+    if (Files.exists(Paths.get(knownhostspath))) jSch.setKnownHosts(knownhostspath)
     jSch.addIdentity(uri.username,prvkey,null,Array[Byte]())
   }
 
