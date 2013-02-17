@@ -5,7 +5,7 @@ import scalafx.scene.control._
 import scalafx. {collections => sfxc}
 import scalafx.Includes._
 import scalafx.event.ActionEvent
-import scalafx.beans.property.StringProperty
+import scalafx.beans.property.{IntegerProperty, StringProperty}
 
 import javafx.{util => jfxu}
 import javafx.beans.{value => jfxbv}
@@ -13,7 +13,7 @@ import javafx.scene. {control => jfxsc}
 
 import sfsync.synchro._
 import sfsync.synchro.Actions._
-import store.{SyncEntry, Store}
+import store.{CacheDB, SyncEntry, Store}
 import Helpers._
 import sfsync.synchro.CompareFinished
 
@@ -30,63 +30,48 @@ object CF {
 }
 
 // the thing with properties for javafx tableview
-class CompFile(cf_ : ComparedFile) {
-  val cf = cf_
-  var tmp = ""
-  if (cf.flocal != null) tmp=cf.flocal.path
-  else if (cf.fremote != null) tmp=cf.fremote.path
-  else if (cf.fcache != null) tmp=cf.fcache.path
-  val path = new StringProperty(this, "path", tmp)
-  val status = new StringProperty(this, "status", CF.amap(cf.action))
-  val dformat = new java.text.SimpleDateFormat("dd-MM-yyyy HH:mm:ss")
-  val detailsLocal = new StringProperty(this, "detailsl",
-    (if (cf.flocal != null) dformat.format(new java.util.Date(cf.flocal.modTime)) + "," + cf.flocal.size else "none"))
-  val detailsRemote = new StringProperty(this, "detailsr",
-    (if (cf.fremote != null) dformat.format(new java.util.Date(cf.fremote.modTime)) + "," + cf.fremote.size else "none"))
-  def changeAction() {
-    status.set(CF.amap(cf.action))
-  }
-  override def toString: String = "CompFile: " + path() + " " + status() + " L:" + detailsLocal + " R:" + detailsRemote
-}
-object CompFile
+//class CompFile(cf_ : ComparedFile) {
+//  val cf = cf_
+//  var tmp = ""
+//  if (cf.flocal != null) tmp=cf.flocal.path
+//  else if (cf.fremote != null) tmp=cf.fremote.path
+//  else if (cf.fcache != null) tmp=cf.fcache.path
+//  val path = new StringProperty(this, "path", tmp)
+//  val status = new StringProperty(this, "status", CF.amap(cf.action))
+//  val dformat = new java.text.SimpleDateFormat("dd-MM-yyyy HH:mm:ss")
+//  val detailsLocal = new StringProperty(this, "detailsl",
+//    (if (cf.flocal != null) dformat.format(new java.util.Date(cf.flocal.modTime)) + "," + cf.flocal.size else "none"))
+//  val detailsRemote = new StringProperty(this, "detailsr",
+//    (if (cf.fremote != null) dformat.format(new java.util.Date(cf.fremote.modTime)) + "," + cf.fremote.size else "none"))
+//  def changeAction() {
+//    status.set(CF.amap(cf.action))
+//  }
+//  override def toString: String = "CompFile: " + path() + " " + status() + " L:" + detailsLocal + " R:" + detailsRemote
+//}
 
 class FilesView() extends Tab {
   text = "Files"
   closable = false
 
-  var compfiles2 = new com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[CompFile]() {
-    def get(p1: Int): CompFile = {
-      println("get p1=" + p1)
-      new CompFile(new ComparedFile(new VirtualFile("loc" + p1, 0,0,0),new VirtualFile("rem" + p1, 0,0,0),null, false))
-    }
-
-    def size(): Int = 100
-
-    def toArray[T](a: Array[T]): Array[T] = null
-  }
-  var comparedfiles = new sfxc.ObservableBuffer[ComparedFile]()
-  var compfiles =  new sfxc.ObservableBuffer[CompFile]() // for tableview
   var profile: Profile = null
   def setProfile(profilex: Profile) { profile = profilex }
 
-  val colPath = new TableColumn[CompFile, String]("Path") {
+  val colPath = new TableColumn[SyncEntry, String]("Path") {
     /*cellValueFactory = _.value.firstName// DOESNT WORK do below*/
   }
-  colPath.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[CompFile, String], jfxbv.ObservableValue[String]] {
-    def call(param: jfxsc.TableColumn.CellDataFeatures[CompFile, String]) = param.getValue.path
+  colPath.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[SyncEntry, String], jfxbv.ObservableValue[String]] {
+    def call(param: jfxsc.TableColumn.CellDataFeatures[SyncEntry, String]) = StringProperty(param.getValue.path)
   })
-  val colStatus = new TableColumn[CompFile, String]("Status") {
+  val colStatus = new TableColumn[SyncEntry, String]("Status") {
     prefWidth=50
     /*cellValueFactory = _.value.firstName// DOESNT WORK do below*/
   }
-  colStatus.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[CompFile, String], jfxbv.ObservableValue[String]] {
-    def call(param: jfxsc.TableColumn.CellDataFeatures[CompFile, String]) = {
-      param.getValue.status
-    }
+  colStatus.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[SyncEntry, String], jfxbv.ObservableValue[String]] {
+    def call(param: jfxsc.TableColumn.CellDataFeatures[SyncEntry, String]) = param.getValue.status
   })
-  colStatus.setCellFactory(new Callback[jfxsc.TableColumn[CompFile, String],jfxsc.TableCell[CompFile, String]] {
-    def call(param: jfxsc.TableColumn[CompFile, String]): jfxsc.TableCell[CompFile, String] = {
-      val x = new jfxsc.cell.TextFieldTableCell[CompFile, String]() {
+  colStatus.setCellFactory(new Callback[jfxsc.TableColumn[SyncEntry, String],jfxsc.TableCell[SyncEntry, String]] {
+    def call(param: jfxsc.TableColumn[SyncEntry, String]): jfxsc.TableCell[SyncEntry, String] = {
+      val x = new jfxsc.cell.TextFieldTableCell[SyncEntry, String]() {
         override def updateItem(f: String, empty: Boolean) {
           if (!empty) {
             super.updateItem(f, empty)
@@ -100,16 +85,16 @@ class FilesView() extends Tab {
       x
     }
   })
-  val colDetailsLocal = new TableColumn[CompFile, String]("Local") {prefWidth=200/*cellValueFactory = _.value.firstName// DOESNT WORK do below*/ }
-  colDetailsLocal.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[CompFile, String], jfxbv.ObservableValue[String]] {
-    def call(param: jfxsc.TableColumn.CellDataFeatures[CompFile, String]) = param.getValue.detailsLocal
+  val colDetailsLocal = new TableColumn[SyncEntry, String]("Local") {prefWidth=200/*cellValueFactory = _.value.firstName// DOESNT WORK do below*/ }
+  colDetailsLocal.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[SyncEntry, String], jfxbv.ObservableValue[String]] {
+    def call(param: jfxsc.TableColumn.CellDataFeatures[SyncEntry, String]) = param.getValue.detailsLocal
   })
-  val colDetailsRemote = new TableColumn[CompFile, String]("Remote") {prefWidth=200/*cellValueFactory = _.value.firstName// DOESNT WORK do below*/ }
-  colDetailsRemote.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[CompFile, String], jfxbv.ObservableValue[String]] {
-    def call(param: jfxsc.TableColumn.CellDataFeatures[CompFile, String]) = param.getValue.detailsRemote
+  val colDetailsRemote = new TableColumn[SyncEntry, String]("Remote") {prefWidth=200/*cellValueFactory = _.value.firstName// DOESNT WORK do below*/ }
+  colDetailsRemote.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[SyncEntry, String], jfxbv.ObservableValue[String]] {
+    def call(param: jfxsc.TableColumn.CellDataFeatures[SyncEntry, String]) = param.getValue.detailsRemote
   })
 
-  var tv = new TableView[CompFile](compfiles2) { // only string-listview is properly updated!
+  var tv = new TableView[SyncEntry](CacheDB.syncEntries) { // only string-listview is properly updated!
     // columns ++= List(col1) // doesn't work
     delegate.getColumns.addAll(
       colDetailsLocal.delegate, colStatus.delegate, colDetailsRemote.delegate, colPath.delegate
@@ -124,14 +109,13 @@ class FilesView() extends Tab {
   }
 
   def updateSorting() {
-    tv.delegate.getSortOrder.clear()
-    tv.delegate.getSortOrder.add(colPath.delegate)
+    // TODO
   }
 
   val btSync = new Button("Synchronize") {
     onAction = (ae: ActionEvent) => {
       future {
-        profile.synchronize(comparedfiles.toList)
+// TODO       profile.synchronize(comparedfiles.toList)
       }
       unit()
     }
@@ -142,7 +126,7 @@ class FilesView() extends Tab {
     new Button(lab) {
       onAction = (ae: ActionEvent) => {
         for (idx <- tv.selectionModel.get().getSelectedItems) {
-          idx.cf.action = action
+          idx.action = action
           idx.changeAction()
         }
         updateSyncButton()
@@ -160,36 +144,38 @@ class FilesView() extends Tab {
 
   def updateSyncButton() {
     println("update sync button")
-    var canSync = true
-    for (cf <- comparedfiles) {
-      if (cf.action == A_UNKNOWN) canSync = false
-    }
-    btSync.setDisable(!canSync)
+    // TODO
+//    var canSync = true
+//    for (cf <- comparedfiles) {
+//      if (cf.action == A_UNKNOWN) canSync = false
+//    }
+//    btSync.setDisable(!canSync)
   }
 
   def updateActionButtons() {
     println("update action buttons")
-    var (allLocalPresenet, oneLocalPresent, allRemotePresent, oneRemotePresent) = (true, false, true, false)
-    var allEqual = true
-    var legal = true
-    var existCheck: (Boolean,Boolean) = null // allow only changing of items where existence is equal
-    for (idx <- tv.selectionModel.get().getSelectedItems) {
-      val cf = idx.cf
-      if (existCheck == null)
-        existCheck = (cf.flocal!=null,cf.fremote!=null)
-      else if (existCheck != (cf.flocal!=null,cf.fremote!=null)) legal = false
-      if (cf.flocal == null) allLocalPresenet = false else oneLocalPresent = true
-      if (cf.fremote == null) allRemotePresent = false  else oneRemotePresent = true
-      if (!cf.isSynced) allEqual = false
-    }
-    List(btRmLocal, btUseLocal, btMerge, btNothing, btRmBoth, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
-    btNothing.setDisable(false) // this only updates cache with remote file
-    if (legal) {
-      if (allEqual) btRmBoth.setDisable(false)
-      else if ((allLocalPresenet && allRemotePresent)) List(btUseLocal,btUseRemote,btMerge,btRmBoth).foreach(bb=>bb.setDisable(false))
-      else if (allLocalPresenet) List(btUseLocal,btRmLocal).foreach(bb => bb.setDisable(false))
-      else if (allRemotePresent) List(btUseRemote,btRmRemote).foreach(bb => bb.setDisable(false))
-    }
+    // TODO
+//    var (allLocalPresenet, oneLocalPresent, allRemotePresent, oneRemotePresent) = (true, false, true, false)
+//    var allEqual = true
+//    var legal = true
+//    var existCheck: (Boolean,Boolean) = null // allow only changing of items where existence is equal
+//    for (idx <- tv.selectionModel.get().getSelectedItems) {
+//      val cf = idx.cf
+//      if (existCheck == null)
+//        existCheck = (cf.flocal!=null,cf.fremote!=null)
+//      else if (existCheck != (cf.flocal!=null,cf.fremote!=null)) legal = false
+//      if (cf.flocal == null) allLocalPresenet = false else oneLocalPresent = true
+//      if (cf.fremote == null) allRemotePresent = false  else oneRemotePresent = true
+//      if (!cf.isSynced) allEqual = false
+//    }
+//    List(btRmLocal, btUseLocal, btMerge, btNothing, btRmBoth, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
+//    btNothing.setDisable(false) // this only updates cache with remote file
+//    if (legal) {
+//      if (allEqual) btRmBoth.setDisable(false)
+//      else if ((allLocalPresenet && allRemotePresent)) List(btUseLocal,btUseRemote,btMerge,btRmBoth).foreach(bb=>bb.setDisable(false))
+//      else if (allLocalPresenet) List(btUseLocal,btRmLocal).foreach(bb => bb.setDisable(false))
+//      else if (allRemotePresent) List(btUseRemote,btRmRemote).foreach(bb => bb.setDisable(false))
+//    }
   }
 
   var filterList = new sfxc.ObservableBuffer[String]()
@@ -217,39 +203,41 @@ class FilesView() extends Tab {
     }
   }
   def updateFilter(filter: String) {
-    compfiles.clear()
-    comparedfiles.filter( cf => getFilter(cf) ).foreach(cf => compfiles.add(new CompFile(cf)))
-    runUI { updateSorting() }
+    // TODO
+//    compfiles.clear()
+//    comparedfiles.filter( cf => getFilter(cf) ).foreach(cf => compfiles.add(new CompFile(cf)))
+//    runUI { updateSorting() }
   }
 
   // receive compared files!
   val act = actor(Main.system)(new Act {
     var doit = true
-    become {
-      case cf: ComparedFile => {
-        runUI {
-          comparedfiles.add(cf)
-          if (getFilter(cf)) compfiles.add(new CompFile(cf))
-        }
-      }
-      case CompareFinished => {
-        runUI { updateSorting() }
-        runUI { updateSyncButton() }
-        runUI { Main.Status.status.value = "ready" }
-      }
-      case RemoveCF(cf: ComparedFile) => { // called by synchronize
-        runUI {
-          comparedfiles.remove(cf)
-          compfiles.removeAll(compfiles.filter(p => p.cf == cf))
-        }
-      }
-      case 'done => { // this should be called by myself only
-        println("done: sender = " + sender.toString)
-        btSync.setDisable(true)
-        println("exiting actor cw")
-        context.stop(self)
-      }
-    }
+    // TODO: update GUI?
+//    become {
+//      case cf: ComparedFile => {
+//        runUI {
+//          comparedfiles.add(cf)
+//          if (getFilter(cf)) compfiles.add(new CompFile(cf))
+//        }
+//      }
+//      case CompareFinished => {
+//        runUI { updateSorting() }
+//        runUI { updateSyncButton() }
+//        runUI { Main.Status.status.value = "ready" }
+//      }
+//      case RemoveCF(cf: ComparedFile) => { // called by synchronize
+//        runUI {
+//          comparedfiles.remove(cf)
+//          compfiles.removeAll(compfiles.filter(p => p.cf == cf))
+//        }
+//      }
+//      case 'done => { // this should be called by myself only
+//        println("done: sender = " + sender.toString)
+//        btSync.setDisable(true)
+//        println("exiting actor cw")
+//        context.stop(self)
+//      }
+//    }
   })
 
   // init
