@@ -9,6 +9,9 @@ import collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
 import java.nio.file._
 import java.nio.charset.Charset
+import org.squeryl.{Schema, KeyedEntity, Session, SessionFactory}
+import org.squeryl.adapters.H2Adapter
+import org.squeryl.PrimitiveTypeMode._
 
 object DBSettings {
   def settpath = {
@@ -20,8 +23,8 @@ object DBSettings {
     res
   }
 
-  def dbpath = settpath + "/sfsyncsettings"
-  def getSettingPath = DBSettings.dbpath + ".txt"
+  def settdbpath = settpath + "/sfsyncsettings"
+  def getSettingPath = DBSettings.settdbpath + ".txt"
   def getLines = {
     val fff = Paths.get(getSettingPath)
     if (!Files.exists(fff)) {
@@ -227,12 +230,59 @@ object Store {
   }
 
   load()
+
+}
+
+class BaseEntity extends KeyedEntity[Long] {
+  var id: Long = 0
+}
+
+class SyncEntry(var path: String, var lTime: Long, var lSize: Long, var rTime: Long, var rSize: Long, var isDir: Boolean) extends BaseEntity {
+
+}
+
+object MySchema extends Schema {
+  val files = table[SyncEntry]
+
+  on(files)(file => declare(
+    file.id is (primaryKey,autoIncremented),
+    file.path is (unique)
+  ))
+}
+
+object CacheDB {
+  def dbpath(name: String) = DBSettings.settpath + "/cache/" + name
+
+  def cleanup() {
+    // TODO: needed?
+  }
+  def connectDB(name: String) {
+    println("connecting to database name=" + name)
+    cleanup()
+    Class.forName("org.h2.Driver")
+    val dbexists = (Files.exists(Paths.get(dbpath(name) + ".h2.db") ))
+    val databaseConnection = s"jdbc:h2:" + dbpath(name) + (if (dbexists) ";create=true" else "")
+    SessionFactory.concreteFactory = Some(() => {
+      Session.create(java.sql.DriverManager.getConnection(databaseConnection), new H2Adapter)
+    })
+
+    transaction {
+      if (!dbexists) {
+        MySchema.create
+        println("Created the schema")
+        // TODO: testing
+        MySchema.files.insert(new SyncEntry("asdf1", 1,2,11,12,false))
+        MySchema.files.insert(new SyncEntry("asdf2", 1,2,11,12,false))
+        MySchema.files.insert(new SyncEntry("asdf3", 1,2,11,12,false))
+      }
+    }
+  }
 }
 
 object Cache {
   import collection.mutable.ListBuffer
   var cache: ListBuffer[VirtualFile] = null
-  def getCacheFilename(name: String) = DBSettings.dbpath + "-cache" + name + ".txt"
+  def getCacheFilename(name: String) = DBSettings.settdbpath + "-cache" + name + ".txt"
   def loadCache(name: String) : ListBuffer[VirtualFile] = {
     cache = new ListBuffer[VirtualFile]()
     val fff = Paths.get(getCacheFilename(name))

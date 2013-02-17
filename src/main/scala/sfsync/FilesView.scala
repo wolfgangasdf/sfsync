@@ -13,7 +13,7 @@ import javafx.scene. {control => jfxsc}
 
 import sfsync.synchro._
 import sfsync.synchro.Actions._
-import sfsync.store.Store
+import store.{SyncEntry, Store}
 import Helpers._
 import sfsync.synchro.CompareFinished
 
@@ -54,6 +54,16 @@ class FilesView() extends Tab {
   text = "Files"
   closable = false
 
+  var compfiles2 = new com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[CompFile]() {
+    def get(p1: Int): CompFile = {
+      println("get p1=" + p1)
+      new CompFile(new ComparedFile(new VirtualFile("loc" + p1, 0,0,0),new VirtualFile("rem" + p1, 0,0,0),null, false))
+    }
+
+    def size(): Int = 100
+
+    def toArray[T](a: Array[T]): Array[T] = null
+  }
   var comparedfiles = new sfxc.ObservableBuffer[ComparedFile]()
   var compfiles =  new sfxc.ObservableBuffer[CompFile]() // for tableview
   var profile: Profile = null
@@ -99,7 +109,7 @@ class FilesView() extends Tab {
     def call(param: jfxsc.TableColumn.CellDataFeatures[CompFile, String]) = param.getValue.detailsRemote
   })
 
-  var tv = new TableView[CompFile](compfiles) { // only string-listview is properly updated!
+  var tv = new TableView[CompFile](compfiles2) { // only string-listview is properly updated!
     // columns ++= List(col1) // doesn't work
     delegate.getColumns.addAll(
       colDetailsLocal.delegate, colStatus.delegate, colDetailsRemote.delegate, colPath.delegate

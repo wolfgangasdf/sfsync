@@ -101,6 +101,9 @@ class MainView extends Tab {
         subfolderView.subfolderChanged()
       }
       sp.dividerPositions = tmpdp: _*
+
+      // connect to database
+      CacheDB.connectDB(server.id)
     }
   }
   var protocolView : ProtocolView = null

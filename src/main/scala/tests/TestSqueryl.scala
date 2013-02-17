@@ -71,23 +71,32 @@ object TestSqueryl extends App {
     println("Created the schema")
   }
 
-  def benchmarkstore() { // derby: 5s h2: 2.1s
+  def benchmarkstore() {
+    val session = SessionFactory.newSession
+    for (iii <- 1 until 10000) {
+      using(session) {
+        val user1: SyncEntry = new SyncEntry("no" + iii, "pass")
+        MySchema.files.insert(user1)
+      }
+    }
+    session.close
+    // derby: 5s h2: 2.1s
 //    transaction {
-//      for (iii <- 1 until 10000) {
+//      for (iii <- 1 until 1000) {
 //        val user1: SyncEntry = new SyncEntry("no" + iii, "pass")
 //        MySchema.files.insert(user1)
 //      }
 //    }
     // derby: similar(4.6s), h2: faster! 1s
-    transaction {
-      val list = List.range(1,10000).map(x => new SyncEntry("no" + x, "pass"))
-      MySchema.files.insert(list)
-    }
+//  transaction {
+//      val list = List.range(1,10000).map(x => new SyncEntry("no" + x, "pass"))
+//      MySchema.files.insert(list)
+//    }
   }
 
   def benchmarkget() { // fast: 50ms!
     transaction {
-      val queriedUser: SyncEntry = MySchema.files.where(file => file.email === "no1233").single
+      val queriedUser: SyncEntry = MySchema.files.where(file => file.email === "no1234").head
       println(queriedUser.id + " -- " + queriedUser.email)
     }
   }
