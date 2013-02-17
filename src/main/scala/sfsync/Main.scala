@@ -25,6 +25,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.implicitConversions
 import scalafx.geometry.Pos
 import java.nio.charset.Charset
+import scalafx.beans.property.StringProperty
 
 object Helpers {
 
@@ -81,91 +82,33 @@ object Helpers {
 //    scala.util.Marshal.load[A](scala.util.Marshal.dump(a))
 }
 
-class MainScene(stage: Stage) extends Scene {
-  val menu = new Menu("File") {
-    items.add(new MenuItem("Open"))
-    items.add(new MenuItem("Close"))
-  }
+class MainView extends Tab {
+  this.text = "Settings"
+  closable = false
 
-  val menuBar = new MenuBar {
-    useSystemMenuBar = true
-    minWidth = 100
-    menus.add(menu)
-  }
-  class MainView extends SplitPane {
-    var firstStart = true
-    var serverView = new ServerView(Store.config) {
-      def onServerChange() {
-        val tmpdp =  ArrayBuffer(dividerPositions: _*)
-        protocolView = new ProtocolView(server)
-        subfolderView = new SubFolderView(server)
-        items(1) = protocolView
-        items(2) = subfolderView
-        if (server.currentProtocol.value > -1) {
-          protocolView.protocolChanged()
-        }
-        if (server.currentSubFolder.value > -1) {
-          subfolderView.subfolderChanged()
-        }
-        dividerPositions = tmpdp: _*
+  var firstStart = true
+  var serverView = new ServerView(Store.config) {
+    def onServerChange() {
+      val tmpdp =  ArrayBuffer(sp.dividerPositions: _*)
+      protocolView = new ProtocolView(server)
+      subfolderView = new SubFolderView(server)
+      sp.items(1) = protocolView
+      sp.items(2) = subfolderView
+      if (server.currentProtocol.value > -1) {
+        protocolView.protocolChanged()
       }
+      if (server.currentSubFolder.value > -1) {
+        subfolderView.subfolderChanged()
+      }
+      sp.dividerPositions = tmpdp: _*
     }
-    var protocolView : ProtocolView = null
-    var subfolderView : SubFolderView = null
-
-    orientation = jgo.VERTICAL
-    items += (serverView, new BorderPane(), new BorderPane())
   }
-
-  var cw: CompareScene = null
-  var mainView: MainView = null
-  var maincontent = new VBox
-
-  val toolBar = new ToolBar {
-    content = List(new Button("Compare") {
-      onAction = (ae: ActionEvent) => {
-        Main.runCompare()
-      }
-    },
-      new Button("Save settings") {
-        onAction = (ae: ActionEvent) => {
-          Store.save()
-          println("store saved!")
-        }
-      },
-      new Button("test") {
-        onAction = (ae: ActionEvent) => {
-          println("dividerpos: " + ArrayBuffer(mainView.dividerPositions: _*))
-        }
-      },
-      new Button("test2") {
-        onAction = (ae: ActionEvent) => {
-          val tmpdp = ArrayBuffer(Store.config.dividerPositions: _*)
-          mainView.dividerPositions = tmpdp: _*
-        }
-      }
-    )
-  }
-
-  val statusBar = new ToolBar {
-    content = List(new Label { text = "Sfsync Version " + Main.version })
-  }
-
-    mainView = new MainView
-    maincontent.content = List(menuBar,toolBar,mainView,statusBar)
-    maincontent.prefHeight <== height
-    maincontent.prefWidth <== width
-    mainView.prefHeight <== height - menuBar.prefHeight - toolBar.prefHeight - statusBar.prefHeight
-    if (Store.config.currentServer.value > -1) {
-      mainView.serverView.serverChanged()
-    }
-
-  content = maincontent
-
-  // ini after UI shown
-  runUI({
-    mainView.setDividerPositions(Store.config.dividerPositions: _*)
-  })
+  var protocolView : ProtocolView = null
+  var subfolderView : SubFolderView = null
+  val sp = new SplitPane
+  sp.orientation = jgo.VERTICAL
+  sp.items += (serverView, new BorderPane(), new BorderPane())
+  content =sp
 }
 
 object Main extends JFXApp with Logging {
@@ -173,6 +116,11 @@ object Main extends JFXApp with Logging {
   val VERSION = "0.1" // TODO: read from build.sbt but how?
   val resv = getClass.getResource("/sfsync/HGVERSION.txt")
   val version = VERSION + (if (resv != null) " (" + io.Source.fromURL(resv).mkString.trim + ")" else "")
+  def system = ActorSystem("sfsyncactors")
+
+  var settingsView: MainView = null
+  var filesView: FilesView = null
+  var profile: Profile = null
 
   // run checks
   Checks.CheckComparedFile()
@@ -191,54 +139,126 @@ object Main extends JFXApp with Logging {
     }
   }
 
-  def system = ActorSystem("sfsyncactors")
+  // init
+
+  val menu = new Menu("File") {
+    items.add(new MenuItem("Open"))
+    items.add(new MenuItem("Close"))
+  }
+
+  val menuBar = new MenuBar {
+    useSystemMenuBar = true
+    minWidth = 100
+    menus.add(menu)
+  }
+
+  var cw: FilesView = null
+
+  val toolBar = new ToolBar {
+    content = List(
+      new Button("Compare") {
+        onAction = (ae: ActionEvent) => {
+          Main.runCompare()
+        }
+      },
+      new Button("Synchronize") {
+        onAction = (ae: ActionEvent) => {
+          throw new Exception("not impl")
+        }
+      },
+      new Button("Save settings") {
+        onAction = (ae: ActionEvent) => {
+          Store.save()
+          println("store saved!")
+        }
+      },
+      new Button("test") {
+        onAction = (ae: ActionEvent) => {
+          println("dividerpos: " + ArrayBuffer(Main.settingsView.sp.dividerPositions: _*))
+        }
+      },
+      new Button("test2") {
+        onAction = (ae: ActionEvent) => {
+          val tmpdp = ArrayBuffer(Store.config.dividerPositions: _*)
+          Main.settingsView.sp.dividerPositions = tmpdp: _*
+        }
+      }
+    )
+  }
+
+  object Status {
+    var status: StringProperty = StringProperty("?")
+    var local = StringProperty("?")
+    var remote = StringProperty("?")
+    List(status,local,remote).map(x => x.onChange(
+      statusBar.lab.text = "Local:" + local.value + "  Remote: " + remote.value + "  | " + status.value
+    ))
+  }
+
+  val statusBar = new ToolBar {
+    var lab = new Label() { text = "Sfsync Version " + Main.version }
+    content = List(lab)
+  }
+
+  val tabpane = new TabPane {
+  }
+
+  var maincontent = new VBox {
+    content = List(menuBar,toolBar,tabpane,statusBar)
+  }
+
+
+  settingsView = new MainView
+  filesView = new FilesView
 
   stage = new JFXApp.PrimaryStage {
     title = "SFSync"
     width = Store.config.width.toDouble
     height = Store.config.height.toDouble
-    scene = new Scene
+    scene = new Scene {
+      content = maincontent
+    }
   }
 
-  val mainScene = new MainScene(stage)
-  var compareScene: CompareScene = null
+  maincontent.prefHeight <== stage.height
+  maincontent.prefWidth <== stage.width
+  tabpane.prefHeight <== stage.height - menuBar.prefHeight - toolBar.prefHeight - statusBar.prefHeight
+  tabpane.tabs = List(settingsView, filesView)
+  statusBar.prefWidth <== stage.width
 
-  def setCompareScene() {
-    doCleanup()
-    compareScene = new CompareScene
-    stage.scene = compareScene
+  if (Store.config.currentServer.value > -1) {
+    settingsView.serverView.serverChanged()
   }
 
-  def setMainScene() {
-    stage.scene = mainScene
-    doCleanup()
-  }
+  // ini after UI shown
+  runUI({
+    settingsView.sp.setDividerPositions(Store.config.dividerPositions: _*)
+  })
 
   override def stopApp() {
     println("*************** stop app")
     Store.config.width.value = stage.width.toInt
     Store.config.height.value = stage.height.toInt
-    Store.config.dividerPositions = ArrayBuffer(mainScene.mainView.dividerPositions: _*)
+    Store.config.dividerPositions = ArrayBuffer(settingsView.sp.dividerPositions: _*)
     Store.save()
     doCleanup()
     sys.exit(0)
   }
 
   def doCleanup() {
-    if (compareScene != null) {
-      compareScene.act ! 'done
-      compareScene = null
-    }
+    // TODO
+//    if (filesView != null) {
+//      filesView.act ! 'done
+//      filesView = null
+//    }
     if (profile != null) profile.finish()
   }
 
-  var profile: Profile = null
-
   def runCompare() {
     doCleanup()
-    setCompareScene()
-    profile = new Profile (compareScene, mainScene.mainView.serverView.server, mainScene.mainView.protocolView.protocol, mainScene.mainView.subfolderView.subfolder)
-    compareScene.setProfile(profile)
+    profile = new Profile (filesView, settingsView.serverView.server, settingsView.protocolView.protocol, settingsView.subfolderView.subfolder)
+    filesView.setProfile(profile)
+    tabpane.selectionModel().select(filesView)
     future { // this is key, do in new thread!
       try {
         profile.init()
@@ -247,7 +267,6 @@ object Main extends JFXApp with Logging {
         case e: Exception => {
           runUIwait(Main.Dialog.showMessage("Exception: " + e + "\n" + e.getMessage))
           runUI {
-            setMainScene()
             doCleanup()
           }
         }
@@ -255,14 +274,6 @@ object Main extends JFXApp with Logging {
     }
   }
 
-  // init
-  setMainScene()
-
-  // UI initialization: is executed after UI shown
-  //  runUI({
-  //  })
-
-  // https://gist.github.com/1887631
   object Dialog {
     val dstage = new Stage(jfxs.StageStyle.UTILITY) {
       initOwner(Main.stage)

@@ -50,7 +50,10 @@ class CompFile(cf_ : ComparedFile) {
 }
 object CompFile
 
-class CompareScene() extends Scene {
+class FilesView() extends Tab {
+  text = "Files"
+  closable = false
+
   var comparedfiles = new sfxc.ObservableBuffer[ComparedFile]()
   var compfiles =  new sfxc.ObservableBuffer[CompFile]() // for tableview
   var profile: Profile = null
@@ -125,12 +128,6 @@ class CompareScene() extends Scene {
   }
   btSync.setDisable(true)
 
-  var btBack = new Button("Back") {
-    onAction = (ae: ActionEvent) => {
-      Main.setMainScene()
-    }
-  }
-
   def createActionButton(lab: String, action: Int): Button = {
     new Button(lab) {
       onAction = (ae: ActionEvent) => {
@@ -185,8 +182,6 @@ class CompareScene() extends Scene {
     }
   }
 
-  var bv = new HBox { content = List(btSync, btRmLocal, btUseLocal, btMerge, btNothing, btRmBoth, btUseRemote, btRmRemote, btBack) }
-
   var filterList = new sfxc.ObservableBuffer[String]()
   object F {
     val all="all"; val changes="changes"; val problems="problems"
@@ -200,6 +195,8 @@ class CompareScene() extends Scene {
       updateFilter(selectionModel.get().getSelectedItem)
     }
   }
+
+  var bv = new HBox { content = List(cFilter,btSync, btRmLocal, btUseLocal, btMerge, btNothing, btRmBoth, btUseRemote, btRmRemote) }
 
   def getFilter(cf: ComparedFile) : Boolean = {
     cFilter.getValue match {
@@ -215,24 +212,6 @@ class CompareScene() extends Scene {
     runUI { updateSorting() }
   }
 
-  val toolbar = new ToolBar {
-    content = List(cFilter)
-  }
-
-  object Status {
-    var status: StringProperty = StringProperty("?")
-    var local = StringProperty("?")
-    var remote = StringProperty("?")
-    List(status,local,remote).map(x => x.onChange(
-      statusBar.lab.text = "Local:" + local.value + "  Remote: " + remote.value + "  | " + status.value
-    ))
-  }
-
-  val statusBar = new ToolBar {
-    var lab = new Label() { text = "?" }
-    content = List(lab)
-  }
-
   // receive compared files!
   val act = actor(Main.system)(new Act {
     var doit = true
@@ -246,7 +225,7 @@ class CompareScene() extends Scene {
       case CompareFinished => {
         runUI { updateSorting() }
         runUI { updateSyncButton() }
-        runUI { Status.status.value = "ready" }
+        runUI { Main.Status.status.value = "ready" }
       }
       case RemoveCF(cf: ComparedFile) => { // called by synchronize
         runUI {
@@ -264,14 +243,15 @@ class CompareScene() extends Scene {
   })
 
   // init
-  content = new VBox {
-    content = List(toolbar,tv,bv,statusBar)
+  val vb = new VBox {
+    content = List(tv,bv)
   }
-  tv.selectionModel.get().setSelectionMode(javafx.scene.control.SelectionMode.MULTIPLE)
-  colPath.prefWidth <== (this.width - colStatus.prefWidth-1 - colDetailsLocal.prefWidth - colDetailsRemote.prefWidth)
-  tv.prefHeight <== (this.height - toolbar.height - bv.height - statusBar.height-40) // TODO
-  bv.prefWidth <== this.width
-  statusBar.prefWidth <== this.width
 
+  tv.selectionModel.get().setSelectionMode(javafx.scene.control.SelectionMode.MULTIPLE)
+  colPath.prefWidth <== (vb.width - colStatus.prefWidth-1 - colDetailsLocal.prefWidth - colDetailsRemote.prefWidth)
+  tv.prefHeight <== (vb.height - bv.height -40) // TODO
+  bv.prefWidth <== vb.width
+
+  content = vb
 }
 

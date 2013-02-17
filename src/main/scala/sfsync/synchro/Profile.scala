@@ -8,7 +8,7 @@ import scala.collection.mutable.ListBuffer
 import Actions._
 import akka.actor.ActorDSL._
 import sfsync.store._
-import sfsync.{Main, CompareScene}
+import sfsync.{Main, FilesView}
 import sfsync.Helpers._
 import util.StopWatch
 import akka.pattern.ask
@@ -72,7 +72,7 @@ class ComparedFile(val flocal: VirtualFile, val fremote: VirtualFile, val fcache
 case class CompareFinished()
 case class RemoveCF(cf: ComparedFile)
 
-class Profile  (view: CompareScene, server: Server, protocol: Protocol, subfolder: SubFolder) {
+class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: SubFolder) {
   var comparedfiles = scalafx.collections.ObservableBuffer[ComparedFile]()
   var cache: ListBuffer[VirtualFile] = null
   var cacherelevant = new ListBuffer[VirtualFile] // only below subdir
@@ -83,7 +83,7 @@ class Profile  (view: CompareScene, server: Server, protocol: Protocol, subfolde
   var remotecnt = 0
 
   def init() {
-    runUIwait { view.Status.status.value = "load cached files..." }
+    runUIwait { Main.Status.status.value = "load cached files..." }
     cache = Cache.loadCache(server.id)
     if (cache.length == 0) {
       println("new cache!")
@@ -100,7 +100,7 @@ class Profile  (view: CompareScene, server: Server, protocol: Protocol, subfolde
     } else
       cacherelevant = cache
     if (protocol.executeBefore.value != "") {
-      runUIwait { view.Status.status.value = "execute 'before'..." }
+      runUIwait { Main.Status.status.value = "execute 'before'..." }
       import sys.process._
       val res = protocol.executeBefore.value.split("#").toSeq.!
       if (res != 0) {
@@ -108,7 +108,7 @@ class Profile  (view: CompareScene, server: Server, protocol: Protocol, subfolde
       }
     }
 
-    runUIwait { view.Status.status.value = "ready" }
+    runUIwait { Main.Status.status.value = "ready" }
 
     local = new LocalConnection {
       remoteBasePath = server.localFolder.value
@@ -116,27 +116,27 @@ class Profile  (view: CompareScene, server: Server, protocol: Protocol, subfolde
     println("puri = " + protocol.protocoluri.value)
     val uri = MyURI(protocol.protocoluri.value)
     println("proto = " + uri.protocol)
-    runUIwait { view.Status.status.value = "ini remote connection..." }
+    runUIwait { Main.Status.status.value = "ini remote connection..." }
     remote = uri.protocol match {
       case "sftp" => new SftpConnection(uri)
       case "file" => new LocalConnection
       case _ => { throw new RuntimeException("wrong protocol: " + uri.protocol) }
     }
-    runUIwait { view.Status.status.value = "ready" }
+    runUIwait { Main.Status.status.value = "ready" }
     remote.localBasePath = server.localFolder.value
     remote.remoteBasePath = protocol.protocolbasefolder
   }
 
   def compare() {
-    runUIwait { view.Status.status.value = "list local files..." }
+    runUIwait { Main.Status.status.value = "list local files..." }
     println("***********************list local")
 
     var locall = new ListBuffer[VirtualFile]()
     StopWatch.timed("loaded local list in ") {
       for (sf <- subfolder.subfolders) locall ++= local.listrec(sf, server.filterRegexp, null)
     }
-    runUIwait { view.Status.local.value = locall.length.toString }
-    runUIwait { view.Status.status.value = "list remote files..." }
+    runUIwait { Main.Status.local.value = locall.length.toString }
+    runUIwait { Main.Status.status.value = "list remote files..." }
     println("***********************receive remote list")
 
     val sw = new StopWatch
@@ -147,8 +147,8 @@ class Profile  (view: CompareScene, server: Server, protocol: Protocol, subfolde
           remotecnt += 1
           if (sw.getTime > 0.1) {
             runUIwait { // give UI time
-              view.Status.remote.value = remotecnt.toString
-              view.Status.status.value = "list " + rf.path
+              Main.Status.remote.value = remotecnt.toString
+              Main.Status.status.value = "list " + rf.path
             }
             sw.restart()
           }
@@ -171,7 +171,7 @@ class Profile  (view: CompareScene, server: Server, protocol: Protocol, subfolde
           if (finished == 0) {
             println("receiveList: remotelistfinished!")
             runUI {
-              view.Status.remote.value = remotecnt.toString
+              Main.Status.remote.value = remotecnt.toString
             }
           }
         }
@@ -204,14 +204,14 @@ class Profile  (view: CompareScene, server: Server, protocol: Protocol, subfolde
       view.act ! cfnew // send it!
     })
 
-    runUIwait { view.Status.status.value = "ready" }
+    runUIwait { Main.Status.status.value = "ready" }
     view.act ! CompareFinished // send finished!
     sw1.printTime("TTTTTTTTT compared in ")
   }
 
   def synchronize(cfs: List[ComparedFile]) {
     println("synchronize...")
-    runUIwait { view.Status.status.value = "synchronize..." }
+    runUIwait { Main.Status.status.value = "synchronize..." }
     val sw = new StopWatch
     val swd = new StopWatch
     var iii = cfs.length
@@ -223,7 +223,7 @@ class Profile  (view: CompareScene, server: Server, protocol: Protocol, subfolde
       if (swd.getTime > 0.1 || showit) {
         val s = if (cf.flocal != null) cf.flocal.path else if (cf.fremote != null) cf.fremote.path else ""
         runUIwait { // give UI time
-          view.Status.status.value = "synchronize(" + iii + "): " + s
+          Main.Status.status.value = "synchronize(" + iii + "): " + s
         }
         swd.restart()
       }
@@ -249,11 +249,11 @@ class Profile  (view: CompareScene, server: Server, protocol: Protocol, subfolde
     }
     view.act ! 'done
     sw.printTime("TTTTTTTTT synchronized in ")
-    runUIwait { view.Status.status.value = "save cache..." }
+    runUIwait { Main.Status.status.value = "save cache..." }
     StopWatch.timed("TTTTTTTTT saved cache in ") {
       Cache.saveCache(server.id)
     }
-    runUIwait { view.Status.status.value = "ready" }
+    runUIwait { Main.Status.status.value = "ready" }
   }
   def finish() {
     if (remote != null) remote.finish()

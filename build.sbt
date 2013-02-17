@@ -28,9 +28,12 @@ resolvers += "JAnalyse Repository" at "http://www.janalyse.fr/repository/"
 
 libraryDependencies += "fr.janalyse" %% "janalyse-ssh" % "0.9.5-b3" % "compile"
 
+////////////////// squeryl & derby
+libraryDependencies += "com.h2database" % "h2" % "1.3.170"
+
+libraryDependencies += "org.squeryl" %% "squeryl" % "0.9.5-6"
 
 ////////////////// sbt-javafx (local compiled)
-
 jfxSettings
 
 JFX.mainClass := Some("sfsync.Main")
