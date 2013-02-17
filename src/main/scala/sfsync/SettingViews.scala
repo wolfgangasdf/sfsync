@@ -342,6 +342,16 @@ class SubFolderView(val server: Server) extends BorderPane {
             unit()
           }
         },
+        new Button("add allfiles-subfolder") {
+          onAction = (ae: ActionEvent) => {
+            val sf = new SubFolder {
+              name = "All files"
+              subfolders += ""
+            }
+            server.subfolders += sf
+            unit()
+          }
+        },
         new Button("delete") {
           onAction = (ae: ActionEvent) => {
             lvs.getItems.removeAll(lvs.selectionModel.get().getSelectedItems)
