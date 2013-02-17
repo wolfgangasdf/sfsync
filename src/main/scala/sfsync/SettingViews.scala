@@ -216,7 +216,7 @@ abstract class ServerView(val config: Config) extends BorderPane {
     }
   }
   lvs.margin = insetsstd
-  top = new Label() { text = "Servers:" }
+  top = new Label() { text = "Sync locations:" }
   left = lvs
 }
 
@@ -268,7 +268,7 @@ class SubFolderView(val server: Server) extends BorderPane {
   var subfolder: SubFolder= null
   var lvp = new MyListView[SubFolder](() => new SubFolder,server.subfolders, server.currentSubFolder.value, () => subfolderChanged())
   lvp.margin = insetsstd
-  top = new Label() { text = "Subfolders:" }
+  top = new Label() { text = "Subsets:" }
   left = lvp
   def subfolderChanged() {
     val idx = lvp.lvs.getSelectionModel.getSelectedIndex
@@ -333,7 +333,7 @@ class SubFolderView(val server: Server) extends BorderPane {
 
     var controls = new HBox {
       content = List(
-        new Button("add") {
+        new Button("Add") {
           onAction = (ae: ActionEvent) => {
             val res = fcSubfolder(server.localFolder, lvs.selectionModel.get().getSelectedItem)
             if (res != "") {
@@ -342,7 +342,7 @@ class SubFolderView(val server: Server) extends BorderPane {
             unit()
           }
         },
-        new Button("add allfiles-subfolder") {
+        new Button("Add <Allfiles> Subset") {
           onAction = (ae: ActionEvent) => {
             val sf = new SubFolder {
               name = "All files"
@@ -352,7 +352,7 @@ class SubFolderView(val server: Server) extends BorderPane {
             unit()
           }
         },
-        new Button("delete") {
+        new Button("Delete") {
           onAction = (ae: ActionEvent) => {
             lvs.getItems.removeAll(lvs.selectionModel.get().getSelectedItems)
             unit()
