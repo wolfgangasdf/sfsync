@@ -240,11 +240,15 @@ class BaseEntity extends KeyedEntity[Long] {
   var id: Long = 0
 }
 
+// if path endswith '/', it's a dir!!!
 class SyncEntry(var path: String, var action: Int,
-                var lTime: Long, var lSize: Long, var rTime: Long,
-                var rSize: Long, var isDir: Boolean) extends BaseEntity with Optimistic {
-  val status = new StringProperty(this, "status", CF.amap(action))
-  val dformat = new java.text.SimpleDateFormat("dd-MM-yyyy HH:mm:ss")
+                var lTime: Long, var lSize: Long,
+                var rTime: Long, var rSize: Long,
+                var cTime: Long, var cSize: Long
+                 ) extends BaseEntity with Optimistic {
+  var relevant: Boolean = false
+  def status = new StringProperty(this, "status", CF.amap(action))
+  def dformat = new java.text.SimpleDateFormat("dd-MM-yyyy HH:mm:ss")
   def detailsLocal = new StringProperty(this, "detailsl",
       (if (lSize != -1) (dformat.format(new java.util.Date(lTime)) + "," + lSize) else "none"))
   def detailsRemote = new StringProperty(this, "detailsr",
@@ -253,7 +257,7 @@ class SyncEntry(var path: String, var action: Int,
     // TODO
 //        status.set(CF.amap(cf.action))
       }
-  override def toString = {s"[path=$path action=$action lTime=$lTime lSize=$lSize rTime=$rTime rSize=$rSize isDir=$isDir"}
+  override def toString = {s"[path=$path action=$action lTime=$lTime lSize=$lSize rTime=$rTime rSize=$rSize"}
 }
 
 object MySchema extends Schema {
@@ -292,7 +296,7 @@ object CacheDB {
           if (seCache.size > 1000) seCache.clear()
           println("get p1=" + p1)
           using(getSession) {
-            val res = MySchema.files.where(se => se.isDir === false).page(p1,20) // TODO filtering etc....
+            val res = MySchema.files.where(se => se.relevant === true).page(p1,20) // TODO filtering etc....
             var iii = p1
             res.foreach(se => {
               if (!seCache.contains(iii)) seCache.put(iii,se)
@@ -345,6 +349,7 @@ object CacheDB {
     updateSyncEntries()
     println("connected to database name=" + name)
   }
+
 }
 
 object Cache {

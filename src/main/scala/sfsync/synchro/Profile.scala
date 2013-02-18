@@ -23,6 +23,7 @@ class TransferProtocol (
 )
 
 object Actions {
+  val A_UNCHECKED = -99
   val A_UNKNOWN = -1
   val A_NOTHING = 0
   val A_USELOCAL = 1
@@ -71,16 +72,12 @@ class ComparedFile(val flocal: VirtualFile, val fremote: VirtualFile, val fcache
 
 case class CompareFinished()
 case class RemoveCF(cf: ComparedFile)
+case class addFile(vf: VirtualFile, islocal: Boolean)
 
 class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: SubFolder) {
-  var comparedfiles = scalafx.collections.ObservableBuffer[ComparedFile]()
   var cache: ListBuffer[VirtualFile] = null
-  var cacherelevant = new ListBuffer[VirtualFile] // only below subdir
   var local: GeneralConnection = null
   var remote: GeneralConnection = null
-  var newcache: Boolean = false // TODO
-
-  var remotecnt = 0
 
   def init() {
     if (protocol.executeBefore.value != "") {
@@ -112,51 +109,59 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
   }
 
   def compare() {
-    runUIwait { Main.Status.status.value = "list local files..." }
-    println("***********************list local")
 
-    var locall = new ListBuffer[VirtualFile]()
-    StopWatch.timed("loaded local list in ") {
-      for (sf <- subfolder.subfolders) locall ++= local.listrec(sf, server.filterRegexp, null)
+    // reset table
+    import org.squeryl.PrimitiveTypeMode.transaction
+    import org.squeryl.PrimitiveTypeMode._
+    var tmp = false
+    transaction {
+      // get all:
+      // val q = from(MySchema.files)(s=>select(s))
+      val q = from(MySchema.files)(s=>select(s)) //.where(se => se.path.regex("/" + sf + "/.*"))
+      MySchema.files.update(q.map(a =>{
+        tmp = false
+        for (sf <- subfolder.subfolders)if (a.path.startsWith("/" + sf + "/")) tmp = true
+        if (tmp) {
+          a.lSize = -1
+          a.rSize = -1
+          a.relevant = true
+        } else {
+          a.relevant = false
+        }
+        a
+      }))
     }
-    runUIwait { Main.Status.local.value = locall.length.toString }
-    runUIwait { Main.Status.status.value = "list remote files..." }
-    println("***********************receive remote list")
 
-    val sw = new StopWatch
+    // the receive actor
+    val sw = new StopWatch // for UI update
     val receiveList = actor(Main.system)(new Act {
-      var finished = subfolder.subfolders.length
+      var finished = 2*subfolder.subfolders.length // cowntdown for lists
       become {
-        case rf: VirtualFile => {
-          remotecnt += 1
-          if (sw.getTime > 0.1) {
+        case addFile(vf, islocal) => {
+          if (sw.getTime > 1) {
             runUIwait { // give UI time
-              Main.Status.remote.value = remotecnt.toString
-              Main.Status.status.value = "list " + rf.path
+              Main.Status.status.value = "list " + vf.path
             }
             sw.restart()
           }
-          val cachef = cacherelevant.find(x => x.path == rf.path).getOrElse(null)
-          if (cachef != null) cachef.tagged = true // mark
-          val localf = locall.find(x => x.path == rf.path).getOrElse(null)
-          locall -= localf
-          val cfnew = new ComparedFile(localf, rf, cachef, newcache)
-          if (server.skipEqualFiles.value && rf == localf) {
-            // files equal, just make sure cache is up to date!
-            rf.tagged = true // so it does not appear as 'cacheonly'
-            if (cachef == null) Cache.addupdate(rf) // only store non-existing cache files
-          } else { // send to view
-            comparedfiles += cfnew
-            view.act ! cfnew // send it to view!
+          using (CacheDB.getSession) {
+            val q = MySchema.files.where(se => (se.path === vf.path))
+            if (q.size == 0) { // new entry
+              val senew = new SyncEntry(vf.path, A_UNCHECKED, if (islocal) vf.modTime else 0, if (islocal) vf.size else -1,
+                if (!islocal) vf.modTime else 0, if (!islocal) vf.size else 0,0,-1)
+              MySchema.files.insert(senew)
+            } else {
+              val se = q.single
+              if (islocal) { se.lTime = vf.modTime ; se.lSize = vf.size }
+              else         { se.rTime = vf.modTime ; se.rSize = vf.size }
+              MySchema.files.update(se)
+            }
           }
         }
         case 'done => {
           finished -= 1
           if (finished == 0) {
             println("receiveList: remotelistfinished!")
-            runUI {
-              Main.Status.remote.value = remotecnt.toString
-            }
           }
         }
         case 'replyWhenDone => if (finished==0) {
@@ -166,31 +171,23 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
         }
       }
     })
-    val sw1 = new StopWatch
+
+    runUIwait { Main.Status.status.value = "list local files..." }
+    println("***********************list local")
+    // TODO spawn in new proc?
+    for (sf <- subfolder.subfolders) local.listrec(sf, server.filterRegexp, receiveList)
+    runUIwait { Main.Status.local.value = locall.length.toString }
+
+    runUIwait { Main.Status.status.value = "list remote files..." }
+    println("***********************receive remote list")
+    // TODO spawn in new proc?
     subfolder.subfolders.map( sf => remote.listrec(sf, server.filterRegexp, receiveList) )
-    sw1.printLapTime("TTTTTTT listrec alone needed ")
     implicit val timeout = Timeout(36500 days)
     Await.result(receiveList ? 'replyWhenDone, Duration.Inf)
     println("*********************** receive remote finished")
 
-    // add remaing local-only files
-    locall.foreach(vf => {
-      val cachef = cacherelevant.find(x => x.path == vf.path).getOrElse(null)
-      if (cachef != null) cachef.tagged = true // mark
-      val cfnew = new ComparedFile(vf, null, cachef, newcache)
-      comparedfiles += cfnew
-      view.act ! cfnew // send it!
-    })
-    // add remaining cache-only files for information: local and remote are deleted.
-    cacherelevant.filter(vf => !vf.tagged).foreach( vf => {
-      val cfnew = new ComparedFile(null, null, vf, newcache)
-      comparedfiles += cfnew
-      view.act ! cfnew // send it!
-    })
-
     runUIwait { Main.Status.status.value = "ready" }
     view.act ! CompareFinished // send finished!
-    sw1.printTime("TTTTTTTTT compared in ")
   }
 
   def synchronize(cfs: List[ComparedFile]) {

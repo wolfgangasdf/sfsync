@@ -31,8 +31,7 @@ class LocalConnection extends GeneralConnection {
     Files.copy(Paths.get(remoteBasePath + "/" + from.path), Paths.get(localBasePath + "/" + from.path), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES)
   }
   // include the subfolder but root "/" is not allowed!
-  def listrec(subfolder: String, filterregexp: String, receiver: ActorRef) = {
-    val list = new ListBuffer[VirtualFile]()
+  def listrec(subfolder: String, filterregexp: String, receiver: ActorRef) {
     // scalax.io is horribly slow, there is an issue filed
     def parseContent(cc: Path, firstTime: Boolean = false) {
       // on mac 10.8 with oracle java 7, filenames are encoded with strange 'decomposed unicode'. grr
@@ -42,8 +41,7 @@ class LocalConnection extends GeneralConnection {
       val strippedPath: String = if (fixedPath == remoteBasePath) "/" else fixedPath.substring(remoteBasePath.length)
       val vf = new VirtualFile(strippedPath, Files.getLastModifiedTime(cc).toMillis, Files.size(cc), if (Files.isDirectory(cc)) 1 else 0)
       if ( !vf.fileName.matches(filterregexp) ) {
-        list += vf
-        if (receiver != null) receiver ! vf
+        receiver ! vf
         if (vf.isDir == 1) {
           val dir = Files.newDirectoryStream(cc)
           for (cc <- dir) parseContent(cc)
@@ -58,8 +56,7 @@ class LocalConnection extends GeneralConnection {
       if (runUIwait(Dialog.showYesNo("Local directory \n" + sp + "\n doesn't exist. Create?")) == true)
         Files.createDirectories(sp)
     }
-    if (receiver != null) receiver ! 'done
-    list
+    receiver ! 'done
   }
   def finish() {}
 }
@@ -137,8 +134,7 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
     null
   }
 
-  def listrec(subfolder: String, filterregexp: String, receiver: ActorRef) = {
-    val list = new ListBuffer[VirtualFile]()
+  def listrec(subfolder: String, filterregexp: String, receiver: ActorRef) {
     def VFfromLse(fullFilePath: String, lse: ChannelSftp#LsEntry) = {
       new VirtualFile {
         path=(fullFilePath).substring(remoteBasePath.length)
@@ -159,8 +155,7 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
           val fullFilePath = folder + "/" + obj.getFilename
           val vf = VFfromLse(fullFilePath, obj)
           if ( !vf.fileName.matches(filterregexp) ) {
-            list += vf
-            if (receiver != null) receiver ! vf
+            receiver ! vf
             if (obj.getAttrs.isDir) {
               parseContent(fullFilePath)
             }
@@ -175,16 +170,14 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
     if (sftpsp != null) { // not nice, copied basically from above. but no other way
       val vf = VFfromLse(sp, sftpsp)
       if ( !vf.fileName.matches(filterregexp) ) {
-        list += vf
-        if (receiver != null) receiver ! vf
+        receiver ! vf
         if (sftpsp.getAttrs.isDir) {
           parseContent(sp)
         }
       }
     }
     println("parsing done")
-    if (receiver != null) receiver ! 'done
-    list
+    receiver ! 'done
   }
 
   import scala.collection.immutable.Map
@@ -279,12 +272,13 @@ trait GeneralConnection {
   def getfile(from: VirtualFile)
   def putfile(from: VirtualFile)
   def deletefile(what: VirtualFile)
-  def listrec(where: String, filterregexp: String, receiver: ActorRef): ListBuffer[VirtualFile]
+  def listrec(where: String, filterregexp: String, receiver: ActorRef)
   def finish()
 }
 
 // path below baspath with a leading "/"
-class VirtualFile(var path: String, var modTime: Long, var size: Long, var isDir: Int) extends Ordered[VirtualFile] {
+// if ends on "/", is dir!
+class VirtualFile(var path: String, var modTime: Long, var size: Long) extends Ordered[VirtualFile] {
   var tagged = false // for cachelist: tagged if local/remote existing, does not need to be added "cacheonly"
 
   def this() = this("",0,0,0)
@@ -296,10 +290,7 @@ class VirtualFile(var path: String, var modTime: Long, var size: Long, var isDir
     that.isInstanceOf[VirtualFile] && (this.hashCode() == that.asInstanceOf[VirtualFile].hashCode())
   }
   override def hashCode = {
-    if (isDir==1)
-      path.hashCode + isDir.hashCode
-    else
-      path.hashCode + isDir.hashCode + modTime.hashCode + size.hashCode
+    path.hashCode + modTime.hashCode + size.hashCode
   }
 
   def compare(that: VirtualFile): Int = path.compare(that.path)

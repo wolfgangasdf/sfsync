@@ -26,7 +26,6 @@ import scala.language.implicitConversions
 import scalafx.geometry.Pos
 import java.nio.charset.Charset
 import scalafx.beans.property.StringProperty
-import org.squeryl.{SessionFactory,Query}
 
 object Helpers {
 
