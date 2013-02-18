@@ -8,12 +8,13 @@ import sfsync.Helpers._
 import collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
 import java.nio.file._
-import java.nio.charset.Charset
-import org.squeryl.{Schema, KeyedEntity, Session, SessionFactory}
 import org.squeryl.adapters.H2Adapter
 import org.squeryl.PrimitiveTypeMode._
 import sfsync.CF
 import collection.mutable
+import scala.Some
+import org.squeryl.{Schema, Optimistic, KeyedEntity, Session, SessionFactory}
+import javafx.collections.ListChangeListener.Change
 
 object DBSettings {
   def settpath = {
@@ -239,17 +240,20 @@ class BaseEntity extends KeyedEntity[Long] {
   var id: Long = 0
 }
 
-class SyncEntry(var path: String, var action: Int, var lTime: Long, var lSize: Long, var rTime: Long, var rSize: Long, var isDir: Boolean) extends BaseEntity {
+class SyncEntry(var path: String, var action: Int,
+                var lTime: Long, var lSize: Long, var rTime: Long,
+                var rSize: Long, var isDir: Boolean) extends BaseEntity with Optimistic {
   val status = new StringProperty(this, "status", CF.amap(action))
   val dformat = new java.text.SimpleDateFormat("dd-MM-yyyy HH:mm:ss")
-  val detailsLocal = new StringProperty(this, "detailsl",
-      (if (lSize != -1) dformat.format(new java.util.Date(lTime)) + "," + lSize else "none"))
-  val detailsRemote = new StringProperty(this, "detailsr",
-    (if (rSize != -1) dformat.format(new java.util.Date(rTime)) + "," + rSize else "none"))
+  def detailsLocal = new StringProperty(this, "detailsl",
+      (if (lSize != -1) (dformat.format(new java.util.Date(lTime)) + "," + lSize) else "none"))
+  def detailsRemote = new StringProperty(this, "detailsr",
+    (if (rSize != -1) (dformat.format(new java.util.Date(rTime)) + "," + rSize) else "none"))
   def changeAction() {
     // TODO
 //        status.set(CF.amap(cf.action))
       }
+  override def toString = {s"[path=$path action=$action lTime=$lTime lSize=$lSize rTime=$rTime rSize=$rSize isDir=$isDir"}
 }
 
 object MySchema extends Schema {
@@ -263,63 +267,72 @@ object MySchema extends Schema {
 
 object CacheDB {
 
+  var connected = false
+
   var session: Session = null
+  def getSession = {
+    if (session == null) if (connected) session = SessionFactory.newSession
+    session
+  }
   var sizeCache: Int = -1
   var seCache = new mutable.HashMap[Int,SyncEntry]()
   def invalidateCache() {
+//    if (session != null) session.close
+//    session = null
     sizeCache = -1
     seCache.clear()
   }
 
-  def syncEntries = new com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry]() {
+  var syncEntries: com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry] = null
 
-    def get(p1: Int): SyncEntry = {
-      if (!seCache.contains(p1)) {
-        if (seCache.size > 1000) seCache.clear()
-        println("get p1=" + p1)
-        using(session) {
-          val res = MySchema.files.where(se => se.isDir === false).page(p1,20) // TODO filtering etc....
-          var iii = p1
-          res.foreach(se => {
-            if (!seCache.contains(iii)) seCache.put(iii,se)
-            iii += 1
-          })
+  def updateSyncEntries() {
+    syncEntries =  new com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry]() {
+      def get(p1: Int): SyncEntry = {
+        if (!seCache.contains(p1)) {
+          if (seCache.size > 1000) seCache.clear()
+          println("get p1=" + p1)
+          using(getSession) {
+            val res = MySchema.files.where(se => se.isDir === false).page(p1,20) // TODO filtering etc....
+            var iii = p1
+            res.foreach(se => {
+              if (!seCache.contains(iii)) seCache.put(iii,se)
+              iii += 1
+            })
+          }
         }
+        seCache.get(p1).getOrElse(null)
       }
-      seCache.get(p1).getOrElse(null)
-    }
-
-    def size(): Int = {
-      if (sizeCache == -1) {
-        println("get size!")
-        if (session != null)
-          using(session) { sizeCache = MySchema.files.size }
-        else sizeCache = 0
+      def size(): Int = {
+        if (sizeCache == -1) {
+          println("get size!")
+          if (getSession != null)
+            using(getSession) { sizeCache = MySchema.files.size }
+          else sizeCache = 0
+        }
+        sizeCache
       }
-      sizeCache
-    }
+      def toArray[T](a: Array[T]): Array[T] = null
 
-    def toArray[T](a: Array[T]): Array[T] = null
+    }
   }
 
   def dbpath(name: String) = DBSettings.settpath + "/cache/" + name
 
   def cleanup() {
     if (session != null) session.close
+    invalidateCache()
   }
   def connectDB(name: String) {
-    println("connecting to database name=" + name)
     cleanup()
+    println("connecting to database name=" + name)
     Class.forName("org.h2.Driver")
     val dbexists = (Files.exists(Paths.get(dbpath(name) + ".h2.db") ))
     val databaseConnection = s"jdbc:h2:" + dbpath(name) + (if (dbexists) ";create=true" else "")
     SessionFactory.concreteFactory = Some(() => {
       Session.create(java.sql.DriverManager.getConnection(databaseConnection), new H2Adapter)
     })
-
-    session = SessionFactory.newSession
-
-    using(session) {
+    connected = true
+    using(getSession) {
       if (!dbexists) {
         MySchema.create
         println("Created the schema")
@@ -329,7 +342,8 @@ object CacheDB {
         }
       }
     }
-    invalidateCache()
+    updateSyncEntries()
+    println("connected to database name=" + name)
   }
 }
 

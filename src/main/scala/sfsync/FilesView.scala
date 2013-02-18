@@ -108,6 +108,17 @@ class FilesView() extends Tab {
     )
   }
 
+  def setListItems(x: com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry]) {
+    tv.setItems(x)
+  }
+
+  def updateSyncEntries() {
+    // javafx bug: http://javafx-jira.kenai.com/browse/RT-22599
+    tv.setItems(null)
+    tv.layout()
+    setListItems(CacheDB.syncEntries)
+  }
+
   def updateSorting() {
     // TODO
   }

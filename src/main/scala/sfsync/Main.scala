@@ -26,6 +26,7 @@ import scala.language.implicitConversions
 import scalafx.geometry.Pos
 import java.nio.charset.Charset
 import scalafx.beans.property.StringProperty
+import org.squeryl.{SessionFactory,Query}
 
 object Helpers {
 
@@ -82,7 +83,7 @@ object Helpers {
 //    scala.util.Marshal.load[A](scala.util.Marshal.dump(a))
 }
 
-class MainView extends Tab {
+class MainView(filesView: FilesView) extends Tab {
   this.text = "Settings"
   closable = false
 
@@ -104,6 +105,8 @@ class MainView extends Tab {
 
       // connect to database
       CacheDB.connectDB(server.id)
+      // update filesview
+      filesView.setListItems(CacheDB.syncEntries)
     }
   }
   var protocolView : ProtocolView = null
@@ -157,6 +160,10 @@ object Main extends JFXApp with Logging {
 
   var cw: FilesView = null
 
+  var tmpse: SyncEntry = null
+
+  import org.squeryl.PrimitiveTypeMode.transaction
+  import org.squeryl.PrimitiveTypeMode._
   val toolBar = new ToolBar {
     content = List(
       new Button("Compare") {
@@ -175,15 +182,46 @@ object Main extends JFXApp with Logging {
           println("store saved!")
         }
       },
-      new Button("test") {
+      new Button("test: check asdf1") {
         onAction = (ae: ActionEvent) => {
-          println("dividerpos: " + ArrayBuffer(Main.settingsView.sp.dividerPositions: _*))
+
+          val res = transaction {
+            MySchema.files.where(se => se.path === "asdf1").single
+          }
+          println("res=" + res)
+          unit()
         }
       },
-      new Button("test2") {
+      new Button("test: check local asdf1") {
         onAction = (ae: ActionEvent) => {
-          val tmpdp = ArrayBuffer(Store.config.dividerPositions: _*)
-          Main.settingsView.sp.dividerPositions = tmpdp: _*
+          if (tmpse == null) {
+            tmpse = transaction {
+              MySchema.files.where(se => se.path === "asdf1").single
+            }
+            println("retrieved se=" + tmpse)
+          } else
+            println("tmpse=" + tmpse)
+          println("persisted: " + tmpse.isPersisted)
+          unit()
+        }
+      },
+      new Button("test: update asdf1") {
+        onAction = (ae: ActionEvent) => {
+
+          transaction {
+            val res = MySchema.files.where(se => se.path === "asdf1").single
+            res.lSize += 1
+            MySchema.files.update(res)
+            println("res after update=" + res)
+          }
+          unit()
+        }
+      },
+      new Button("test2: updatelistview") {
+        onAction = (ae: ActionEvent) => {
+          CacheDB.invalidateCache()
+          CacheDB.updateSyncEntries()
+          filesView.updateSyncEntries()
         }
       }
     )
@@ -211,8 +249,8 @@ object Main extends JFXApp with Logging {
   }
 
 
-  settingsView = new MainView
   filesView = new FilesView
+  settingsView = new MainView(filesView)
 
   stage = new JFXApp.PrimaryStage {
     title = "SFSync"
@@ -352,6 +390,5 @@ object Main extends JFXApp with Logging {
       res
     }
   }
-
 }
 

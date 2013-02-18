@@ -78,27 +78,11 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
   var cacherelevant = new ListBuffer[VirtualFile] // only below subdir
   var local: GeneralConnection = null
   var remote: GeneralConnection = null
-  var newcache: Boolean = false
+  var newcache: Boolean = false // TODO
 
   var remotecnt = 0
 
   def init() {
-    runUIwait { Main.Status.status.value = "load cached files..." }
-    cache = Cache.loadCache(server.id)
-    if (cache.length == 0) {
-      println("new cache!")
-      newcache = true
-      if (!subfolder.subfolders.contains("")) throw new scala.Exception("Cache empty: sync all files on first run!")
-    }
-    var cacheall = false
-    cacherelevant = new ListBuffer[VirtualFile]
-    subfolder.subfolders.foreach(x => {if (x == "") cacheall = true})
-    if (subfolder.subfolders.isEmpty) cacheall = true
-    if (!cacheall) {
-      subfolder.subfolders.foreach(x => {cacherelevant ++= cache.filter(cf => cf.path.startsWith("/" + x + "/"))})
-//      cacherelevant = cache.filter(cf => cf.path.startsWith(subfolder.subfolders.collect( { case s: String => "/" + s + "/"})))
-    } else
-      cacherelevant = cache
     if (protocol.executeBefore.value != "") {
       runUIwait { Main.Status.status.value = "execute 'before'..." }
       import sys.process._
