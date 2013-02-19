@@ -18,7 +18,7 @@ class cachedFile(path: String, modTime: Long, size: Long) {
 
 import sfsync.Helpers._
 
-class LocalConnection extends GeneralConnection {
+class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
 
   def deletefile(what: VirtualFile) {
     Files.delete(Paths.get(remoteBasePath + "/" + what.path))
@@ -38,11 +38,13 @@ class LocalConnection extends GeneralConnection {
       // this is in addition to the bug that LC_CTYPE is not set. grrr
       // don't use cc.getPath directly!!
       val fixedPath = Normalizer.normalize(cc.toString, Normalizer.Form.NFC)
-      val strippedPath: String = if (fixedPath == remoteBasePath) "/" else fixedPath.substring(remoteBasePath.length)
-      val vf = new VirtualFile(strippedPath, Files.getLastModifiedTime(cc).toMillis, Files.size(cc), if (Files.isDirectory(cc)) 1 else 0)
+      var strippedPath: String = if (fixedPath == remoteBasePath) "/" else fixedPath.substring(remoteBasePath.length)
+      if (Files.isDirectory(cc) && strippedPath != "/") strippedPath += "/"
+      val vf = new VirtualFile(strippedPath, Files.getLastModifiedTime(cc).toMillis, Files.size(cc))
       if ( !vf.fileName.matches(filterregexp) ) {
-        receiver ! vf
-        if (vf.isDir == 1) {
+//        println("sending " + vf)
+        receiver ! addFile(vf, isLocal)
+        if (Files.isDirectory(cc)) {
           val dir = Files.newDirectoryStream(cc)
           for (cc <- dir) parseContent(cc)
         }
@@ -98,16 +100,16 @@ object MyURI {
 }
 
 
-class SftpConnection(var uri: MyURI) extends GeneralConnection {
+class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection(isLocal) {
   def deletefile(what: VirtualFile) {
-    if (what.isDir == 1)
+    if (what.isDir)
       sftp.rmdir(remoteBasePath + "/" + what.path)
     else
       sftp.rm(remoteBasePath + "/" + what.path)
   }
   def putfile(from: VirtualFile) {
     val rp = remoteBasePath + "/" + from.path
-    if (from.isDir == 1)
+    if (from.isDir)
       sftp.mkdir(rp)
     else
       sftp.put(localBasePath + "/" + from.path, rp)
@@ -115,7 +117,7 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
   }
   def getfile(from: VirtualFile) {
     val lp = localBasePath + "/" + from.path
-    if (from.isDir == 1) {
+    if (from.isDir) {
       Files.createDirectory(Paths.get(lp))
     } else {
       sftp.get(remoteBasePath + "/" + from.path, lp)
@@ -141,7 +143,7 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
         if (path == "") path = "/"
         modTime = lse.getAttrs.getMTime.toLong * 1000
         size = lse.getAttrs.getSize
-        isDir = if (lse.getAttrs.isDir) 1 else 0
+        if (lse.getAttrs.isDir && path != "/") path += "/"
       }
     }
     def parseContent(folder: String) {
@@ -155,7 +157,7 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
           val fullFilePath = folder + "/" + obj.getFilename
           val vf = VFfromLse(fullFilePath, obj)
           if ( !vf.fileName.matches(filterregexp) ) {
-            receiver ! vf
+            receiver ! addFile(vf, isLocal)
             if (obj.getAttrs.isDir) {
               parseContent(fullFilePath)
             }
@@ -264,7 +266,7 @@ class SftpConnection(var uri: MyURI) extends GeneralConnection {
   }
 }
 
-trait GeneralConnection {
+abstract class GeneralConnection(isLocal: Boolean) {
 //  var conntype: ConnType.Value
   var localBasePath: String = ""
   var remoteBasePath: String = ""
@@ -281,10 +283,12 @@ trait GeneralConnection {
 class VirtualFile(var path: String, var modTime: Long, var size: Long) extends Ordered[VirtualFile] {
   var tagged = false // for cachelist: tagged if local/remote existing, does not need to be added "cacheonly"
 
-  def this() = this("",0,0,0)
+  def this() = this("",0,0)
 //  def getPathString = if (path == "") "<root>" else path
   def fileName : String = if (path == "/") "/" else path.split("/").last
   override def toString: String = "["+path+"]:"+modTime+","+size
+
+  def isDir = { path.endsWith("/") }
 
   override def equals(that: Any): Boolean = {
     that.isInstanceOf[VirtualFile] && (this.hashCode() == that.asInstanceOf[VirtualFile].hashCode())

@@ -16,6 +16,8 @@ import akka.util.Timeout
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.{reflectiveCalls, postfixOps}
+import scala.concurrent.ExecutionContext.Implicits.global
+import org.squeryl.Session
 
 class TransferProtocol (
   var uri: String,
@@ -91,7 +93,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
 
     runUIwait { Main.Status.status.value = "ready" }
 
-    local = new LocalConnection {
+    local = new LocalConnection(true) {
       remoteBasePath = server.localFolder.value
     }
     println("puri = " + protocol.protocoluri.value)
@@ -99,8 +101,8 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     println("proto = " + uri.protocol)
     runUIwait { Main.Status.status.value = "ini remote connection..." }
     remote = uri.protocol match {
-      case "sftp" => new SftpConnection(uri)
-      case "file" => new LocalConnection
+      case "sftp" => new SftpConnection(false,uri)
+      case "file" => new LocalConnection(false)
       case _ => { throw new RuntimeException("wrong protocol: " + uri.protocol) }
     }
     runUIwait { Main.Status.status.value = "ready" }
@@ -111,6 +113,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
   def compare() {
 
     // reset table
+    println("resetting table...")
     import org.squeryl.PrimitiveTypeMode.transaction
     import org.squeryl.PrimitiveTypeMode._
     var tmp = false
@@ -131,24 +134,31 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
         a
       }))
     }
-
+    runUI { view.updateSyncEntries() }
+    var receiveSession: Session = null
     // the receive actor
     val sw = new StopWatch // for UI update
     val receiveList = actor(Main.system)(new Act {
       var finished = 2*subfolder.subfolders.length // cowntdown for lists
       become {
         case addFile(vf, islocal) => {
+//          println("  received " + vf)
           if (sw.getTime > 1) {
             runUIwait { // give UI time
               Main.Status.status.value = "list " + vf.path
+              view.updateSyncEntries()
             }
             sw.restart()
           }
-          using (CacheDB.getSession) {
+          if (receiveSession==null) {
+            receiveSession = CacheDB.getSession
+            println("created receivesession " + receiveSession + " in Thread " + Thread.currentThread().getId)
+          }
+          using (receiveSession) {
             val q = MySchema.files.where(se => (se.path === vf.path))
             if (q.size == 0) { // new entry
               val senew = new SyncEntry(vf.path, A_UNCHECKED, if (islocal) vf.modTime else 0, if (islocal) vf.size else -1,
-                if (!islocal) vf.modTime else 0, if (!islocal) vf.size else 0,0,-1)
+                if (!islocal) vf.modTime else 0, if (!islocal) vf.size else 0,0,-1,true)
               MySchema.files.insert(senew)
             } else {
               val se = q.single
@@ -174,19 +184,28 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
 
     runUIwait { Main.Status.status.value = "list local files..." }
     println("***********************list local")
-    // TODO spawn in new proc?
-    for (sf <- subfolder.subfolders) local.listrec(sf, server.filterRegexp, receiveList)
-    runUIwait { Main.Status.local.value = locall.length.toString }
+    future {
+      for (sf <- subfolder.subfolders) local.listrec(sf, server.filterRegexp, receiveList)
+    }
+//    runUIwait { Main.Status.local.value = locall.length.toString }
 
     runUIwait { Main.Status.status.value = "list remote files..." }
-    println("***********************receive remote list")
+    println("***********************list remote")
     // TODO spawn in new proc?
-    subfolder.subfolders.map( sf => remote.listrec(sf, server.filterRegexp, receiveList) )
+    future {
+      subfolder.subfolders.map( sf => remote.listrec(sf, server.filterRegexp, receiveList) )
+    }
     implicit val timeout = Timeout(36500 days)
+    println("*********************** wait until all received...")
     Await.result(receiveList ? 'replyWhenDone, Duration.Inf)
-    println("*********************** receive remote finished")
+    println("*********************** list finished")
 
-    runUIwait { Main.Status.status.value = "ready" }
+    receiveSession.close
+
+    runUIwait {
+      view.updateSyncEntries()
+      Main.Status.status.value = "ready"
+    }
     view.act ! CompareFinished // send finished!
   }
 
@@ -211,13 +230,14 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       var removecf = true
       try {
         cf.action match {
-          case A_MERGE => sys.error("merge not implemented yet!")
-          case A_RMLOCAL|A_RMBOTH => { local.deletefile(cf.flocal) ; if (cf.fcache!=null) Cache.remove(cf.fcache) }
-          case A_RMREMOTE|A_RMBOTH => { remote.deletefile(cf.fremote) ; if (cf.fcache!=null) Cache.remove(cf.fcache) }
-          case A_USELOCAL => { remote.putfile(cf.flocal) ; Cache.addupdate(cf.flocal) }
-          case A_USEREMOTE => { remote.getfile(cf.fremote) ; if (cf.fremote!=cf.fcache) Cache.addupdate(cf.fremote) }
-          case A_NOTHING => { if (cf.fcache==null) Cache.addupdate(cf.fremote) }
-          case A_CACHEONLY => { Cache.remove(cf.fcache) }
+            // TODO
+//          case A_MERGE => sys.error("merge not implemented yet!")
+//          case A_RMLOCAL|A_RMBOTH => { local.deletefile(cf.flocal) ; if (cf.fcache!=null) Cache.remove(cf.fcache) }
+//          case A_RMREMOTE|A_RMBOTH => { remote.deletefile(cf.fremote) ; if (cf.fcache!=null) Cache.remove(cf.fcache) }
+//          case A_USELOCAL => { remote.putfile(cf.flocal) ; Cache.addupdate(cf.flocal) }
+//          case A_USEREMOTE => { remote.getfile(cf.fremote) ; if (cf.fremote!=cf.fcache) Cache.addupdate(cf.fremote) }
+//          case A_NOTHING => { if (cf.fcache==null) Cache.addupdate(cf.fremote) }
+//          case A_CACHEONLY => { Cache.remove(cf.fcache) }
           case _ => removecf = false
         }
       } catch {
@@ -230,10 +250,6 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     }
     view.act ! 'done
     sw.printTime("TTTTTTTTT synchronized in ")
-    runUIwait { Main.Status.status.value = "save cache..." }
-    StopWatch.timed("TTTTTTTTT saved cache in ") {
-      Cache.saveCache(server.id)
-    }
     runUIwait { Main.Status.status.value = "ready" }
   }
   def finish() {

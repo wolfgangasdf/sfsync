@@ -244,9 +244,9 @@ class BaseEntity extends KeyedEntity[Long] {
 class SyncEntry(var path: String, var action: Int,
                 var lTime: Long, var lSize: Long,
                 var rTime: Long, var rSize: Long,
-                var cTime: Long, var cSize: Long
+                var cTime: Long, var cSize: Long,
+                var relevant: Boolean
                  ) extends BaseEntity with Optimistic {
-  var relevant: Boolean = false
   def status = new StringProperty(this, "status", CF.amap(action))
   def dformat = new java.text.SimpleDateFormat("dd-MM-yyyy HH:mm:ss")
   def detailsLocal = new StringProperty(this, "detailsl",
@@ -273,30 +273,46 @@ object CacheDB {
 
   var connected = false
 
-  var session: Session = null
-  def getSession = {
-    if (session == null) if (connected) session = SessionFactory.newSession
-    session
+  def getSession: Session = {
+    if (connected) {
+      val session = sessionFactory.newSession
+      println("getSessionC: new session " + session + " in thread " + Thread.currentThread().getId)
+      session
+    } else null
   }
   var sizeCache: Int = -1
   var seCache = new mutable.HashMap[Int,SyncEntry]()
   def invalidateCache() {
-//    if (session != null) session.close
-//    session = null
     sizeCache = -1
     seCache.clear()
   }
 
   var syncEntries: com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry] = null
+  var seSession: Session = null
+  def getSESession = {
+    if (connected) {
+      if (seSession == null) seSession = sessionFactory.newSession
+      println("getSESessionC: new SEsession " + seSession + " in thread " + Thread.currentThread().getId)
+    }
+    seSession
+  }
 
-  def updateSyncEntries() {
+  // TODO: probably the whole syncentry-stuff should go into own factory class
+  def updateSyncEntries(onlyRelevant: Boolean) {
+    if (seSession != null) {
+      seSession.close
+      seSession = null
+    }
     syncEntries =  new com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry]() {
       def get(p1: Int): SyncEntry = {
         if (!seCache.contains(p1)) {
           if (seCache.size > 1000) seCache.clear()
           println("get p1=" + p1)
-          using(getSession) {
-            val res = MySchema.files.where(se => se.relevant === true).page(p1,20) // TODO filtering etc....
+          using(getSESession) {
+            val res = if (onlyRelevant)
+              MySchema.files.where(se => se.relevant === true).page(p1,20) // TODO filtering etc....
+            else
+              from(MySchema.files)(s=>select(s))
             var iii = p1
             res.foreach(se => {
               if (!seCache.contains(iii)) seCache.put(iii,se)
@@ -308,10 +324,10 @@ object CacheDB {
       }
       def size(): Int = {
         if (sizeCache == -1) {
-          println("get size!")
           if (getSession != null)
-            using(getSession) { sizeCache = MySchema.files.size }
+            using(getSESession) { sizeCache = MySchema.files.where(se => se.relevant === true).size }
           else sizeCache = 0
+          println("get size=" + sizeCache)
         }
         sizeCache
       }
@@ -322,108 +338,38 @@ object CacheDB {
 
   def dbpath(name: String) = DBSettings.settpath + "/cache/" + name
 
+  val sessionFactory = SessionFactory
+
   def cleanup() {
-    if (session != null) session.close
+    if (seSession != null) {
+      seSession.close
+      seSession = null
+    }
     invalidateCache()
   }
   def connectDB(name: String) {
     cleanup()
+    connected = false
+
     println("connecting to database name=" + name)
     Class.forName("org.h2.Driver")
     val dbexists = (Files.exists(Paths.get(dbpath(name) + ".h2.db") ))
     val databaseConnection = s"jdbc:h2:" + dbpath(name) + (if (dbexists) ";create=true" else "")
-    SessionFactory.concreteFactory = Some(() => {
+    sessionFactory.concreteFactory = Some(() => {
       Session.create(java.sql.DriverManager.getConnection(databaseConnection), new H2Adapter)
     })
     connected = true
-    using(getSession) {
+    transaction {
       if (!dbexists) {
         MySchema.create
-        println("Created the schema")
+        println("  Created the schema")
         // TODO: testing
-        for (i <- 1 until 100) {
-          MySchema.files.insert(new SyncEntry("asdf" + i,-1, 1,i,11,12,false))
-        }
+//        for (i <- 1 until 100) {
+//          MySchema.files.insert(new SyncEntry("asdf" + i,-1, 1,i,11,12,20,-1,true))
+//        }
       }
     }
-    updateSyncEntries()
-    println("connected to database name=" + name)
+    updateSyncEntries(false)
   }
 
-}
-
-object Cache {
-  import collection.mutable.ListBuffer
-  var cache: ListBuffer[VirtualFile] = null
-  def getCacheFilename(name: String) = DBSettings.settdbpath + "-cache" + name + ".txt"
-  def loadCache(name: String) : ListBuffer[VirtualFile] = {
-    cache = new ListBuffer[VirtualFile]()
-    val fff = Paths.get(getCacheFilename(name))
-    if (!Files.exists(fff)) {
-      println("create cache file!")
-      Files.createFile(fff)
-    }
-    val lines = Files.readAllLines(fff, filecharset).toArray
-    lines.foreach(lll => {
-      var sett = splitsetting(lll.toString)
-      val vf = new VirtualFile
-      vf.modTime = sett(0).toLong
-      sett = splitsetting(sett(1))
-      vf.isDir = sett(0).toInt
-      sett = splitsetting(sett(1))
-      vf.size = sett(0).toLong
-      vf.path = sett(1) // this is safe, also commas in filename ok
-      cache += vf
-    })
-    println("loaded cache file!")
-    cache
-  }
-  def remove(vf: VirtualFile) {
-    if (cache.contains(vf)) {
-      cache -= vf
-    } else {
-      println(" error: cache doesn't contain " + vf)
-    }
-  }
-
-  def addupdate(vf: VirtualFile) {
-    val vfs = cache.filter(p => p.path == vf.path)
-    cache --= vfs
-    cache += vf
-  }
-
-  def saveCache(name: String) {
-    val fff = new java.io.File(getCacheFilename(name))
-    if (fff.exists) fff.delete()
-    val out = new java.io.BufferedWriter(new java.io.FileWriter(fff),1000000)
-    for (cf <- cache) {
-      out.write("" + cf.modTime + "," + cf.isDir + "," + cf.size + "," + cf.path + "\n")
-    }
-    out.close()
-    println("***** cache saved!")
-    // forget scalax.io.file: much too slow
-  }
-
-  def clearCache(name: String) {
-    val fff = Paths.get(getCacheFilename(name))
-    if (Files.exists(fff)) {
-      Files.delete(fff)
-    }
-  }
-
-}
-
-object TestStoreMakeMany extends App {
-  val basefs = "/Unencrypted_Data/tempnospotlight/teststorelargelocal"
-  val basef = Paths.get(basefs)
-  Files.exists(basef) && sys.error("basef exists")
-  Files.createDirectory(basef)
-  for(i <- 1 to 200) {
-    val sfs = basefs + "/" + "folder" + i
-    Files.createDirectory(Paths.get(sfs))
-    for (j<- 1 to 100) {
-      Files.createFile(Paths.get(sfs, "file" + i + "-" + j))
-    }
-  }
-  println("done")
 }

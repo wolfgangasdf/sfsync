@@ -13,16 +13,16 @@ object TestListRecSpeed1java extends App {
     def parseContent(folder: String) : Unit = {
       val files = (new java.io.File(folder)).listFiles()
       for (ff <- files) {
-        val vf = new VirtualFile(ff.getPath, ff.lastModified(), ff.length, if (ff.isDirectory) 1 else 0)
-        if (!vf.fileName.matches(filterregexp)) {
-          println("file: " + vf.path)
-          list += vf
-          numfiles += 1
-          //          if (receiver != null) receiver ! vf
-          if (ff.isDirectory) {
-            parseContent(ff.getPath)
-          }
-        }
+//        val vf = new VirtualFile(ff.getPath, ff.lastModified(), ff.length, if (ff.isDirectory) 1 else 0)
+//        if (!vf.fileName.matches(filterregexp)) {
+//          println("file: " + vf.path)
+//          list += vf
+//          numfiles += 1
+//          //          if (receiver != null) receiver ! vf
+//          if (ff.isDirectory) {
+//            parseContent(ff.getPath)
+//          }
+//        }
       }
     }
     parseContent(subfolder)
@@ -38,7 +38,7 @@ object TestListRecSpeed1java extends App {
 object TestListRecSpeed2 extends App {
   def listrec() = {
     for (cc <- 1 to 20000) {
-      val vf = new VirtualFile("",cc,0,0) // 0.19s
+//      val vf = new VirtualFile("",cc,0,0) // 0.19s
       //      val vf = "asdf" // 0.134s
     }
   }
@@ -52,13 +52,13 @@ object TestFindSpeed extends App {
   val list = new ListBuffer[VirtualFile]()
   var comparedfiles = scalafx.collections.ObservableBuffer[ComparedFile]()
   for (ii <- 1 to 20000) {
-    val vf = new VirtualFile("asdf"+ii, 0,ii,0)
+//    val vf = new VirtualFile("asdf"+ii, 0,ii,0)
   }
   StopWatch.timed("find in ") {
     for (ii <- 1 to 20000) {
       val asdf = list.find(x => x.path == "asdf"+ii).getOrElse(null)
-      val cf = new ComparedFile(asdf, new VirtualFile("asdf"+ii, 0,ii,0), new VirtualFile("asgdf"+ii, 0,ii,0))
-      comparedfiles += cf
+//      val cf = new ComparedFile(asdf, new VirtualFile("asdf"+ii, 0,ii,0), new VirtualFile("asgdf"+ii, 0,ii,0))
+//      comparedfiles += cf
     }
   }
 

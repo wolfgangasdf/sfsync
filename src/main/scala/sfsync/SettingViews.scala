@@ -166,6 +166,7 @@ abstract class ServerView(val config: Config) extends BorderPane {
   def onServerChange()
   var server = new Server
   def serverChanged() {
+    println("serverChanged!")
     val idx = lvs.lvs.getSelectionModel.getSelectedIndices.head
     if (idx > -1) {
       server=config.servers(idx)
@@ -197,7 +198,10 @@ abstract class ServerView(val config: Config) extends BorderPane {
       canDropFile = true
     ) { tf.text <==> server.localFolder }
     val cbSkipEqualFiles = new CheckBox("Skip equal files") { selected <==> server.skipEqualFiles }
-    var bClearCache = new Button("Clear cache") { onAction = (ae: ActionEvent) => { Cache.clearCache(tfID.tf.text.value)} }
+    var bClearCache = new Button("Clear cache") { onAction = (ae: ActionEvent) => {
+      // TODO Cache.clearCache(tfID.tf.text.value)
+    }
+    }
     val clist = List(tfLocalFolder,tfFilter,tfID,cbSkipEqualFiles,bClearCache)
     tfLocalFolder.prefWidth <== this.prefWidth
     tfFilter.prefWidth <== this.prefWidth
@@ -210,7 +214,7 @@ abstract class ServerView(val config: Config) extends BorderPane {
   var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer, () => serverChanged()) {
     override def beforeDelete(what: Server) = {
       if (Dialog.showYesNo("Really delete server " + what)) {
-        Cache.clearCache(what.id)
+        // TODO Cache.clearCache(what.id)
         true
       } else false
     }

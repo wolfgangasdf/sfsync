@@ -89,6 +89,11 @@ class MainView(filesView: FilesView) extends Tab {
   var firstStart = true
   var serverView = new ServerView(Store.config) {
     def onServerChange() {
+      println("onServerChange!")
+      // connect to database
+      CacheDB.connectDB(server.id)
+      // update filesview
+      filesView.setListItems(CacheDB.syncEntries)
       val tmpdp =  ArrayBuffer(sp.dividerPositions: _*)
       protocolView = new ProtocolView(server)
       subfolderView = new SubFolderView(server)
@@ -102,10 +107,6 @@ class MainView(filesView: FilesView) extends Tab {
       }
       sp.dividerPositions = tmpdp: _*
 
-      // connect to database
-      CacheDB.connectDB(server.id)
-      // update filesview
-      filesView.setListItems(CacheDB.syncEntries)
     }
   }
   var protocolView : ProtocolView = null
@@ -218,8 +219,8 @@ object Main extends JFXApp with Logging {
       },
       new Button("test2: updatelistview") {
         onAction = (ae: ActionEvent) => {
-          CacheDB.invalidateCache()
-          CacheDB.updateSyncEntries()
+//          CacheDB.invalidateCache()
+//          CacheDB.updateSyncEntries()
           filesView.updateSyncEntries()
         }
       }
