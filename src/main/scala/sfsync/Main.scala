@@ -307,6 +307,7 @@ object Main extends JFXApp with Logging {
       } catch {
         case e: Exception => {
           runUIwait(Main.Dialog.showMessage("Exception: " + e + "\n" + e.getMessage))
+          e.printStackTrace()
           runUI {
             doCleanup()
           }

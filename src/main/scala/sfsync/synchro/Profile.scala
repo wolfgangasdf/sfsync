@@ -86,17 +86,16 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     transaction {
       val q = from(MySchema.files)(s=>select(s)) //.where(se => se.path.regex("/" + sf + "/.*"))
       MySchema.files.update(q.map(a =>{
-        println("before: " + a)
         var tmp = cacheall
         if (!cacheall) for (sf <- subfolder.subfolders) if (a.path.startsWith("/" + sf + "/")) tmp = true
         if (tmp) {
-          a.lSize = -1
-          a.rSize = -1
+          a.action = A_UNKNOWN
+          a.lSize = -1; a.lTime = 0
+          a.rSize = -1; a.rTime = 0
           a.relevant = true
         } else {
           a.relevant = false
         }
-        println("after : " + a)
         a
       }))
     }
@@ -124,13 +123,15 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
             val q = MySchema.files.where(se => (se.path === vf.path))
             if (q.size == 0) { // new entry
               val senew = new SyncEntry(vf.path, A_UNCHECKED, if (islocal) vf.modTime else 0, if (islocal) vf.size else -1,
-                if (!islocal) vf.modTime else 0, if (!islocal) vf.size else 0,0,-1,true)
+                if (!islocal) vf.modTime else 0, if (!islocal) vf.size else -1,0,-1,true)
               MySchema.files.insert(senew)
+              //println("added new " + senew)
             } else {
               val se = q.single
               if (islocal) { se.lTime = vf.modTime ; se.lSize = vf.size }
               else         { se.rTime = vf.modTime ; se.rSize = vf.size }
               MySchema.files.update(se)
+              //println("updated   " + se)
             }
           }
         }
@@ -141,10 +142,11 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
           }
         }
         case 'replyWhenDone => if (finished==0) {
+          receiveSession.close
           sender ! 'done
           println("exit actor receiveList")
 //          context.stop(self)
-        }
+        } else sender ! 'notyet
       }
     })
 
@@ -153,7 +155,6 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     future {
       for (sf <- subfolder.subfolders) local.listrec(sf, server.filterRegexp, receiveList)
     }
-//    runUIwait { Main.Status.local.value = locall.length.toString }
 
     runUIwait { Main.Status.status.value = "list remote files..." }
     println("***********************list remote")
@@ -164,18 +165,17 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     implicit val timeout = Timeout(36500 days)
     println("*********************** wait until all received...")
     // TODO this does not work
-    Await.result(receiveList ? 'replyWhenDone, Duration.Inf)
+    while (Await.result(receiveList ? 'replyWhenDone, Duration.Inf) != 'done) { Thread.sleep(100) }
     println("*********************** list finished")
 
     // init with best guess
     println("*********************** ini with best guess")
-    using(receiveSession) {
+    transaction {
       val q = MySchema.files.where(se => se.relevant === true)
-      println("  have size=" + q.size)
+      //println("  have size=" + q.size)
       MySchema.files.update(q.map(se => se.iniAction(CacheDB.isNewDB)))
     }
 
-    receiveSession.close
 
     println("*********************** compare: finish up")
     runUIwait {

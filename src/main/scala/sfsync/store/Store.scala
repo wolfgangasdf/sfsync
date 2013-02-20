@@ -283,7 +283,7 @@ class SyncEntry(var path: String, var action: Int,
     }
     //  println("CF: " + toString)
     assert(action != -9)
-    println("iniaction: " + this.toString)
+    //println("iniaction: " + this.toString)
     this
   }
   override def toString = {s"[path=$path action=$action lTime=$lTime lSize=$lSize rTime=$rTime rSize=$rSize cTime=$cTime cSize=$cSize rel=$relevant"}
