@@ -18,6 +18,8 @@ import scala.concurrent.duration._
 import scala.language.{reflectiveCalls, postfixOps}
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.squeryl.Session
+import org.squeryl.PrimitiveTypeMode._
+//import sfsync.synchro.addFile
 
 class TransferProtocol (
   var uri: String,
@@ -36,44 +38,7 @@ object Actions {
   val A_CACHEONLY = 6
   val A_RMBOTH = 7
 }
-case object ComparedFile
-class ComparedFile(val flocal: VirtualFile, val fremote: VirtualFile, val fcache: VirtualFile, val newcache: Boolean = false) {
-  var action: Int = -9
-  def isSynced = if (flocal != null) flocal == fremote else false
 
-  override def toString: String = "A=" + action + " local:" + flocal + " remote:" + fremote + " cache:" + fcache
-  override def hashCode = action.hashCode() + (if (flocal!=null) flocal.hashCode else 0)
-    + (if (fremote!=null) fremote.hashCode else 0) + (if (fcache!=null) fcache.hashCode else 0)
-  override def equals(that: Any): Boolean = {
-    that.isInstanceOf[ComparedFile] && (this.hashCode() == that.asInstanceOf[ComparedFile].hashCode())
-  }
-
-  // init with best guess
-  if (flocal == null && fremote == null && fcache != null) { // cache only?
-    action = A_CACHEONLY
-  } else  if (flocal == fremote) { // just equal?
-    action = A_NOTHING
-  } else if (fcache == null) { // not in remote cache
-    if (newcache) action = A_UNKNOWN // not equal and not in cache. unknown!
-    else {
-      if (flocal != null && fremote == null) action = A_USELOCAL // new local (cache not new)
-      else if (flocal == null && fremote != null) action = A_USEREMOTE // new remote (cache not new)
-      else action = A_UNKNOWN // not in cache but both present
-    }
-  } else { // in cache, newcache impossible
-    if (flocal == fcache && fremote == null) action = A_RMLOCAL // remote was deleted (local still in cache)
-    else if (flocal == null && fremote == fcache) action = A_RMREMOTE // local was deleted (remote still in cache)
-    // both exist, as does fcache
-    else if (flocal == fcache && fremote.modTime>flocal.modTime) action = A_USEREMOTE // flocal unchanged, remote newer
-    else if (fremote == fcache && flocal.modTime>fremote.modTime) action = A_USELOCAL // fremote unchanged, local newer
-    else action = A_UNKNOWN // both changed and all other strange things that might occur
-  }
-//  println("CF: " + toString)
-  assert(action != -9)
-}
-
-case class CompareFinished()
-case class RemoveCF(cf: ComparedFile)
 case class addFile(vf: VirtualFile, islocal: Boolean)
 
 class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: SubFolder) {
@@ -116,14 +81,14 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     println("resetting table...")
     import org.squeryl.PrimitiveTypeMode.transaction
     import org.squeryl.PrimitiveTypeMode._
-    var tmp = false
+    var cacheall = false
+    for (sf <- subfolder.subfolders) if (sf == "") cacheall = true
     transaction {
-      // get all:
-      // val q = from(MySchema.files)(s=>select(s))
       val q = from(MySchema.files)(s=>select(s)) //.where(se => se.path.regex("/" + sf + "/.*"))
       MySchema.files.update(q.map(a =>{
-        tmp = false
-        for (sf <- subfolder.subfolders)if (a.path.startsWith("/" + sf + "/")) tmp = true
+        println("before: " + a)
+        var tmp = cacheall
+        if (!cacheall) for (sf <- subfolder.subfolders) if (a.path.startsWith("/" + sf + "/")) tmp = true
         if (tmp) {
           a.lSize = -1
           a.rSize = -1
@@ -131,10 +96,11 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
         } else {
           a.relevant = false
         }
+        println("after : " + a)
         a
       }))
     }
-    runUI { view.updateSyncEntries() }
+    runUIwait { view.updateSyncEntries() }
     var receiveSession: Session = null
     // the receive actor
     val sw = new StopWatch // for UI update
@@ -177,7 +143,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
         case 'replyWhenDone => if (finished==0) {
           sender ! 'done
           println("exit actor receiveList")
-          context.stop(self)
+//          context.stop(self)
         }
       }
     })
@@ -197,58 +163,72 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     }
     implicit val timeout = Timeout(36500 days)
     println("*********************** wait until all received...")
+    // TODO this does not work
     Await.result(receiveList ? 'replyWhenDone, Duration.Inf)
     println("*********************** list finished")
 
+    // init with best guess
+    println("*********************** ini with best guess")
+    using(receiveSession) {
+      val q = MySchema.files.where(se => se.relevant === true)
+      println("  have size=" + q.size)
+      MySchema.files.update(q.map(se => se.iniAction(CacheDB.isNewDB)))
+    }
+
     receiveSession.close
 
+    println("*********************** compare: finish up")
     runUIwait {
       view.updateSyncEntries()
       Main.Status.status.value = "ready"
+      // TODO somehow tell UI that compare finished and syncbutton could be enabled
     }
-    view.act ! CompareFinished // send finished!
   }
 
-  def synchronize(cfs: List[ComparedFile]) {
+  def synchronize() {
     println("synchronize...")
     runUIwait { Main.Status.status.value = "synchronize..." }
     val sw = new StopWatch
     val swd = new StopWatch
-    var iii = cfs.length
-    for (cf <- cfs) {
-      iii -= 1
-      var showit = false
-      if (cf.action == A_USELOCAL) { if (cf.flocal.size>10000) showit = true }
-      if (cf.action == A_USEREMOTE) { if (cf.fremote.size>10000) showit = true }
-      if (swd.getTime > 0.1 || showit) {
-        val s = if (cf.flocal != null) cf.flocal.path else if (cf.fremote != null) cf.fremote.path else ""
-        runUIwait { // give UI time
-          Main.Status.status.value = "synchronize(" + iii + "): " + s
+    var iii = 0
+    transaction {
+      val q = MySchema.files.where(se => se.relevant === true)
+      MySchema.files.update(q.map(se => {
+        iii += 1
+
+        var showit = false
+        if (se.action == A_USELOCAL) { if (se.lSize>10000) showit = true }
+        if (se.action == A_USEREMOTE) { if (se.rSize>10000) showit = true }
+        if (swd.getTime > 0.1 || showit) {
+          runUIwait { // give UI time
+            Main.Status.status.value = "synchronize(" + iii + "): " + se.path
+          }
+          swd.restart()
         }
-        swd.restart()
-      }
-      var removecf = true
-      try {
-        cf.action match {
-            // TODO
-//          case A_MERGE => sys.error("merge not implemented yet!")
-//          case A_RMLOCAL|A_RMBOTH => { local.deletefile(cf.flocal) ; if (cf.fcache!=null) Cache.remove(cf.fcache) }
-//          case A_RMREMOTE|A_RMBOTH => { remote.deletefile(cf.fremote) ; if (cf.fcache!=null) Cache.remove(cf.fcache) }
-//          case A_USELOCAL => { remote.putfile(cf.flocal) ; Cache.addupdate(cf.flocal) }
-//          case A_USEREMOTE => { remote.getfile(cf.fremote) ; if (cf.fremote!=cf.fcache) Cache.addupdate(cf.fremote) }
-//          case A_NOTHING => { if (cf.fcache==null) Cache.addupdate(cf.fremote) }
-//          case A_CACHEONLY => { Cache.remove(cf.fcache) }
-          case _ => removecf = false
+        var removecf = true
+        try {
+          se.action match {
+            case A_MERGE => throw new Exception("merge not implemented yet!")
+            case A_RMLOCAL|A_RMBOTH => { local.deletefile(se.path,se.lTime) ; se.cSize = -1; se.cTime = 0 }
+            case A_RMREMOTE|A_RMBOTH => { remote.deletefile(se.path, se.rTime) ; se.cSize = -1; se.cTime = 0 }
+            case A_USELOCAL => { remote.putfile(se.path, se.lTime) ; se.rTime=se.lTime; se.rSize=se.lTime; se.cSize = se.lSize; se.cTime = se.lTime }
+            case A_USEREMOTE => { remote.getfile(se.path, se.rTime) ; se.lTime=se.rTime; se.lSize=se.rTime; se.cSize = se.rSize; se.cTime = se.rTime }
+            case A_NOTHING => { se.cSize = se.rSize; se.cTime = se.rTime }
+            case A_CACHEONLY => { se.cSize = -1; se.cTime=0 }
+            case _ => removecf = false
+          }
+        } catch {
+          case e: Exception => {
+            println("exception:" + e)
+            throw new Exception("Exception while synchronizing: \n" + e)
+          }
         }
-      } catch {
-        case e: Exception => {
-          println("exception:" + e)
-          throw new Exception("Exception while synchronizing: \n" + e)
-        }
-      }
-      if (removecf) view.act ! RemoveCF(cf)
+        se
+      }))
     }
-    view.act ! 'done
+
+    CacheDB.isNewDB = false
+
     sw.printTime("TTTTTTTTT synchronized in ")
     runUIwait { Main.Status.status.value = "ready" }
   }

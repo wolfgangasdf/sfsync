@@ -20,15 +20,18 @@ import sfsync.Helpers._
 
 class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
 
-  def deletefile(what: VirtualFile) {
-    Files.delete(Paths.get(remoteBasePath + "/" + what.path))
+  def deletefile(what: String, mtime: Long) {
+    val (cp, isdir) = checkIsDir(what)
+    Files.delete(Paths.get(remoteBasePath + "/" + cp))
 //    println("deleted " + remoteBasePath + what.path)
   }
-  def putfile(from: VirtualFile) {
-    Files.copy(Paths.get(localBasePath + "/" + from.path), Paths.get(remoteBasePath + "/" + from.path), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES)
+  def putfile(from: String, mtime: Long) {
+    val (cp, isdir) = checkIsDir(from)
+    Files.copy(Paths.get(localBasePath + "/" + cp), Paths.get(remoteBasePath + "/" + cp), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES)
   }
-  def getfile(from: VirtualFile) {
-    Files.copy(Paths.get(remoteBasePath + "/" + from.path), Paths.get(localBasePath + "/" + from.path), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES)
+  def getfile(from: String, mtime: Long) {
+    val (cp, isdir) = checkIsDir(from)
+    Files.copy(Paths.get(remoteBasePath + "/" + cp), Paths.get(localBasePath + "/" + cp), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES)
   }
   // include the subfolder but root "/" is not allowed!
   def listrec(subfolder: String, filterregexp: String, receiver: ActorRef) {
@@ -101,28 +104,31 @@ object MyURI {
 
 
 class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection(isLocal) {
-  def deletefile(what: VirtualFile) {
-    if (what.isDir)
-      sftp.rmdir(remoteBasePath + "/" + what.path)
+  def deletefile(what: String, mtime: Long) {
+    val (cp, isdir) = checkIsDir(what)
+    if (isdir)
+      sftp.rmdir(remoteBasePath + "/" + cp)
     else
-      sftp.rm(remoteBasePath + "/" + what.path)
+      sftp.rm(remoteBasePath + "/" + cp)
   }
-  def putfile(from: VirtualFile) {
-    val rp = remoteBasePath + "/" + from.path
-    if (from.isDir)
+  def putfile(from: String, mtime: Long) {
+    val (cp, isdir) = checkIsDir(from)
+    val rp = remoteBasePath + "/" + cp
+    if (isdir)
       sftp.mkdir(rp)
     else
-      sftp.put(localBasePath + "/" + from.path, rp)
-    sftp.setMtime(rp, (from.modTime/1000).toInt)
+      sftp.put(localBasePath + "/" + cp, rp)
+    sftp.setMtime(rp, (mtime).toInt)
   }
-  def getfile(from: VirtualFile) {
-    val lp = localBasePath + "/" + from.path
-    if (from.isDir) {
+  def getfile(from: String, mtime: Long) {
+    val (cp, isdir) = checkIsDir(from)
+    val lp = localBasePath + "/" + cp
+    if (isdir) {
       Files.createDirectory(Paths.get(lp))
     } else {
-      sftp.get(remoteBasePath + "/" + from.path, lp)
+      sftp.get(remoteBasePath + "/" + cp, lp)
     }
-    Files.setLastModifiedTime(Paths.get(lp), FileTime.fromMillis(from.modTime))
+    Files.setLastModifiedTime(Paths.get(lp), FileTime.fromMillis(mtime))
   }
 
   def sftpexists(sp: String): ChannelSftp#LsEntry = {
@@ -271,11 +277,16 @@ abstract class GeneralConnection(isLocal: Boolean) {
   var localBasePath: String = ""
   var remoteBasePath: String = ""
   var filterregex: Regex = new Regex(""".*""")
-  def getfile(from: VirtualFile)
-  def putfile(from: VirtualFile)
-  def deletefile(what: VirtualFile)
+  def getfile(from: String, mtime: Long)
+  def putfile(from: String, mtime: Long)
+  def deletefile(what: String, mtime: Long)
   def listrec(where: String, filterregexp: String, receiver: ActorRef)
   def finish()
+  def checkIsDir(path: String) = {
+    val isdir = path.endsWith("/")
+    val resp = if (isdir) path.substring(0, path.length-2) else path
+    (resp, isdir)
+  }
 }
 
 // path below baspath with a leading "/"

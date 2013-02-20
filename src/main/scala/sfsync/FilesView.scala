@@ -222,36 +222,6 @@ class FilesView() extends Tab {
 //    runUI { updateSorting() }
   }
 
-  // receive compared files!
-  val act = actor(Main.system)(new Act {
-    var doit = true
-    // TODO: update GUI?
-//    become {
-//      case cf: ComparedFile => {
-//        runUI {
-//          comparedfiles.add(cf)
-//          if (getFilter(cf)) compfiles.add(new CompFile(cf))
-//        }
-//      }
-//      case CompareFinished => {
-//        runUI { updateSorting() }
-//        runUI { updateSyncButton() }
-//        runUI { Main.Status.status.value = "ready" }
-//      }
-//      case RemoveCF(cf: ComparedFile) => { // called by synchronize
-//        runUI {
-//          comparedfiles.remove(cf)
-//          compfiles.removeAll(compfiles.filter(p => p.cf == cf))
-//        }
-//      }
-//      case 'done => { // this should be called by myself only
-//        println("done: sender = " + sender.toString)
-//        btSync.setDisable(true)
-//        println("exiting actor cw")
-//        context.stop(self)
-//      }
-//    }
-  })
 
   // init
   val vb = new VBox {
