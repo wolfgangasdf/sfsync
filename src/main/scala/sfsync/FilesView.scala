@@ -13,16 +13,15 @@ import javafx.scene. {control => jfxsc}
 
 import sfsync.synchro._
 import sfsync.synchro.Actions._
-import store.{CacheDB, SyncEntry, Store}
+import store.{MySchema, CacheDB, SyncEntry, Store}
 import Helpers._
-import sfsync.synchro.CompareFinished
 
 import akka.actor.ActorDSL._
 import javafx.util.Callback
 import scala.concurrent.future
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.{implicitConversions, reflectiveCalls}
-import scalafx.scene.Scene
+import scalafx.scene.{Node, Scene}
 
 object CF {
   val amap = Map(A_MERGE -> "M", A_NOTHING -> "==", A_RMLOCAL -> "<-(rm)", A_RMREMOTE -> "(rm)->",
@@ -113,12 +112,16 @@ class FilesView() extends Tab {
   }
 
   def updateSyncEntries() {
+//    tv.lookupAll(".scroll-bar").toArray.foreach(obj => {
+//      val sb = obj.asInstanceOf[jfxsc.Scrollbar]
+//    })
     // javafx bug: http://javafx-jira.kenai.com/browse/RT-22599
     CacheDB.invalidateCache()
     CacheDB.updateSyncEntries(true)
     tv.setItems(null)
     tv.layout()
     setListItems(CacheDB.syncEntries)
+    // TODO: save position & selection in list!!!
   }
 
   def updateSorting() {
@@ -128,7 +131,7 @@ class FilesView() extends Tab {
   val btSync = new Button("Synchronize") {
     onAction = (ae: ActionEvent) => {
       future {
-// TODO       profile.synchronize(comparedfiles.toList)
+        profile.synchronize()
       }
       unit()
     }
@@ -140,8 +143,9 @@ class FilesView() extends Tab {
       onAction = (ae: ActionEvent) => {
         for (idx <- tv.selectionModel.get().getSelectedItems) {
           idx.action = action
-          idx.changeAction()
+          CacheDB.updateSE(idx)
         }
+        updateSyncEntries()
         updateSyncButton()
       }
     }
@@ -157,38 +161,30 @@ class FilesView() extends Tab {
 
   def updateSyncButton() {
     println("update sync button")
-    // TODO
-//    var canSync = true
-//    for (cf <- comparedfiles) {
-//      if (cf.action == A_UNKNOWN) canSync = false
-//    }
-//    btSync.setDisable(!canSync)
+    btSync.setDisable(CacheDB.canSync)
   }
 
   def updateActionButtons() {
     println("update action buttons")
     // TODO
-//    var (allLocalPresenet, oneLocalPresent, allRemotePresent, oneRemotePresent) = (true, false, true, false)
-//    var allEqual = true
-//    var legal = true
-//    var existCheck: (Boolean,Boolean) = null // allow only changing of items where existence is equal
-//    for (idx <- tv.selectionModel.get().getSelectedItems) {
-//      val cf = idx.cf
-//      if (existCheck == null)
-//        existCheck = (cf.flocal!=null,cf.fremote!=null)
-//      else if (existCheck != (cf.flocal!=null,cf.fremote!=null)) legal = false
-//      if (cf.flocal == null) allLocalPresenet = false else oneLocalPresent = true
-//      if (cf.fremote == null) allRemotePresent = false  else oneRemotePresent = true
-//      if (!cf.isSynced) allEqual = false
-//    }
-//    List(btRmLocal, btUseLocal, btMerge, btNothing, btRmBoth, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
-//    btNothing.setDisable(false) // this only updates cache with remote file
-//    if (legal) {
-//      if (allEqual) btRmBoth.setDisable(false)
-//      else if ((allLocalPresenet && allRemotePresent)) List(btUseLocal,btUseRemote,btMerge,btRmBoth).foreach(bb=>bb.setDisable(false))
-//      else if (allLocalPresenet) List(btUseLocal,btRmLocal).foreach(bb => bb.setDisable(false))
-//      else if (allRemotePresent) List(btUseRemote,btRmRemote).foreach(bb => bb.setDisable(false))
-//    }
+    var (allLocalPresenet, oneLocalPresent, allRemotePresent, oneRemotePresent) = (true, false, true, false)
+    var allEqual = true
+    var legal = true
+    var existCheck: (Boolean,Boolean) = null // (localexists, remoteexists)
+    for (se <- tv.selectionModel.get().getSelectedItems) {
+      if (existCheck == null)
+        existCheck = (se.lSize != -1, se.rSize != -1)
+      else if (existCheck != (se.lSize != -1, se.rSize != -1)) legal = false
+      if (!se.isEqual) allEqual = false
+    }
+    List(btRmLocal, btUseLocal, btMerge, btNothing, btRmBoth, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
+    btNothing.setDisable(false) // this only updates cache with remote file
+    if (legal) {
+      if (allEqual) btRmBoth.setDisable(false)
+      else if ((allLocalPresenet && allRemotePresent)) List(btUseLocal,btUseRemote,btMerge,btRmBoth).foreach(bb=>bb.setDisable(false))
+      else if (allLocalPresenet) List(btUseLocal,btRmLocal).foreach(bb => bb.setDisable(false))
+      else if (allRemotePresent) List(btUseRemote,btRmRemote).foreach(bb => bb.setDisable(false))
+    }
   }
 
   var filterList = new sfxc.ObservableBuffer[String]()
@@ -207,11 +203,11 @@ class FilesView() extends Tab {
 
   var bv = new HBox { content = List(cFilter,btSync, btRmLocal, btUseLocal, btMerge, btNothing, btRmBoth, btUseRemote, btRmRemote) }
 
-  def getFilter(cf: ComparedFile) : Boolean = {
+  def getFilter(se: SyncEntry) : Boolean = {
     cFilter.getValue match {
       case F.all => true
-      case F.changes => cf.action != A_NOTHING || cf.action == A_UNKNOWN
-      case F.problems => cf.action == A_UNKNOWN
+      case F.changes => se.action != A_NOTHING || se.action == A_UNKNOWN
+      case F.problems => se.action == A_UNKNOWN
       case _ => true
     }
   }

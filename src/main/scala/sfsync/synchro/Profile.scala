@@ -209,8 +209,8 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
         try {
           se.action match {
             case A_MERGE => throw new Exception("merge not implemented yet!")
-            case A_RMLOCAL|A_RMBOTH => { local.deletefile(se.path,se.lTime) ; se.cSize = -1; se.cTime = 0 }
-            case A_RMREMOTE|A_RMBOTH => { remote.deletefile(se.path, se.rTime) ; se.cSize = -1; se.cTime = 0 }
+            case A_RMLOCAL|A_RMBOTH => { local.deletefile(se.path,se.lTime) ; se.delete = true }
+            case A_RMREMOTE|A_RMBOTH => { remote.deletefile(se.path, se.rTime) ; se.delete = true }
             case A_USELOCAL => { remote.putfile(se.path, se.lTime) ; se.rTime=se.lTime; se.rSize=se.lTime; se.cSize = se.lSize; se.cTime = se.lTime }
             case A_USEREMOTE => { remote.getfile(se.path, se.rTime) ; se.lTime=se.rTime; se.lSize=se.rTime; se.cSize = se.rSize; se.cTime = se.rTime }
             case A_NOTHING => { se.cSize = se.rSize; se.cTime = se.rTime }
@@ -224,7 +224,9 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
           }
         }
         se
-      }))
+      })) // update
+      // update cache: remove removed files
+      MySchema.files.deleteWhere(se => se.delete === true)
     }
 
     CacheDB.isNewDB = false

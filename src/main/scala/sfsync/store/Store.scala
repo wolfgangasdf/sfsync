@@ -14,6 +14,8 @@ import collection.mutable
 import scala.Some
 import org.squeryl.{Schema, Optimistic, KeyedEntity, Session, SessionFactory}
 import javafx.collections.ListChangeListener.Change
+import sfsync.synchro.Actions
+import Actions._
 
 object DBSettings {
   def settpath = {
@@ -245,7 +247,8 @@ class SyncEntry(var path: String, var action: Int,
                 var lTime: Long, var lSize: Long,
                 var rTime: Long, var rSize: Long,
                 var cTime: Long, var cSize: Long,
-                var relevant: Boolean
+                var relevant: Boolean,
+                var delete: Boolean = false
                  ) extends BaseEntity with Optimistic {
   def status = new StringProperty(this, "status", CF.amap(action))
   def dformat = new java.text.SimpleDateFormat("dd-MM-yyyy HH:mm:ss")
@@ -254,6 +257,13 @@ class SyncEntry(var path: String, var action: Int,
   def detailsRemote = new StringProperty(this, "detailsr",
     (if (rSize != -1) (dformat.format(new java.util.Date(rTime)) + "," + rSize) else "none"))
   def isDir = path.endsWith("/")
+  def isEqual = {
+    if (isDir) {
+      if (lSize != -1 && rSize != -1) true else false
+    } else {
+      if (lSize == rSize && lTime == rTime) true else false
+    }
+  }
 
   def changeAction() {
     // TODO
@@ -264,7 +274,7 @@ class SyncEntry(var path: String, var action: Int,
     action = -9
     if (lSize == -1 && rSize == -1 && cSize != -1) { // cache only?
       action = A_CACHEONLY
-    } else  if (lSize == rSize && lTime == rTime) { // just equal?
+    } else  if (isEqual) { // just equal?
       action = A_NOTHING
     } else if (cSize == -1) { // not in remote cache
       if (newcache) { // not the same, not in cache
@@ -273,20 +283,15 @@ class SyncEntry(var path: String, var action: Int,
     } else {
         if (lSize != -1 && rSize == -1) action = A_USELOCAL // new local (cache not new)
         else if (lSize == -1 && rSize != -1) action = A_USEREMOTE // new remote (cache not new)
-        else if (isDir) action = A_NOTHING // both dirs exist, ignore different time
         else action = A_UNKNOWN // not in cache but both present
       }
     } else { // in cache, newcache impossible
       if ( (lSize == cSize && lTime == cTime) && rSize == -1) action = A_RMLOCAL // remote was deleted (local still in cache)
       else if (lSize == -1 && (rSize == cSize && rTime == cTime) ) action = A_RMREMOTE // local was deleted (remote still in cache)
       // both exist, as does fcache
-      else if (isDir) {
-        action = A_NOTHING // ignore different time/size if directory
-      } else {
-        if ( (lSize == cSize && lTime == cTime) && rTime > lTime) action = A_USEREMOTE // flocal unchanged, remote newer
-        else if ( (rSize == cSize && rTime == cTime) && lTime > rTime) action = A_USELOCAL // fremote unchanged, local newer
-        else action = A_UNKNOWN // both changed and all other strange things that might occur
-      }
+      if ( (lSize == cSize && lTime == cTime) && rTime > lTime) action = A_USEREMOTE // flocal unchanged, remote newer
+      else if ( (rSize == cSize && rTime == cTime) && lTime > rTime) action = A_USELOCAL // fremote unchanged, local newer
+      else action = A_UNKNOWN // both changed and all other strange things that might occur
     }
     //  println("CF: " + toString)
     assert(action != -9)
@@ -331,6 +336,13 @@ object CacheDB {
       println("getSESessionC: new SEsession " + seSession + " in thread " + Thread.currentThread().getId)
     }
     seSession
+  }
+
+  def updateSE(se: SyncEntry) {
+    using(getSESession) {
+      MySchema.files.update(se)
+      invalidateCache()
+    }
   }
 
   // TODO: probably the whole syncentry-stuff should go into own factory class
@@ -385,6 +397,13 @@ object CacheDB {
   }
 
   var isNewDB = false
+
+  def canSync = {
+    transaction {
+      val si = MySchema.files.where(se => (se.relevant === true) and (se.action <> A_UNKNOWN)).size
+      (si == 0)
+    }
+  }
 
   def connectDB(name: String) {
     cleanup()

@@ -1,6 +1,6 @@
 package sfsync
 
-import synchro.{VirtualFile, ComparedFile}
+import synchro.VirtualFile
 import synchro.Actions._
 
 object Checks {

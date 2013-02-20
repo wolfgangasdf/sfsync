@@ -3,7 +3,7 @@ package sfsynctests
 import akka.actor.{ActorRef, Actor}
 import collection.mutable.ListBuffer
 import util.StopWatch
-import sfsync.synchro.{ComparedFile, VirtualFile}
+import sfsync.synchro.VirtualFile
 
 object TestListRecSpeed1java extends App {
   var numfiles = 0
@@ -49,17 +49,17 @@ object TestListRecSpeed2 extends App {
 }
 
 object TestFindSpeed extends App {
-  val list = new ListBuffer[VirtualFile]()
-  var comparedfiles = scalafx.collections.ObservableBuffer[ComparedFile]()
-  for (ii <- 1 to 20000) {
-//    val vf = new VirtualFile("asdf"+ii, 0,ii,0)
-  }
-  StopWatch.timed("find in ") {
-    for (ii <- 1 to 20000) {
-      val asdf = list.find(x => x.path == "asdf"+ii).getOrElse(null)
-//      val cf = new ComparedFile(asdf, new VirtualFile("asdf"+ii, 0,ii,0), new VirtualFile("asgdf"+ii, 0,ii,0))
-//      comparedfiles += cf
-    }
-  }
+//  val list = new ListBuffer[VirtualFile]()
+//  var comparedfiles = scalafx.collections.ObservableBuffer[ComparedFile]()
+//  for (ii <- 1 to 20000) {
+////    val vf = new VirtualFile("asdf"+ii, 0,ii,0)
+//  }
+//  StopWatch.timed("find in ") {
+//    for (ii <- 1 to 20000) {
+//      val asdf = list.find(x => x.path == "asdf"+ii).getOrElse(null)
+////      val cf = new ComparedFile(asdf, new VirtualFile("asdf"+ii, 0,ii,0), new VirtualFile("asgdf"+ii, 0,ii,0))
+////      comparedfiles += cf
+//    }
+//  }
 
 }
