@@ -1,6 +1,5 @@
 package sfsync.store
 
-import sfsync.synchro.{ComparedFile, VirtualFile}
 import scalafx.{collections => sfxc}
 import scalafx.beans.property._
 import Tools._
@@ -254,6 +253,8 @@ class SyncEntry(var path: String, var action: Int,
       (if (lSize != -1) (dformat.format(new java.util.Date(lTime)) + "," + lSize) else "none"))
   def detailsRemote = new StringProperty(this, "detailsr",
     (if (rSize != -1) (dformat.format(new java.util.Date(rTime)) + "," + rSize) else "none"))
+  def isDir = path.endsWith("/")
+
   def changeAction() {
     // TODO
 //        status.set(CF.amap(cf.action))
@@ -266,20 +267,26 @@ class SyncEntry(var path: String, var action: Int,
     } else  if (lSize == rSize && lTime == rTime) { // just equal?
       action = A_NOTHING
     } else if (cSize == -1) { // not in remote cache
-      if (newcache)
-        action = A_UNKNOWN // not equal and not in cache. unknown!
-      else {
+      if (newcache) { // not the same, not in cache
+        if (isDir && lSize != -1 && rSize != -1) action = A_NOTHING // ignore time/size if both directories exist
+        else action = A_UNKNOWN // not equal and not in cache. unknown!
+    } else {
         if (lSize != -1 && rSize == -1) action = A_USELOCAL // new local (cache not new)
         else if (lSize == -1 && rSize != -1) action = A_USEREMOTE // new remote (cache not new)
+        else if (isDir) action = A_NOTHING // both dirs exist, ignore different time
         else action = A_UNKNOWN // not in cache but both present
       }
     } else { // in cache, newcache impossible
       if ( (lSize == cSize && lTime == cTime) && rSize == -1) action = A_RMLOCAL // remote was deleted (local still in cache)
       else if (lSize == -1 && (rSize == cSize && rTime == cTime) ) action = A_RMREMOTE // local was deleted (remote still in cache)
       // both exist, as does fcache
-      else if ( (lSize == cSize && lTime == cTime) && rTime > lTime) action = A_USEREMOTE // flocal unchanged, remote newer
-      else if ( (rSize == cSize && rTime == cTime) && lTime > rTime) action = A_USELOCAL // fremote unchanged, local newer
-      else action = A_UNKNOWN // both changed and all other strange things that might occur
+      else if (isDir) {
+        action = A_NOTHING // ignore different time/size if directory
+      } else {
+        if ( (lSize == cSize && lTime == cTime) && rTime > lTime) action = A_USEREMOTE // flocal unchanged, remote newer
+        else if ( (rSize == cSize && rTime == cTime) && lTime > rTime) action = A_USELOCAL // fremote unchanged, local newer
+        else action = A_UNKNOWN // both changed and all other strange things that might occur
+      }
     }
     //  println("CF: " + toString)
     assert(action != -9)
