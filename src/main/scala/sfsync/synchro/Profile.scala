@@ -19,6 +19,8 @@ import scala.language.{reflectiveCalls, postfixOps}
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.squeryl.Session
 import org.squeryl.PrimitiveTypeMode._
+import sfsync.Main.Dialog
+
 //import sfsync.synchro.addFile
 
 class TransferProtocol (
@@ -37,7 +39,8 @@ object Actions {
   val A_RMREMOTE = 5
   val A_CACHEONLY = 6
   val A_RMBOTH = 7
-  val ALLACTIONS = List(-99,-1,0,1,2,3,4,5,6,7)
+  val A_SYNCERROR = 8
+  val ALLACTIONS = List(-99,-1,0,1,2,3,4,5,6,7,8)
 }
 
 case class addFile(vf: VirtualFile, islocal: Boolean)
@@ -46,6 +49,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
   var cache: ListBuffer[VirtualFile] = null
   var local: GeneralConnection = null
   var remote: GeneralConnection = null
+  var syncLog = ""
 
   def init() {
     view.updateSyncButton(false)
@@ -96,6 +100,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
           a.action = A_UNKNOWN
           a.lSize = -1; a.lTime = 0
           a.rSize = -1; a.rTime = 0
+          if (!server.didInitialSync.value) a.cSize = -1 // disable cache if not ini sync (could happen if error before)
           a.relevant = true
         } else {
           a.relevant = false
@@ -194,51 +199,71 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     val swd = new StopWatch
     var iii = 0
     transaction {
-      val q = from (MySchema.files) (se =>
-        where(se.relevant === true)
-        select(se)
-        orderBy(se.path desc) // this allows deletion of dirs!
-      )
-      MySchema.files.update(q.map(se => {
-        iii += 1
+      for (state <- List(1,2)) { // delete and add dirs must be done in reverse order!
+        println("syncing state = " + state)
+        val q = state match {
+          case 1 => { // delete
+          from (MySchema.files) (se => where((se.relevant === true) and (se.action in List(A_RMBOTH,A_RMLOCAL,A_RMREMOTE)))
+            select(se)
+            orderBy(se.path desc) // this allows deletion of dirs!
+          )}
+          case _ => { // put/get and others
+            from (MySchema.files) (se => where(se.relevant === true)
+              select(se)
+              orderBy(se.path asc) // this allows deletion of dirs!
+            )}
+        }
+        MySchema.files.update(q.map(se => {
+          iii += 1
 
-        var showit = false
-        if (se.action == A_USELOCAL) { if (se.lSize>10000) showit = true }
-        if (se.action == A_USEREMOTE) { if (se.rSize>10000) showit = true }
-        if (swd.getTime > 0.1 || showit) {
-          runUIwait { // give UI time
-            Main.Status.status.value = "synchronize(" + iii + "): " + se.path
+          var showit = false
+          if (se.action == A_USELOCAL) { if (se.lSize>10000) showit = true }
+          if (se.action == A_USEREMOTE) { if (se.rSize>10000) showit = true }
+          if (swd.getTime > 0.1 || showit) {
+            runUIwait { // give UI time
+              Main.Status.status.value = "synchronize(" + iii + "): " + se.path
+              view.updateSyncEntries()
+            }
+            swd.restart()
           }
-          swd.restart()
-        }
-        var removecf = true
-        try {
-          se.action match {
-            case A_MERGE => throw new Exception("merge not implemented yet!")
-            case A_RMLOCAL|A_RMBOTH => { local.deletefile(se.path,se.lTime) ; se.delete = true }
-            case A_RMREMOTE|A_RMBOTH => { remote.deletefile(se.path, se.rTime) ; se.delete = true }
-            case A_USELOCAL => { remote.putfile(se.path, se.lTime) ; se.rTime=se.lTime; se.rSize=se.lTime; se.cSize = se.lSize; se.cTime = se.lTime }
-            case A_USEREMOTE => { remote.getfile(se.path, se.rTime) ; se.lTime=se.rTime; se.lSize=se.rTime; se.cSize = se.rSize; se.cTime = se.rTime }
-            case A_NOTHING => { se.cSize = se.rSize; se.cTime = se.rTime }
-            case A_CACHEONLY => { se.delete = true }
-            case _ => removecf = false
+          try {
+            // println("syncing  " + se)
+            se.action match {
+              case A_MERGE => throw new Exception("merge not implemented yet!")
+              case A_RMLOCAL|A_RMBOTH => { local.deletefile(se.path,se.lTime) ; se.delete = true }
+              case A_RMREMOTE|A_RMBOTH => { remote.deletefile(se.path, se.rTime) ; se.delete = true }
+              case A_USELOCAL => { remote.putfile(se.path, se.lTime) ; se.rTime=se.lTime; se.rSize=se.lTime; se.cSize = se.lSize; se.cTime = se.lTime; se.relevant = false }
+              case A_USEREMOTE => { remote.getfile(se.path, se.rTime) ; se.lTime=se.rTime; se.lSize=se.rTime; se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false }
+              case A_NOTHING => {
+                se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false
+                if (se.isEqual) se.relevant = false
+              }
+              case A_CACHEONLY => { se.delete = true }
+              case _ => { }
+            }
+          } catch {
+            case e: Exception => {
+              println("sync exception:" + e)
+              e.printStackTrace()
+              se.action = A_SYNCERROR
+              syncLog += (e + "\n")
+            }
           }
-        } catch {
-          case e: Exception => {
-            println("exception:" + e)
-            throw new Exception("Exception while synchronizing: \n" + e)
-          }
-        }
-        se
-      })) // update
+          se
+        })) // update
+        MySchema.files.deleteWhere(se => se.delete === true)
+      } // for state
       // update cache: remove removed files
-      MySchema.files.deleteWhere(se => se.delete === true)
-    }
+    } // transaction
 
     server.didInitialSync.value = true
 
     sw.printTime("TTTTTTTTT synchronized in ")
-    runUIwait { Main.Status.status.value = "ready" }
+    runUIwait {
+      if (syncLog != "") Dialog.showMessage("Errors during synchronization (mind that excluded files are not shown):\n" + syncLog)
+      view.updateSyncEntries()
+      Main.Status.status.value = "ready"
+    }
   }
   def finish() {
     if (remote != null) remote.finish()

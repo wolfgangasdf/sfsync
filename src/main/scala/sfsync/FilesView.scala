@@ -25,7 +25,7 @@ import scalafx.scene.{Node, Scene}
 
 object CF {
   val amap = Map(A_MERGE -> "M", A_NOTHING -> "==", A_RMLOCAL -> "<-(rm)", A_RMREMOTE -> "(rm)->",
-    A_UNKNOWN -> "?", A_USELOCAL -> "->", A_USEREMOTE -> "<-", A_CACHEONLY -> "C", A_RMBOTH -> "<-rm->", A_UNCHECKED -> "???")
+    A_UNKNOWN -> "?", A_USELOCAL -> "->", A_USEREMOTE -> "<-", A_CACHEONLY -> "C", A_RMBOTH -> "<-rm->", A_UNCHECKED -> "???", A_SYNCERROR -> "SE!")
 }
 
 class FilesView() extends Tab {
@@ -57,6 +57,7 @@ class FilesView() extends Tab {
             val xx = CF.amap
             if (f == xx(A_NOTHING)) setStyle("")
             else if (f==xx(A_CACHEONLY) || f==xx(A_MERGE) || f==xx(A_UNKNOWN)) setStyle("-fx-background-color: salmon;")
+            else if (f==xx(A_SYNCERROR)) setStyle("-fx-background-color: red;")
             else setStyle("-fx-background-color: lightgreen;")
           }
         }
