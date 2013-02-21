@@ -16,6 +16,7 @@ import org.squeryl.{Schema, Optimistic, KeyedEntity, Session, SessionFactory}
 import javafx.collections.ListChangeListener.Change
 import sfsync.synchro.Actions
 import Actions._
+import scala.language.{reflectiveCalls, postfixOps}
 
 object DBSettings {
   def settpath = {
@@ -264,7 +265,21 @@ class SyncEntry(var path: String, var action: Int,
     if (isDir) {
       if (lSize != -1 && rSize != -1) true else false
     } else {
-      if (lSize == rSize && lTime == rTime) true else false
+      if (lSize != -1 && lSize == rSize && lTime == rTime) true else false
+    }
+  }
+  def isLeqC = {
+    if (isDir) {
+      if (lSize != -1 && cSize != -1) true else false
+    } else {
+      if (lSize != -1 && lSize == cSize && lTime == cTime) true else false
+    }
+  }
+  def isReqC = {
+    if (isDir) {
+      if (rSize != -1 && cSize != -1) true else false
+    } else {
+      if (rSize != -1 && rSize == cSize && rTime == cTime) true else false
     }
   }
 
@@ -280,20 +295,19 @@ class SyncEntry(var path: String, var action: Int,
     } else  if (isEqual) { // just equal?
       action = A_NOTHING
     } else if (cSize == -1) { // not in remote cache
-      if (newcache) { // not the same, not in cache
-        if (isDir && lSize != -1 && rSize != -1) action = A_NOTHING // ignore time/size if both directories exist
-        else action = A_UNKNOWN // not equal and not in cache. unknown!
-    } else {
+      if (newcache) { // not equal, not in cache because cache new
+        action = A_UNKNOWN
+      } else { // not in cache but cache not new: new file?
         if (lSize != -1 && rSize == -1) action = A_USELOCAL // new local (cache not new)
         else if (lSize == -1 && rSize != -1) action = A_USEREMOTE // new remote (cache not new)
         else action = A_UNKNOWN // not in cache but both present
       }
-    } else { // in cache, newcache impossible
-      if ( (lSize == cSize && lTime == cTime) && rSize == -1) action = A_RMLOCAL // remote was deleted (local still in cache)
-      else if (lSize == -1 && (rSize == cSize && rTime == cTime) ) action = A_RMREMOTE // local was deleted (remote still in cache)
+    } else { // in cache, not equal
+      if ( isLeqC && rSize == -1) action = A_RMLOCAL // remote was deleted (local still in cache)
+      else if (lSize == -1 && isReqC ) action = A_RMREMOTE // local was deleted (remote still in cache)
       // both exist, as does fcache
-      if ( (lSize == cSize && lTime == cTime) && rTime > lTime) action = A_USEREMOTE // flocal unchanged, remote newer
-      else if ( (rSize == cSize && rTime == cTime) && lTime > rTime) action = A_USELOCAL // fremote unchanged, local newer
+      else if ( isLeqC && rTime > lTime) action = A_USEREMOTE // flocal unchanged, remote newer
+      else if ( isReqC && lTime > rTime) action = A_USELOCAL // fremote unchanged, local newer
       else action = A_UNKNOWN // both changed and all other strange things that might occur
     }
     //  println("CF: " + toString)
@@ -349,7 +363,7 @@ object CacheDB {
   }
 
   // TODO: probably the whole syncentry-stuff should go into own factory class
-  def updateSyncEntries(onlyRelevant: Boolean) {
+  def updateSyncEntries(onlyRelevant: Option[Boolean], filterActions: List[Int] = ALLACTIONS) {
     if (seSession != null) {
       seSession.close
       seSession = null
@@ -360,10 +374,15 @@ object CacheDB {
           if (seCache.size > 1000) seCache.clear()
           println("get p1=" + p1)
           using(getSESession) {
-            val res = if (onlyRelevant)
-              MySchema.files.where(se => se.relevant === true).page(p1,20) // TODO filtering etc....
-            else
-              from(MySchema.files)(s=>select(s))
+            val res =
+              from(MySchema.files) (se =>
+                where(
+                  (se.relevant === onlyRelevant.?) and
+                  (se.action in filterActions)
+                )
+                select(se)
+                orderBy(se.path)
+              ) page(p1,20)
             var iii = p1
             res.foreach(se => {
               if (!seCache.contains(iii)) seCache.put(iii,se)
@@ -376,7 +395,16 @@ object CacheDB {
       def size(): Int = {
         if (sizeCache == -1) {
           if (getSession != null)
-            using(getSESession) { sizeCache = MySchema.files.where(se => se.relevant === true).size }
+            using(getSESession) {
+              sizeCache =
+                from(MySchema.files) (se =>
+                  where(
+                    (se.relevant === onlyRelevant.?) and
+                      (se.action in filterActions)
+                  )
+                  select(se)
+                ) size
+            }
           else sizeCache = 0
           println("get size=" + sizeCache)
         }
@@ -401,7 +429,7 @@ object CacheDB {
 
   def canSync = {
     transaction {
-      val si = MySchema.files.where(se => (se.relevant === true) and (se.action <> A_UNKNOWN)).size
+      val si = MySchema.files.where(se => (se.relevant === true) and (se.action === A_UNKNOWN)).size
       (si == 0)
     }
   }
@@ -428,7 +456,7 @@ object CacheDB {
 //        }
       }
     }
-    updateSyncEntries(false)
+    updateSyncEntries(onlyRelevant = Option(false))
   }
 
 }

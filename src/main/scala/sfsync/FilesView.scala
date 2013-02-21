@@ -28,26 +28,6 @@ object CF {
     A_UNKNOWN -> "?", A_USELOCAL -> "->", A_USEREMOTE -> "<-", A_CACHEONLY -> "C", A_RMBOTH -> "<-rm->", A_UNCHECKED -> "???")
 }
 
-// the thing with properties for javafx tableview
-//class CompFile(cf_ : ComparedFile) {
-//  val cf = cf_
-//  var tmp = ""
-//  if (cf.flocal != null) tmp=cf.flocal.path
-//  else if (cf.fremote != null) tmp=cf.fremote.path
-//  else if (cf.fcache != null) tmp=cf.fcache.path
-//  val path = new StringProperty(this, "path", tmp)
-//  val status = new StringProperty(this, "status", CF.amap(cf.action))
-//  val dformat = new java.text.SimpleDateFormat("dd-MM-yyyy HH:mm:ss")
-//  val detailsLocal = new StringProperty(this, "detailsl",
-//    (if (cf.flocal != null) dformat.format(new java.util.Date(cf.flocal.modTime)) + "," + cf.flocal.size else "none"))
-//  val detailsRemote = new StringProperty(this, "detailsr",
-//    (if (cf.fremote != null) dformat.format(new java.util.Date(cf.fremote.modTime)) + "," + cf.fremote.size else "none"))
-//  def changeAction() {
-//    status.set(CF.amap(cf.action))
-//  }
-//  override def toString: String = "CompFile: " + path() + " " + status() + " L:" + detailsLocal + " R:" + detailsRemote
-//}
-
 class FilesView() extends Tab {
   text = "Files"
   closable = false
@@ -120,9 +100,10 @@ class FilesView() extends Tab {
       if (sb.orientation.value == javafx.geometry.Orientation.VERTICAL) sbvv = sb.value.value
       if (sb.orientation.value == javafx.geometry.Orientation.HORIZONTAL) sbhv = sb.value.value
     })
+    // force re-draw of tableview
     // javafx bug: http://javafx-jira.kenai.com/browse/RT-22599
     CacheDB.invalidateCache()
-    CacheDB.updateSyncEntries(true)
+    CacheDB.updateSyncEntries(Option(true), getFilter)
     tv.setItems(null)
     tv.layout()
     setListItems(CacheDB.syncEntries)
@@ -135,7 +116,7 @@ class FilesView() extends Tab {
   }
 
   def updateSorting() {
-    // TODO
+    // TODO sorting
   }
 
   val btSync = new Button("Synchronize") {
@@ -144,6 +125,13 @@ class FilesView() extends Tab {
         profile.synchronize()
       }
       unit()
+    }
+  }
+  btSync.setDisable(true)
+
+  val btDebugInfo = new Button("Debug info") {
+    onAction = (ae: ActionEvent) => {
+      println("SE: " + tv.selectionModel.get().getSelectedItem)
     }
   }
   btSync.setDisable(true)
@@ -169,14 +157,21 @@ class FilesView() extends Tab {
   var btRmBoth = createActionButton("Delete both", A_RMBOTH)
   List(btRmLocal, btUseLocal, btMerge, btNothing, btRmBoth, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
 
+  private var syncEnabled = false
+  def updateSyncButton(allow: Boolean) {
+    syncEnabled = allow
+    updateSyncButton()
+  }
   def updateSyncButton() {
     println("update sync button")
-    btSync.setDisable(CacheDB.canSync)
+    if (syncEnabled)
+      btSync.setDisable(!CacheDB.canSync)
+    else
+      btSync.setDisable(true)
   }
 
   def updateActionButtons() {
     println("update action buttons")
-    // TODO
     var allEqual = true
     var legal = true
     var existCheck: (Boolean, Boolean) = null // (alllocalexists, allremoteexists)
@@ -190,10 +185,13 @@ class FilesView() extends Tab {
     List(btRmLocal, btUseLocal, btMerge, btNothing, btRmBoth, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
     btNothing.setDisable(false) // this only updates cache with remote file
     if (legal) {
-      if (allEqual) btRmBoth.setDisable(false)
-      else if ((existCheck _1) && (existCheck _2)) List(btUseLocal,btUseRemote,btMerge,btRmBoth).foreach(bb=>bb.setDisable(false))
-      else if ((existCheck _1)) List(btUseLocal,btRmLocal).foreach(bb => bb.setDisable(false))
-      else if ((existCheck _2)) List(btUseRemote,btRmRemote).foreach(bb => bb.setDisable(false))
+      if (allEqual) {
+        if (existCheck == (true,true)) btRmBoth.setDisable(false)
+      } else {
+        if (existCheck == (true,true)) List(btUseLocal,btUseRemote,btMerge,btRmBoth).foreach(bb=>bb.setDisable(false))
+        else if (existCheck == (true,false)) List(btUseLocal,btRmLocal).foreach(bb => bb.setDisable(false))
+        else if (existCheck == (false,true)) List(btUseRemote,btRmRemote).foreach(bb => bb.setDisable(false))
+      }
     }
   }
 
@@ -207,27 +205,20 @@ class FilesView() extends Tab {
     selectionModel.get().select(Store.config.currentFilter)
     onAction = (ae: ActionEvent) => {
       Store.config.currentFilter.value = selectionModel.get().getSelectedIndex
-      updateFilter(selectionModel.get().getSelectedItem)
+      updateSyncEntries()
     }
   }
 
-  var bv = new HBox { content = List(cFilter,btSync, btRmLocal, btUseLocal, btMerge, btNothing, btRmBoth, btUseRemote, btRmRemote) }
+  var bv = new HBox { content = List(cFilter,btSync, btRmLocal, btUseLocal, btMerge, btNothing, btRmBoth, btUseRemote, btRmRemote, btDebugInfo) }
 
-  def getFilter(se: SyncEntry) : Boolean = {
+  def getFilter = {
     cFilter.getValue match {
-      case F.all => true
-      case F.changes => se.action != A_NOTHING || se.action == A_UNKNOWN
-      case F.problems => se.action == A_UNKNOWN
-      case _ => true
+      case F.all => ALLACTIONS
+      case F.changes => ALLACTIONS.filter(_ != A_NOTHING)
+      case F.problems => List(A_UNKNOWN)
+      case _ => ALLACTIONS
     }
   }
-  def updateFilter(filter: String) {
-    // TODO
-//    compfiles.clear()
-//    comparedfiles.filter( cf => getFilter(cf) ).foreach(cf => compfiles.add(new CompFile(cf)))
-//    runUI { updateSorting() }
-  }
-
 
   // init
   val vb = new VBox {

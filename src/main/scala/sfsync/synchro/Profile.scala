@@ -37,6 +37,7 @@ object Actions {
   val A_RMREMOTE = 5
   val A_CACHEONLY = 6
   val A_RMBOTH = 7
+  val ALLACTIONS = List(-99,-1,0,1,2,3,4,5,6,7)
 }
 
 case class addFile(vf: VirtualFile, islocal: Boolean)
@@ -47,8 +48,11 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
   var remote: GeneralConnection = null
 
   def init() {
+    view.updateSyncButton(false)
     if (protocol.executeBefore.value != "") {
-      runUIwait { Main.Status.status.value = "execute 'before'..." }
+      runUIwait {
+        Main.Status.status.value = "execute 'before'..."
+      }
       import sys.process._
       val res = protocol.executeBefore.value.split("#").toSeq.!
       if (res != 0) {
@@ -158,13 +162,11 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
 
     runUIwait { Main.Status.status.value = "list remote files..." }
     println("***********************list remote")
-    // TODO spawn in new proc?
     future {
       subfolder.subfolders.map( sf => remote.listrec(sf, server.filterRegexp, receiveList) )
     }
     implicit val timeout = Timeout(36500 days)
     println("*********************** wait until all received...")
-    // TODO this does not work
     while (Await.result(receiveList ? 'replyWhenDone, Duration.Inf) != 'done) { Thread.sleep(100) }
     println("*********************** list finished")
 
@@ -180,9 +182,8 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     println("*********************** compare: finish up")
     runUIwait {
       view.updateSyncEntries()
-      view.updateSyncButton()
+      view.updateSyncButton(true)
       Main.Status.status.value = "ready"
-      // TODO somehow tell UI that compare finished and syncbutton could be enabled
     }
   }
 
@@ -193,7 +194,11 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     val swd = new StopWatch
     var iii = 0
     transaction {
-      val q = MySchema.files.where(se => se.relevant === true)
+      val q = from (MySchema.files) (se =>
+        where(se.relevant === true)
+        select(se)
+        orderBy(se.path desc) // this allows deletion of dirs!
+      )
       MySchema.files.update(q.map(se => {
         iii += 1
 
@@ -215,7 +220,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
             case A_USELOCAL => { remote.putfile(se.path, se.lTime) ; se.rTime=se.lTime; se.rSize=se.lTime; se.cSize = se.lSize; se.cTime = se.lTime }
             case A_USEREMOTE => { remote.getfile(se.path, se.rTime) ; se.lTime=se.rTime; se.lSize=se.rTime; se.cSize = se.rSize; se.cTime = se.rTime }
             case A_NOTHING => { se.cSize = se.rSize; se.cTime = se.rTime }
-            case A_CACHEONLY => { se.cSize = -1; se.cTime=0 }
+            case A_CACHEONLY => { se.delete = true }
             case _ => removecf = false
           }
         } catch {

@@ -287,11 +287,6 @@ object Main extends JFXApp with Logging {
   }
 
   def doCleanup() {
-    // TODO
-//    if (filesView != null) {
-//      filesView.act ! 'done
-//      filesView = null
-//    }
     if (profile != null) profile.finish()
   }
 
