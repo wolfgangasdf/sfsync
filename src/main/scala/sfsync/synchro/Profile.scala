@@ -84,7 +84,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     var cacheall = false
     for (sf <- subfolder.subfolders) if (sf == "") cacheall = true
     transaction {
-      val q = from(MySchema.files)(s=>select(s)) //.where(se => se.path.regex("/" + sf + "/.*"))
+      val q = from(MySchema.files)(s=>select(s))
       MySchema.files.update(q.map(a =>{
         var tmp = cacheall
         if (!cacheall) for (sf <- subfolder.subfolders) if (a.path.startsWith("/" + sf + "/")) tmp = true
@@ -173,13 +173,14 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     transaction {
       val q = MySchema.files.where(se => se.relevant === true)
       //println("  have size=" + q.size)
-      MySchema.files.update(q.map(se => se.iniAction(CacheDB.isNewDB)))
+      MySchema.files.update(q.map(se => se.iniAction(!server.didInitialSync.value)))
     }
 
 
     println("*********************** compare: finish up")
     runUIwait {
       view.updateSyncEntries()
+      view.updateSyncButton()
       Main.Status.status.value = "ready"
       // TODO somehow tell UI that compare finished and syncbutton could be enabled
     }
@@ -229,7 +230,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       MySchema.files.deleteWhere(se => se.delete === true)
     }
 
-    CacheDB.isNewDB = false
+    server.didInitialSync.value = true
 
     sw.printTime("TTTTTTTTT synchronized in ")
     runUIwait { Main.Status.status.value = "ready" }

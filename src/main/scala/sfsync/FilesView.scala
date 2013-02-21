@@ -20,7 +20,7 @@ import akka.actor.ActorDSL._
 import javafx.util.Callback
 import scala.concurrent.future
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.language.{implicitConversions, reflectiveCalls}
+import scala.language.{implicitConversions, reflectiveCalls, postfixOps}
 import scalafx.scene.{Node, Scene}
 
 object CF {
@@ -112,16 +112,26 @@ class FilesView() extends Tab {
   }
 
   def updateSyncEntries() {
-//    tv.lookupAll(".scroll-bar").toArray.foreach(obj => {
-//      val sb = obj.asInstanceOf[jfxsc.Scrollbar]
-//    })
+    // store scrollbar pos
+    var sbvv = -1.0
+    var sbhv = -1.0
+    tv.lookupAll("VirtualScrollBar").toArray.foreach (obj => {
+      val sb = obj.asInstanceOf[javafx.scene.control.ScrollBar]
+      if (sb.orientation.value == javafx.geometry.Orientation.VERTICAL) sbvv = sb.value.value
+      if (sb.orientation.value == javafx.geometry.Orientation.HORIZONTAL) sbhv = sb.value.value
+    })
     // javafx bug: http://javafx-jira.kenai.com/browse/RT-22599
     CacheDB.invalidateCache()
     CacheDB.updateSyncEntries(true)
     tv.setItems(null)
     tv.layout()
     setListItems(CacheDB.syncEntries)
-    // TODO: save position & selection in list!!!
+    // restore scrollbar pos
+    tv.lookupAll("VirtualScrollBar").toArray.foreach (obj => {
+      val sb = obj.asInstanceOf[javafx.scene.control.ScrollBar]
+      if (sb.orientation.value == javafx.geometry.Orientation.VERTICAL) sb.value.set(sbvv)
+      if (sb.orientation.value == javafx.geometry.Orientation.HORIZONTAL) sb.value.set(sbhv)
+    })
   }
 
   def updateSorting() {
@@ -167,23 +177,23 @@ class FilesView() extends Tab {
   def updateActionButtons() {
     println("update action buttons")
     // TODO
-    var (allLocalPresenet, oneLocalPresent, allRemotePresent, oneRemotePresent) = (true, false, true, false)
     var allEqual = true
     var legal = true
-    var existCheck: (Boolean,Boolean) = null // (localexists, remoteexists)
+    var existCheck: (Boolean, Boolean) = null // (alllocalexists, allremoteexists)
     for (se <- tv.selectionModel.get().getSelectedItems) {
       if (existCheck == null)
         existCheck = (se.lSize != -1, se.rSize != -1)
-      else if (existCheck != (se.lSize != -1, se.rSize != -1)) legal = false
+      else
+        if (existCheck != (se.lSize != -1, se.rSize != -1)) legal = false
       if (!se.isEqual) allEqual = false
     }
     List(btRmLocal, btUseLocal, btMerge, btNothing, btRmBoth, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
     btNothing.setDisable(false) // this only updates cache with remote file
     if (legal) {
       if (allEqual) btRmBoth.setDisable(false)
-      else if ((allLocalPresenet && allRemotePresent)) List(btUseLocal,btUseRemote,btMerge,btRmBoth).foreach(bb=>bb.setDisable(false))
-      else if (allLocalPresenet) List(btUseLocal,btRmLocal).foreach(bb => bb.setDisable(false))
-      else if (allRemotePresent) List(btUseRemote,btRmRemote).foreach(bb => bb.setDisable(false))
+      else if ((existCheck _1) && (existCheck _2)) List(btUseLocal,btUseRemote,btMerge,btRmBoth).foreach(bb=>bb.setDisable(false))
+      else if ((existCheck _1)) List(btUseLocal,btRmLocal).foreach(bb => bb.setDisable(false))
+      else if ((existCheck _2)) List(btUseRemote,btRmRemote).foreach(bb => bb.setDisable(false))
     }
   }
 

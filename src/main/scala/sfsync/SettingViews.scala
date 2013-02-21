@@ -198,11 +198,13 @@ abstract class ServerView(val config: Config) extends BorderPane {
       canDropFile = true
     ) { tf.text <==> server.localFolder }
     val cbSkipEqualFiles = new CheckBox("Skip equal files") { selected <==> server.skipEqualFiles }
+    val cbDidIniSync = new CheckBox("Performed initial sync") { selected <==> server.didInitialSync }
+    cbDidIniSync.setDisable(true)
     var bClearCache = new Button("Clear cache") { onAction = (ae: ActionEvent) => {
       // TODO Cache.clearCache(tfID.tf.text.value)
     }
     }
-    val clist = List(tfLocalFolder,tfFilter,tfID,cbSkipEqualFiles,bClearCache)
+    val clist = List(tfLocalFolder,tfFilter,tfID,cbSkipEqualFiles,cbDidIniSync,bClearCache)
     tfLocalFolder.prefWidth <== this.prefWidth
     tfFilter.prefWidth <== this.prefWidth
     tfID.prefWidth <== this.prefWidth

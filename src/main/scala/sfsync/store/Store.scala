@@ -106,6 +106,7 @@ class Server extends ListableThing {
   var subfolders = new sfxc.ObservableBuffer[SubFolder]
   var currentSubFolder: IntegerProperty = -1
   var skipEqualFiles: BooleanProperty = BooleanProperty(value = false)
+  var didInitialSync: BooleanProperty = BooleanProperty(value = false)
   override def toString: String = name // used for listview
 }
 
@@ -154,6 +155,7 @@ object Store {
       saveVal("id", server.id)
       saveVal("protocolcurr", server.currentProtocol)
       saveVal("skipequalfiles", server.skipEqualFiles)
+      saveVal("didinitialsync", server.didInitialSync)
       for (proto <- server.protocols) {
         saveVal("protocol", proto.name)
         saveVal("protocoluri", proto.protocoluri)
@@ -202,6 +204,7 @@ object Store {
           case "filterregexp" => { lastserver.filterRegexp.value = sett(1) }
           case "id" => { lastserver.id.value = sett(1) }
           case "skipequalfiles" => {lastserver.skipEqualFiles.value = sett(1).toBoolean }
+          case "didinitialsync" => {lastserver.didInitialSync.value = sett(1).toBoolean }
           case "protocolcurr" => { lastserver.currentProtocol.value = sett(1).toInt }
           case "protocol" => {
             lastprotocol = new Protocol { name = sett(1) }
@@ -396,8 +399,6 @@ object CacheDB {
     invalidateCache()
   }
 
-  var isNewDB = false
-
   def canSync = {
     transaction {
       val si = MySchema.files.where(se => (se.relevant === true) and (se.action <> A_UNKNOWN)).size
@@ -419,7 +420,6 @@ object CacheDB {
     connected = true
     transaction {
       if (!dbexists) {
-        isNewDB = true
         MySchema.create
         println("  Created the schema")
         // TODO: testing

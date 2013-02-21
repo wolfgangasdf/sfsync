@@ -284,7 +284,7 @@ abstract class GeneralConnection(isLocal: Boolean) {
   def finish()
   def checkIsDir(path: String) = {
     val isdir = path.endsWith("/")
-    val resp = if (isdir) path.substring(0, path.length-2) else path
+    val resp = if (isdir) path.substring(0, path.length-1) else path
     (resp, isdir)
   }
 }
