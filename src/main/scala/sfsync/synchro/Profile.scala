@@ -40,7 +40,8 @@ object Actions {
   val A_CACHEONLY = 6
   val A_RMBOTH = 7
   val A_SYNCERROR = 8
-  val ALLACTIONS = List(-99,-1,0,1,2,3,4,5,6,7,8)
+  val A_IGNORE = 9
+  val ALLACTIONS = List(-99,-1,0,1,2,3,4,5,6,7,8,9)
 }
 
 case class addFile(vf: VirtualFile, islocal: Boolean)
@@ -97,7 +98,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
         var tmp = cacheall
         if (!cacheall) for (sf <- subfolder.subfolders) if (a.path.startsWith("/" + sf + "/")) tmp = true
         if (tmp) {
-          a.action = A_UNKNOWN
+          a.action = A_UNCHECKED
           a.lSize = -1; a.lTime = 0
           a.rSize = -1; a.rTime = 0
           if (!server.didInitialSync.value) a.cSize = -1 // disable cache if not ini sync (could happen if error before)
@@ -206,8 +207,9 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
   }
 
   def synchronize() {
-    println("synchronize...")
+    println("synchronize() in thread " + Thread.currentThread().getId)
     runUIwait { Main.Status.status.value = "Synchronize..." }
+    var canSetDidIniSync = true // can be reset if something violates it (e.g., skip action)
     val sw = new StopWatch
     val swd = new StopWatch
     var iii = 0
@@ -251,6 +253,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
                 se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false
                 if (se.isEqual) se.relevant = false
               }
+              case A_IGNORE => { se.relevant = false ; canSetDidIniSync = false }
               case A_CACHEONLY => { se.delete = true }
               case _ => { }
             }
@@ -269,7 +272,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       // update cache: remove removed files
     } // transaction
 
-    server.didInitialSync.value = true
+    server.didInitialSync.value = canSetDidIniSync
 
     sw.printTime("TTTTTTTTT synchronized in ")
     runUIwait {

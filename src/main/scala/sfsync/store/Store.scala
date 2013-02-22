@@ -369,43 +369,47 @@ object CacheDB {
     }
     syncEntries =  new com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry]() {
       def get(p1: Int): SyncEntry = {
-        if (!seCache.contains(p1)) {
-          if (seCache.size > 1000) seCache.clear()
-          println("get p1=" + p1)
-          using(getSESession) {
-            val res =
-              from(MySchema.files) (se =>
-                where(
-                  (se.relevant === onlyRelevant.?) and
-                  (se.action in filterActions)
-                )
-                select(se)
-                orderBy(se.path)
-              ) page(p1,20)
-            var iii = p1
-            res.foreach(se => {
-              if (!seCache.contains(iii)) seCache.put(iii,se)
-              iii += 1
-            })
+        try {
+          if (!seCache.contains(p1)) {
+            if (seCache.size > 1000) seCache.clear()
+            println("get p1=" + p1)
+            using(getSESession) {
+              val res =
+                from(MySchema.files) (se =>
+                  where(
+                    (se.relevant === onlyRelevant.?) and
+                    (se.action in filterActions)
+                  )
+                  select(se)
+                  orderBy(se.path)
+                ) page(p1,20)
+              var iii = p1
+              res.foreach(se => {
+                if (!seCache.contains(iii)) seCache.put(iii,se)
+                iii += 1
+              })
+            }
           }
-        }
+        } catch { case e => println("se.get: ignored exception:" + e) }
         seCache.get(p1).getOrElse(null)
       }
       def size(): Int = {
-        if (sizeCache == -1) {
-          if (getSession != null)
-            using(getSESession) {
-              sizeCache =
-                from(MySchema.files)(se =>
-                  where(
-                    (se.relevant === onlyRelevant.?) and
-                      (se.action in filterActions)
-                  )
-                    select (se)
-                ).size
-            }
-          else sizeCache = 0
-        }
+        try {
+          if (sizeCache == -1) {
+            if (getSession != null)
+              using(getSESession) {
+                sizeCache =
+                  from(MySchema.files)(se =>
+                    where(
+                      (se.relevant === onlyRelevant.?) and
+                        (se.action in filterActions)
+                    )
+                      select (se)
+                  ).size
+              }
+            else sizeCache = 0
+          }
+        } catch { case e => println("se.size: ignored exception:" + e) }
         sizeCache
       }
       def toArray[T](a: Array[T]): Array[T] = null
@@ -440,7 +444,7 @@ object CacheDB {
     println("connecting to database name=" + name)
     Class.forName("org.h2.Driver")
     val dbexists = (Files.exists(Paths.get(dbpath(name) + ".h2.db") ))
-    val databaseConnection = s"jdbc:h2:" + dbpath(name) + (if (dbexists) ";create=true" else "")
+    val databaseConnection = s"jdbc:h2:" + dbpath(name) + ";MVCC=TRUE" + (if (dbexists) ";create=true" else "")
     sessionFactory.concreteFactory = Some(() => {
       Session.create(java.sql.DriverManager.getConnection(databaseConnection), new H2Adapter)
     })

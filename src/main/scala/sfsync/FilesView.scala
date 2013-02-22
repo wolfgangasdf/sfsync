@@ -23,7 +23,7 @@ import scala.language.{implicitConversions, reflectiveCalls, postfixOps}
 
 object CF {
   val amap = Map(A_MERGE -> "M", A_NOTHING -> "==", A_RMLOCAL -> "<-(rm)", A_RMREMOTE -> "(rm)->",
-    A_UNKNOWN -> "?", A_USELOCAL -> "->", A_USEREMOTE -> "<-", A_CACHEONLY -> "C", A_RMBOTH -> "<-rm->", A_UNCHECKED -> "???", A_SYNCERROR -> "SE!")
+    A_UNKNOWN -> "?", A_USELOCAL -> "->", A_USEREMOTE -> "<-", A_CACHEONLY -> "C", A_RMBOTH -> "<-rm->", A_UNCHECKED -> "???", A_SYNCERROR -> "SE!", A_IGNORE -> "skip")
 }
 
 class FilesView() extends Tab {
@@ -91,6 +91,7 @@ class FilesView() extends Tab {
   }
 
   def updateSyncEntries() {
+    println("updateSyncEntries in thread " + Thread.currentThread().getId)
     // store scrollbar pos TODO this kills tableview sometimes
 //    var sbvv = -1.0
 //    var sbhv = -1.0
@@ -152,9 +153,9 @@ class FilesView() extends Tab {
   var btRmLocal = createActionButton("Delete local", A_RMLOCAL)
   var btRmRemote = createActionButton("Delete remote", A_RMREMOTE)
   var btMerge = createActionButton("Merge", A_MERGE)
-  var btNothing = createActionButton("Do nothing", A_NOTHING)
+  var btSkip = createActionButton("Skip", A_IGNORE)
   var btRmBoth = createActionButton("Delete both", A_RMBOTH)
-  List(btRmLocal, btUseLocal, btMerge, btNothing, btRmBoth, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
+  List(btRmLocal, btUseLocal, btMerge, btSkip, btRmBoth, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
 
   private var syncEnabled = false
   def updateSyncButton(allow: Boolean) {
@@ -181,8 +182,8 @@ class FilesView() extends Tab {
         if (existCheck != (se.lSize != -1, se.rSize != -1)) legal = false
       if (!se.isEqual) allEqual = false
     }
-    List(btRmLocal, btUseLocal, btMerge, btNothing, btRmBoth, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
-    btNothing.setDisable(false) // this only updates cache with remote file
+    List(btRmLocal, btUseLocal, btMerge, btSkip, btRmBoth, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
+    btSkip.setDisable(false)
     if (legal) {
       if (allEqual) {
         if (existCheck == (true,true)) btRmBoth.setDisable(false)
@@ -208,7 +209,7 @@ class FilesView() extends Tab {
     }
   }
 
-  var bv = new HBox { content = List(cFilter,btSync, btRmLocal, btUseLocal, btMerge, btNothing, btRmBoth, btUseRemote, btRmRemote, btDebugInfo) }
+  var bv = new HBox { content = List(cFilter,btSync, btRmLocal, btUseLocal, btMerge, btSkip, btRmBoth, btUseRemote, btRmRemote, btDebugInfo) }
 
   def getFilter = {
     cFilter.getValue match {
