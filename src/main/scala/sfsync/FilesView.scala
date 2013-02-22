@@ -5,7 +5,7 @@ import scalafx.scene.control._
 import scalafx. {collections => sfxc}
 import scalafx.Includes._
 import scalafx.event.ActionEvent
-import scalafx.beans.property.{IntegerProperty, StringProperty}
+import scalafx.beans.property.StringProperty
 
 import javafx.{util => jfxu}
 import javafx.beans.{value => jfxbv}
@@ -13,15 +13,13 @@ import javafx.scene. {control => jfxsc}
 
 import sfsync.synchro._
 import sfsync.synchro.Actions._
-import store.{MySchema, CacheDB, SyncEntry, Store}
+import store.{CacheDB, SyncEntry, Store}
 import Helpers._
 
-import akka.actor.ActorDSL._
 import javafx.util.Callback
 import scala.concurrent.future
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.{implicitConversions, reflectiveCalls, postfixOps}
-import scalafx.scene.{Node, Scene}
 
 object CF {
   val amap = Map(A_MERGE -> "M", A_NOTHING -> "==", A_RMLOCAL -> "<-(rm)", A_RMREMOTE -> "(rm)->",
@@ -93,14 +91,14 @@ class FilesView() extends Tab {
   }
 
   def updateSyncEntries() {
-    // store scrollbar pos
-    var sbvv = -1.0
-    var sbhv = -1.0
-    tv.lookupAll("VirtualScrollBar").toArray.foreach (obj => {
-      val sb = obj.asInstanceOf[javafx.scene.control.ScrollBar]
-      if (sb.orientation.value == javafx.geometry.Orientation.VERTICAL) sbvv = sb.value.value
-      if (sb.orientation.value == javafx.geometry.Orientation.HORIZONTAL) sbhv = sb.value.value
-    })
+    // store scrollbar pos TODO this kills tableview sometimes
+//    var sbvv = -1.0
+//    var sbhv = -1.0
+//    tv.lookupAll("VirtualScrollBar").toArray.foreach (obj => {
+//      val sb = obj.asInstanceOf[javafx.scene.control.ScrollBar]
+//      if (sb.orientation.value == javafx.geometry.Orientation.VERTICAL) sbvv = sb.value.value
+//      if (sb.orientation.value == javafx.geometry.Orientation.HORIZONTAL) sbhv = sb.value.value
+//    })
     // force re-draw of tableview
     // javafx bug: http://javafx-jira.kenai.com/browse/RT-22599
     CacheDB.invalidateCache()
@@ -109,11 +107,11 @@ class FilesView() extends Tab {
     tv.layout()
     setListItems(CacheDB.syncEntries)
     // restore scrollbar pos
-    tv.lookupAll("VirtualScrollBar").toArray.foreach (obj => {
-      val sb = obj.asInstanceOf[javafx.scene.control.ScrollBar]
-      if (sb.orientation.value == javafx.geometry.Orientation.VERTICAL) sb.value.set(sbvv)
-      if (sb.orientation.value == javafx.geometry.Orientation.HORIZONTAL) sb.value.set(sbhv)
-    })
+//    tv.lookupAll("VirtualScrollBar").toArray.foreach (obj => {
+//      val sb = obj.asInstanceOf[javafx.scene.control.ScrollBar]
+//      if (sb.orientation.value == javafx.geometry.Orientation.VERTICAL) sb.value.set(sbvv)
+//      if (sb.orientation.value == javafx.geometry.Orientation.HORIZONTAL) sb.value.set(sbhv)
+//    })
   }
 
   def updateSorting() {
@@ -222,6 +220,7 @@ class FilesView() extends Tab {
   }
 
   // init
+  println("FilesView() in thread " + Thread.currentThread().getId)
   val vb = new VBox {
     content = List(tv,bv)
   }

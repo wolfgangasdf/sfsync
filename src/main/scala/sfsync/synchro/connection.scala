@@ -35,6 +35,7 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
   }
   // include the subfolder but root "/" is not allowed!
   def listrec(subfolder: String, filterregexp: String, receiver: ActorRef) {
+    println("listrec(" + remoteBasePath + ") in thread " + Thread.currentThread().getId)
     // scalax.io is horribly slow, there is an issue filed
     def parseContent(cc: Path, firstTime: Boolean = false) {
       // on mac 10.8 with oracle java 7, filenames are encoded with strange 'decomposed unicode'. grr
@@ -143,6 +144,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
   }
 
   def listrec(subfolder: String, filterregexp: String, receiver: ActorRef) {
+    println("listrecsftp(" + remoteBasePath + ") in thread " + Thread.currentThread().getId)
     def VFfromLse(fullFilePath: String, lse: ChannelSftp#LsEntry) = {
       new VirtualFile {
         path=(fullFilePath).substring(remoteBasePath.length)
@@ -178,7 +180,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
     if (sftpsp != null) { // not nice, copied basically from above. but no other way
       val vf = VFfromLse(sp, sftpsp)
       if ( !vf.fileName.matches(filterregexp) ) {
-        receiver ! vf
+        receiver ! addFile(vf, isLocal)
         if (sftpsp.getAttrs.isDir) {
           parseContent(sp)
         }

@@ -13,7 +13,6 @@ import sfsync.CF
 import collection.mutable
 import scala.Some
 import org.squeryl.{Schema, Optimistic, KeyedEntity, Session, SessionFactory}
-import javafx.collections.ListChangeListener.Change
 import sfsync.synchro.Actions
 import Actions._
 import scala.language.{reflectiveCalls, postfixOps}
@@ -323,7 +322,7 @@ object MySchema extends Schema {
 
   on(files)(file => declare(
     file.id is (primaryKey,autoIncremented),
-    file.path is (unique)
+    file.path is (unique, dbType("varchar(16384)"))
   ))
 }
 
@@ -334,7 +333,7 @@ object CacheDB {
   def getSession: Session = {
     if (connected) {
       val session = sessionFactory.newSession
-      println("getSessionC: new session " + session + " in thread " + Thread.currentThread().getId)
+      println("getSession: new session " + session + " in thread " + Thread.currentThread().getId)
       session
     } else null
   }
@@ -350,7 +349,7 @@ object CacheDB {
   def getSESession = {
     if (connected) {
       if (seSession == null) seSession = sessionFactory.newSession
-      println("getSESessionC: new SEsession " + seSession + " in thread " + Thread.currentThread().getId)
+      println("getSESession: new SEsession " + seSession + " in thread " + Thread.currentThread().getId)
     }
     seSession
   }
@@ -397,16 +396,15 @@ object CacheDB {
           if (getSession != null)
             using(getSESession) {
               sizeCache =
-                from(MySchema.files) (se =>
+                from(MySchema.files)(se =>
                   where(
                     (se.relevant === onlyRelevant.?) and
                       (se.action in filterActions)
                   )
-                  select(se)
-                ) size
+                    select (se)
+                ).size
             }
           else sizeCache = 0
-          println("get size=" + sizeCache)
         }
         sizeCache
       }
@@ -434,7 +432,8 @@ object CacheDB {
     }
   }
 
-  def connectDB(name: String) {
+  def connectDB(name: String) = {
+    println("connectDB() in thread " + Thread.currentThread().getId)
     cleanup()
     connected = false
 
@@ -450,13 +449,10 @@ object CacheDB {
       if (!dbexists) {
         MySchema.create
         println("  Created the schema")
-        // TODO: testing
-//        for (i <- 1 until 100) {
-//          MySchema.files.insert(new SyncEntry("asdf" + i,-1, 1,i,11,12,20,-1,true))
-//        }
       }
     }
     updateSyncEntries(onlyRelevant = Option(false))
+    dbexists
   }
 
 }

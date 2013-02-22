@@ -52,7 +52,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
   var syncLog = ""
 
   def init() {
-    view.updateSyncButton(false)
+    view.updateSyncButton(allow = false)
     if (protocol.executeBefore.value != "") {
       runUIwait {
         Main.Status.status.value = "execute 'before'..."
@@ -84,7 +84,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
   }
 
   def compare() {
-
+    println("compare() in thread " + Thread.currentThread().getId)
     // reset table
     println("resetting table...")
     import org.squeryl.PrimitiveTypeMode.transaction
@@ -111,19 +111,26 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     runUIwait { view.updateSyncEntries() }
     var receiveSession: Session = null
     // the receive actor
+    var lfiles = 0
+    var rfiles = 0
     val sw = new StopWatch // for UI update
     val receiveList = actor(Main.system)(new Act {
       var finished = 2*subfolder.subfolders.length // cowntdown for lists
+      println("receiveList in thread " + Thread.currentThread().getId)
       become {
         case addFile(vf, islocal) => {
 //          println("  received " + vf)
           if (sw.getTime > 1) {
             runUIwait { // give UI time
               Main.Status.status.value = "list " + vf.path
+              Main.Status.local.value = lfiles.toString
+              Main.Status.remote.value = rfiles.toString
+              Main.Status.status.value = "list " + vf.path
               view.updateSyncEntries()
             }
             sw.restart()
           }
+          if (islocal) lfiles += 1 else rfiles += 1
           if (receiveSession==null) {
             receiveSession = CacheDB.getSession
             println("created receivesession " + receiveSession + " in Thread " + Thread.currentThread().getId)
@@ -136,9 +143,10 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
               MySchema.files.insert(senew)
               //println("added new " + senew)
             } else {
-              val se = q.single
+              var se = q.single
               if (islocal) { se.lTime = vf.modTime ; se.lSize = vf.size }
               else         { se.rTime = vf.modTime ; se.rSize = vf.size }
+              if (se.lSize != -1 && se.rSize != -1) se = se.iniAction(!server.didInitialSync.value) // ini action!
               MySchema.files.update(se)
               //println("updated   " + se)
             }
@@ -151,15 +159,17 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
           }
         }
         case 'replyWhenDone => if (finished==0) {
-          receiveSession.close
+          if (receiveSession!=null) receiveSession.close
           sender ! 'done
           println("exit actor receiveList")
-//          context.stop(self)
+          context.stop(self)
         } else sender ! 'notyet
       }
     })
 
-    runUIwait { Main.Status.status.value = "list local files..." }
+    runUIwait {
+      Main.Status.status.value = "list local files..."
+    }
     println("***********************list local")
     future {
       for (sf <- subfolder.subfolders) local.listrec(sf, server.filterRegexp, receiveList)
@@ -174,12 +184,15 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     println("*********************** wait until all received...")
     while (Await.result(receiveList ? 'replyWhenDone, Duration.Inf) != 'done) { Thread.sleep(100) }
     println("*********************** list finished")
-
+    runUIwait {
+      Main.Status.local.value = lfiles.toString
+      Main.Status.remote.value = rfiles.toString
+      Main.Status.status.value = "Initialize actions..."
+    }
     // init with best guess
     println("*********************** ini with best guess")
     transaction {
-      val q = MySchema.files.where(se => se.relevant === true)
-      //println("  have size=" + q.size)
+      val q = MySchema.files.where(se => (se.relevant === true) and (se.action === A_UNCHECKED))
       MySchema.files.update(q.map(se => se.iniAction(!server.didInitialSync.value)))
     }
 
@@ -187,14 +200,14 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     println("*********************** compare: finish up")
     runUIwait {
       view.updateSyncEntries()
-      view.updateSyncButton(true)
-      Main.Status.status.value = "ready"
+      view.updateSyncButton(allow = true)
+      Main.Status.status.value = "Finished compare"
     }
   }
 
   def synchronize() {
     println("synchronize...")
-    runUIwait { Main.Status.status.value = "synchronize..." }
+    runUIwait { Main.Status.status.value = "Synchronize..." }
     val sw = new StopWatch
     val swd = new StopWatch
     var iii = 0
@@ -219,9 +232,9 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
           var showit = false
           if (se.action == A_USELOCAL) { if (se.lSize>10000) showit = true }
           if (se.action == A_USEREMOTE) { if (se.rSize>10000) showit = true }
-          if (swd.getTime > 0.1 || showit) {
+          if (swd.getTime > 1 || showit) {
             runUIwait { // give UI time
-              Main.Status.status.value = "synchronize(" + iii + "): " + se.path
+              Main.Status.status.value = "Synchronize(" + iii + "): " + se.path
               view.updateSyncEntries()
             }
             swd.restart()
@@ -262,7 +275,9 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     runUIwait {
       if (syncLog != "") Dialog.showMessage("Errors during synchronization (mind that excluded files are not shown):\n" + syncLog)
       view.updateSyncEntries()
-      Main.Status.status.value = "ready"
+      Main.Status.status.value = "Finished synchronize"
+      Main.Status.local.value = ""
+      Main.Status.remote.value = ""
     }
   }
   def finish() {

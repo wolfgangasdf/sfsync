@@ -18,7 +18,6 @@ import store._
 import javafx.{stage => jfxs}
 import synchro._
 import Helpers._
-import akka.actor.ActorDSL._
 import akka.actor._
 import scala.concurrent.future
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -91,7 +90,8 @@ class MainView(filesView: FilesView) extends Tab {
     def onServerChange() {
       println("onServerChange!")
       // connect to database
-      CacheDB.connectDB(server.id)
+      val dbexists = CacheDB.connectDB(server.id)
+      if (!dbexists) server.didInitialSync.value = false
       // update filesview
       filesView.setListItems(CacheDB.syncEntries)
       val tmpdp =  ArrayBuffer(sp.dividerPositions: _*)
@@ -162,18 +162,11 @@ object Main extends JFXApp with Logging {
 
   var tmpse: SyncEntry = null
 
-  import org.squeryl.PrimitiveTypeMode.transaction
-  import org.squeryl.PrimitiveTypeMode._
   val toolBar = new ToolBar {
     content = List(
       new Button("Compare") {
         onAction = (ae: ActionEvent) => {
           Main.runCompare()
-        }
-      },
-      new Button("Synchronize") {
-        onAction = (ae: ActionEvent) => {
-          throw new Exception("not impl")
         }
       },
       new Button("Save settings") {
@@ -182,42 +175,24 @@ object Main extends JFXApp with Logging {
           println("store saved!")
         }
       },
-      new Button("test: check asdf1") {
+      new Button("test") {
         onAction = (ae: ActionEvent) => {
-
-          val res = transaction {
-            MySchema.files.where(se => se.path === "asdf1").single
-          }
-          println("res=" + res)
           unit()
         }
       },
-      new Button("test: check local asdf1") {
+      new Button("test") {
         onAction = (ae: ActionEvent) => {
-          if (tmpse == null) {
-            tmpse = transaction {
-              MySchema.files.where(se => se.path === "asdf1").single
-            }
-            println("retrieved se=" + tmpse)
-          } else
-            println("tmpse=" + tmpse)
-          println("persisted: " + tmpse.isPersisted)
           unit()
         }
       },
-      new Button("test: update asdf1") {
+      new Button("test info entry") {
         onAction = (ae: ActionEvent) => {
-
-          transaction {
-            val res = MySchema.files.where(se => se.path === "asdf1").single
-            res.lSize += 1
-            MySchema.files.update(res)
-            println("res after update=" + res)
-          }
+          val se = filesView.tv.selectionModel.get().getSelectedItem
+          println("se = " + se)
           unit()
         }
       },
-      new Button("test2: updatelistview") {
+      new Button("test: updatelistview") {
         onAction = (ae: ActionEvent) => {
 //          CacheDB.invalidateCache()
 //          CacheDB.updateSyncEntries()
@@ -263,7 +238,7 @@ object Main extends JFXApp with Logging {
 
   maincontent.prefHeight <== stage.height
   maincontent.prefWidth <== stage.width
-  tabpane.prefHeight <== stage.height - menuBar.prefHeight - toolBar.prefHeight - statusBar.prefHeight
+  tabpane.prefHeight <== stage.height - menuBar.height - toolBar.height - statusBar.height - 30
   tabpane.tabs = List(settingsView, filesView)
   statusBar.prefWidth <== stage.width
 
