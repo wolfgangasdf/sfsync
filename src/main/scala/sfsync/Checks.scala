@@ -43,7 +43,7 @@ object Checks {
 //    assert((new ComparedFile(lfp0m0s0, rfp0m0s1, cfp0m0s0)).action == A_UNKNOWN) // strange
 //    assert((new ComparedFile(lfp0m0s1, rfp0m0s0, cfp0m0s1)).action == A_UNKNOWN) // strange
 
-    // TODO
+    // TODO make checks work again
     println("NOT IMPL passed CheckComparedFile!")
 
   }

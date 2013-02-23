@@ -105,7 +105,6 @@ class Server extends ListableThing {
   var currentProtocol: IntegerProperty = -1
   var subfolders = new sfxc.ObservableBuffer[SubFolder]
   var currentSubFolder: IntegerProperty = -1
-  var skipEqualFiles: BooleanProperty = BooleanProperty(value = false)
   var didInitialSync: BooleanProperty = BooleanProperty(value = false)
   override def toString: String = name // used for listview
 }
@@ -154,7 +153,6 @@ object Store {
       saveVal("filterregexp", server.filterRegexp)
       saveVal("id", server.id)
       saveVal("protocolcurr", server.currentProtocol)
-      saveVal("skipequalfiles", server.skipEqualFiles)
       saveVal("didinitialsync", server.didInitialSync)
       for (proto <- server.protocols) {
         saveVal("protocol", proto.name)
@@ -203,7 +201,6 @@ object Store {
           case "localfolder" => { lastserver.localFolder.value = sett(1) }
           case "filterregexp" => { lastserver.filterRegexp.value = sett(1) }
           case "id" => { lastserver.id.value = sett(1) }
-          case "skipequalfiles" => {lastserver.skipEqualFiles.value = sett(1).toBoolean }
           case "didinitialsync" => {lastserver.didInitialSync.value = sett(1).toBoolean }
           case "protocolcurr" => { lastserver.currentProtocol.value = sett(1).toInt }
           case "protocol" => {
@@ -282,10 +279,6 @@ class SyncEntry(var path: String, var action: Int,
     }
   }
 
-  def changeAction() {
-    // TODO
-//        status.set(CF.amap(cf.action))
-      }
   def iniAction(newcache: Boolean) = {
     import sfsync.synchro.Actions._
     action = -9
@@ -342,6 +335,10 @@ object CacheDB {
   def invalidateCache() {
     sizeCache = -1
     seCache.clear()
+    if (seSession != null) {
+      seSession.close
+      seSession = null
+    }
   }
 
   var syncEntries: com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry] = null
@@ -390,7 +387,7 @@ object CacheDB {
               })
             }
           }
-        } catch { case e => println("se.get: ignored exception:" + e) }
+        } catch { case e: Exception => println("se.get: ignored exception:" + e) }
         seCache.get(p1).getOrElse(null)
       }
       def size(): Int = {
@@ -409,7 +406,7 @@ object CacheDB {
               }
             else sizeCache = 0
           }
-        } catch { case e => println("se.size: ignored exception:" + e) }
+        } catch { case e: Exception => println("se.size: ignored exception:" + e) }
         sizeCache
       }
       def toArray[T](a: Array[T]): Array[T] = null
@@ -457,6 +454,13 @@ object CacheDB {
     }
     updateSyncEntries(onlyRelevant = Option(false))
     dbexists
+  }
+
+  def clearCache() {
+    transaction {
+      MySchema.files.deleteWhere(se => se.id isNotNull)
+      invalidateCache()
+    }
   }
 
 }

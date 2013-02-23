@@ -115,10 +115,6 @@ class FilesView() extends Tab {
 //    })
   }
 
-  def updateSorting() {
-    // TODO sorting
-  }
-
   val btSync = new Button("Synchronize") {
     onAction = (ae: ActionEvent) => {
       future {
@@ -215,7 +211,7 @@ class FilesView() extends Tab {
     cFilter.getValue match {
       case F.all => ALLACTIONS
       case F.changes => ALLACTIONS.filter(_ != A_NOTHING)
-      case F.problems => List(A_UNKNOWN)
+      case F.problems => List(A_UNKNOWN, A_UNCHECKED, A_IGNORE)
       case _ => ALLACTIONS
     }
   }

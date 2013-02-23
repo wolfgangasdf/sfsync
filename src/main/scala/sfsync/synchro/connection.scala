@@ -21,16 +21,16 @@ import sfsync.Helpers._
 class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
 
   def deletefile(what: String, mtime: Long) {
-    val (cp, isdir) = checkIsDir(what)
+    val (cp, _) = checkIsDir(what)
     Files.delete(Paths.get(remoteBasePath + "/" + cp))
 //    println("deleted " + remoteBasePath + what.path)
   }
   def putfile(from: String, mtime: Long) {
-    val (cp, isdir) = checkIsDir(from)
+    val (cp, _) = checkIsDir(from)
     Files.copy(Paths.get(localBasePath + "/" + cp), Paths.get(remoteBasePath + "/" + cp), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES)
   }
   def getfile(from: String, mtime: Long) {
-    val (cp, isdir) = checkIsDir(from)
+    val (cp, _) = checkIsDir(from)
     Files.copy(Paths.get(remoteBasePath + "/" + cp), Paths.get(localBasePath + "/" + cp), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES)
   }
   // include the subfolder but root "/" is not allowed!
@@ -119,7 +119,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
       sftp.mkdir(rp)
     else
       sftp.put(localBasePath + "/" + cp, rp)
-    sftp.setMtime(rp, (mtime).toInt)
+    sftp.setMtime(rp, (mtime/1000).toInt)
   }
   def getfile(from: String, mtime: Long) {
     val (cp, isdir) = checkIsDir(from)
