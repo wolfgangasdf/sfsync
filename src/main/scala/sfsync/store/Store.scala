@@ -248,6 +248,7 @@ class SyncEntry(var path: String, var action: Int,
                 var rTime: Long, var rSize: Long,
                 var cTime: Long, var cSize: Long,
                 var relevant: Boolean,
+                var selected: Boolean = false,
                 var delete: Boolean = false
                  ) extends BaseEntity with Optimistic {
   def status = new StringProperty(this, "status", CF.amap(action))
@@ -315,7 +316,7 @@ object MySchema extends Schema {
 
   on(files)(file => declare(
     file.id is (primaryKey,autoIncremented),
-    file.path is (unique, dbType("varchar(16384)"))
+    file.path is (indexed, unique, dbType("varchar(16384)"))
   ))
 }
 
@@ -345,16 +346,18 @@ object CacheDB {
   var seSession: Session = null
   def getSESession = {
     if (connected) {
-      if (seSession == null) seSession = sessionFactory.newSession
-      println("getSESession: new SEsession " + seSession + " in thread " + Thread.currentThread().getId)
+      if (seSession == null) {
+        seSession = sessionFactory.newSession
+        println("getSESession: new SEsession " + seSession + " in thread " + Thread.currentThread().getId)
+      }
     }
     seSession
   }
 
-  def updateSE(se: SyncEntry) {
+  def updateSE(se: SyncEntry, clearCache: Boolean = true) {
     using(getSESession) {
       MySchema.files.update(se)
-      invalidateCache()
+      if (clearCache) invalidateCache()
     }
   }
 
@@ -368,9 +371,11 @@ object CacheDB {
       def get(p1: Int): SyncEntry = {
         try {
           if (!seCache.contains(p1)) {
-            if (seCache.size > 1000) seCache.clear()
+            if (seCache.size > 5000) seCache.clear()
             println("get p1=" + p1)
             using(getSESession) {
+              var startindex = p1 - 10 // cache for scrolling etc
+              if (startindex < 0 ) startindex = 0
               val res =
                 from(MySchema.files) (se =>
                   where(
@@ -379,9 +384,9 @@ object CacheDB {
                   )
                   select(se)
                   orderBy(se.path)
-                ) page(p1,20)
-              var iii = p1
-              res.foreach(se => {
+                ) page(startindex,300)
+              var iii = startindex
+              res.foreach(se => { // update cache
                 if (!seCache.contains(iii)) seCache.put(iii,se)
                 iii += 1
               })
@@ -403,6 +408,7 @@ object CacheDB {
                     )
                       select (se)
                   ).size
+                println("get size=" + sizeCache)
               }
             else sizeCache = 0
           }
@@ -441,7 +447,7 @@ object CacheDB {
     println("connecting to database name=" + name)
     Class.forName("org.h2.Driver")
     val dbexists = (Files.exists(Paths.get(dbpath(name) + ".h2.db") ))
-    val databaseConnection = s"jdbc:h2:" + dbpath(name) + ";MVCC=TRUE" + (if (dbexists) ";create=true" else "")
+    val databaseConnection = s"jdbc:h2:" + dbpath(name) + ";MVCC=TRUE;CACHE_SIZE=131072" + (if (dbexists) ";create=true" else "")
     sessionFactory.concreteFactory = Some(() => {
       Session.create(java.sql.DriverManager.getConnection(databaseConnection), new H2Adapter)
     })

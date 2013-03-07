@@ -20,6 +20,7 @@ import javafx.util.Callback
 import scala.concurrent.future
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.{implicitConversions, reflectiveCalls, postfixOps}
+import javafx.collections.ObservableList
 
 object CF {
   val amap = Map(A_MERGE -> "M", A_NOTHING -> "==", A_RMLOCAL -> "<-(rm)", A_RMREMOTE -> "(rm)->",
@@ -33,6 +34,12 @@ class FilesView() extends Tab {
   var profile: Profile = null
   def setProfile(profilex: Profile) { profile = profilex }
 
+//  val colSelected = new TableColumn[SyncEntry, String]("Sel") {
+//    /*cellValueFactory = _.value.firstName// DOESNT WORK do below*/
+//  }
+//  colSelected.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[SyncEntry, String], jfxbv.ObservableValue[String]] {
+//    def call(param: jfxsc.TableColumn.CellDataFeatures[SyncEntry, String]) = StringProperty(if (param.getValue.selected) "x" else "")
+//  })
   val colPath = new TableColumn[SyncEntry, String]("Path") {
     /*cellValueFactory = _.value.firstName// DOESNT WORK do below*/
   }
@@ -80,6 +87,7 @@ class FilesView() extends Tab {
     selectionModel.get().selectedItems.onChange(
       (ob, _) => {
         if (ob.size > 0) {
+          println("selitemsonchange: ob.size=" + ob.size)
           updateActionButtons()
         }
       }
@@ -106,6 +114,7 @@ class FilesView() extends Tab {
     CacheDB.updateSyncEntries(Option(true), getFilter)
     tv.setItems(null)
     tv.layout()
+    tv.selectionModel.get().clearSelection() // dangerous if not TODO make selection on SyncEntry.selected basis
     setListItems(CacheDB.syncEntries)
     // restore scrollbar pos
 //    tv.lookupAll("VirtualScrollBar").toArray.foreach (obj => {
@@ -137,7 +146,7 @@ class FilesView() extends Tab {
       onAction = (ae: ActionEvent) => {
         for (idx <- tv.selectionModel.get().getSelectedItems) {
           idx.action = action
-          CacheDB.updateSE(idx)
+          CacheDB.updateSE(idx, false)
         }
         updateSyncEntries()
         updateSyncButton()
@@ -166,27 +175,35 @@ class FilesView() extends Tab {
       btSync.setDisable(true)
   }
 
+  var enableActions = false
+
   def updateActionButtons() {
     println("update action buttons")
-    var allEqual = true
-    var legal = true
-    var existCheck: (Boolean, Boolean) = null // (alllocalexists, allremoteexists)
-    for (se <- tv.selectionModel.get().getSelectedItems) {
-      if (existCheck == null)
-        existCheck = (se.lSize != -1, se.rSize != -1)
-      else
-        if (existCheck != (se.lSize != -1, se.rSize != -1)) legal = false
-      if (!se.isEqual) allEqual = false
-    }
     List(btRmLocal, btUseLocal, btMerge, btSkip, btRmBoth, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
-    btSkip.setDisable(false)
-    if (legal) {
-      if (allEqual) {
-        if (existCheck == (true,true)) btRmBoth.setDisable(false)
-      } else {
-        if (existCheck == (true,true)) List(btUseLocal,btUseRemote,btMerge,btRmBoth).foreach(bb=>bb.setDisable(false))
-        else if (existCheck == (true,false)) List(btUseLocal,btRmLocal).foreach(bb => bb.setDisable(false))
-        else if (existCheck == (false,true)) List(btUseRemote,btRmRemote).foreach(bb => bb.setDisable(false))
+    if (enableActions) {
+      var allEqual = true
+      var allowAction = true
+      var legal = true // all have same file exist status
+      var existCheck: (Boolean, Boolean) = null // (alllocalexists, allremoteexists)
+      for (se <- tv.selectionModel.get().getSelectedItems) {
+        if (existCheck == null)
+          existCheck = (se.lSize != -1, se.rSize != -1)
+        else
+          if (existCheck != (se.lSize != -1, se.rSize != -1)) legal = false
+        if (!se.isEqual) allEqual = false
+        if (se.action == A_UNCHECKED || se.action == A_CACHEONLY) allowAction = false
+      }
+      if (allowAction) {
+        btSkip.setDisable(false)
+        if (legal) {
+          if (allEqual) {
+            if (existCheck == (true,true)) btRmBoth.setDisable(false)
+          } else {
+            if (existCheck == (true,true)) List(btUseLocal,btUseRemote,btMerge,btRmBoth).foreach(bb=>bb.setDisable(false))
+            else if (existCheck == (true,false)) List(btUseLocal,btRmLocal).foreach(bb => bb.setDisable(false))
+            else if (existCheck == (false,true)) List(btUseRemote,btRmRemote).foreach(bb => bb.setDisable(false))
+          }
+        }
       }
     }
   }

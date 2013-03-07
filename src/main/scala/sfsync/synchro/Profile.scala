@@ -86,6 +86,8 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
 
   def compare() {
     println("compare() in thread " + Thread.currentThread().getId)
+    // reset
+    runUIwait { view.enableActions = true }
     // reset table
     println("resetting table...")
     import org.squeryl.PrimitiveTypeMode.transaction
@@ -278,6 +280,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     runUIwait {
       if (syncLog != "") Dialog.showMessage("Errors during synchronization (mind that excluded files are not shown):\n" + syncLog)
       view.updateSyncEntries()
+      view.enableActions = false
       Main.Status.status.value = "Finished synchronize"
       Main.Status.local.value = ""
       Main.Status.remote.value = ""
