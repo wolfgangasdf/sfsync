@@ -286,7 +286,7 @@ class SyncEntry(var path: String, var action: Int,
     if (lSize == -1 && rSize == -1 && cSize != -1) { // cache only?
       action = A_CACHEONLY
     } else  if (isEqual) { // just equal?
-      action = A_NOTHING
+      action = A_ISEQUAL
     } else if (cSize == -1) { // not in remote cache
       if (newcache) { // not equal, not in cache because cache new
         action = A_UNKNOWN

@@ -23,8 +23,42 @@ import scala.language.{implicitConversions, reflectiveCalls, postfixOps}
 import javafx.collections.ObservableList
 
 object CF {
-  val amap = Map(A_MERGE -> "M", A_NOTHING -> "==", A_RMLOCAL -> "<-(rm)", A_RMREMOTE -> "(rm)->",
-    A_UNKNOWN -> "?", A_USELOCAL -> "->", A_USEREMOTE -> "<-", A_CACHEONLY -> "C", A_RMBOTH -> "<-rm->", A_UNCHECKED -> "???", A_SYNCERROR -> "SE!", A_IGNORE -> "skip")
+  val amap = Map(
+    A_MERGE -> "M",
+    A_ISEQUAL -> "==",
+    A_RMLOCAL -> "<-(rm)",
+    A_RMREMOTE -> "(rm)->",
+    A_UNKNOWN -> "?",
+    A_USELOCAL -> "->",
+    A_USEREMOTE -> "<-",
+    A_CACHEONLY -> "C",
+    A_RMBOTH -> "<-rm->",
+    A_UNCHECKED -> "???",
+    A_SYNCERROR -> "SE!",
+    A_SKIP -> "skip"
+  )
+  def stringToAction(actionString: String) = {
+    val x = amap.map(_.swap)
+    x(actionString)
+  }
+  def stringToColor(actionString: String) = {
+    val cmap = Map( // http://docs.oracle.com/javafx/2/api/javafx/scene/doc-files/cssref.html#typecolor
+      A_MERGE -> "salmon",
+      A_ISEQUAL -> "white",
+      A_RMLOCAL -> "salmon",
+      A_RMREMOTE -> "salmon",
+      A_UNKNOWN -> "red",
+      A_USELOCAL -> "lightgreen",
+      A_USEREMOTE -> "lightgreen",
+      A_CACHEONLY -> "salmon",
+      A_RMBOTH -> "salmon",
+      A_UNCHECKED -> "red",
+      A_SYNCERROR -> "red",
+      A_SKIP -> "salmon"
+    )
+    val a = stringToAction(actionString)
+    cmap(a)
+  }
 }
 
 class FilesView() extends Tab {
@@ -59,11 +93,7 @@ class FilesView() extends Tab {
         override def updateItem(f: String, empty: Boolean) {
           if (!empty) {
             super.updateItem(f, empty)
-            val xx = CF.amap
-            if (f == xx(A_NOTHING)) setStyle("")
-            else if (f==xx(A_CACHEONLY) || f==xx(A_MERGE) || f==xx(A_UNKNOWN)) setStyle("-fx-background-color: salmon;")
-            else if (f==xx(A_SYNCERROR)) setStyle("-fx-background-color: red;")
-            else setStyle("-fx-background-color: lightgreen;")
+            setStyle("-fx-background-color: " + CF.stringToColor(f) + ";")
           }
         }
       }
@@ -158,7 +188,7 @@ class FilesView() extends Tab {
   var btRmLocal = createActionButton("Delete local", A_RMLOCAL)
   var btRmRemote = createActionButton("Delete remote", A_RMREMOTE)
   var btMerge = createActionButton("Merge", A_MERGE)
-  var btSkip = createActionButton("Skip", A_IGNORE)
+  var btSkip = createActionButton("Skip", A_SKIP)
   var btRmBoth = createActionButton("Delete both", A_RMBOTH)
   List(btRmLocal, btUseLocal, btMerge, btSkip, btRmBoth, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
 
@@ -227,8 +257,8 @@ class FilesView() extends Tab {
   def getFilter = {
     cFilter.getValue match {
       case F.all => ALLACTIONS
-      case F.changes => ALLACTIONS.filter(_ != A_NOTHING)
-      case F.problems => List(A_UNKNOWN, A_UNCHECKED, A_IGNORE)
+      case F.changes => ALLACTIONS.filter(_ != A_ISEQUAL)
+      case F.problems => List(A_UNKNOWN, A_UNCHECKED, A_SKIP)
       case _ => ALLACTIONS
     }
   }

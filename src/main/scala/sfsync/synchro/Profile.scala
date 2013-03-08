@@ -31,7 +31,7 @@ class TransferProtocol (
 object Actions {
   val A_UNCHECKED = -99
   val A_UNKNOWN = -1
-  val A_NOTHING = 0
+  val A_ISEQUAL = 0
   val A_USELOCAL = 1
   val A_USEREMOTE = 2
   val A_MERGE = 3
@@ -40,7 +40,7 @@ object Actions {
   val A_CACHEONLY = 6
   val A_RMBOTH = 7
   val A_SYNCERROR = 8
-  val A_IGNORE = 9
+  val A_SKIP = 9
   val ALLACTIONS = List(-99,-1,0,1,2,3,4,5,6,7,8,9)
 }
 
@@ -51,6 +51,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
   var local: GeneralConnection = null
   var remote: GeneralConnection = null
   var syncLog = ""
+  var UIUpdateInterval = 2.5
 
   def init() {
     view.updateSyncButton(allow = false)
@@ -123,7 +124,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       become {
         case addFile(vf, islocal) => {
 //          println("  received " + vf)
-          if (sw.getTime > 1) {
+          if (sw.getTime > UIUpdateInterval) {
             runUIwait { // give UI time
               Main.Status.status.value = "list " + vf.path
               Main.Status.local.value = lfiles.toString
@@ -215,7 +216,8 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     val sw = new StopWatch
     val swd = new StopWatch
     var iii = 0
-    transaction {
+    val syncSession = CacheDB.getSession
+    using(syncSession) {
       for (state <- List(1,2)) { // delete and add dirs must be done in reverse order!
         println("syncing state = " + state)
         val q = state match {
@@ -236,7 +238,8 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
           var showit = false
           if (se.action == A_USELOCAL) { if (se.lSize>10000) showit = true }
           if (se.action == A_USEREMOTE) { if (se.rSize>10000) showit = true }
-          if (swd.getTime > 1 || showit) {
+          if (swd.getTime > UIUpdateInterval || showit) {
+            syncSession.connection.commit()
             runUIwait { // give UI time
               Main.Status.status.value = "Synchronize(" + iii + "): " + se.path
               view.updateSyncEntries()
@@ -247,15 +250,12 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
             // println("syncing  " + se)
             se.action match {
               case A_MERGE => throw new Exception("merge not implemented yet!")
-              case A_RMLOCAL|A_RMBOTH => { local.deletefile(se.path,se.lTime) ; se.delete = true }
-              case A_RMREMOTE|A_RMBOTH => { remote.deletefile(se.path, se.rTime) ; se.delete = true }
+              case A_RMLOCAL|A_RMBOTH => { local.deletefile(se.path,se.lTime) ; se.delete = true; se.relevant = false }
+              case A_RMREMOTE|A_RMBOTH => { remote.deletefile(se.path, se.rTime) ; se.delete = true; se.relevant = false }
               case A_USELOCAL => { remote.putfile(se.path, se.lTime) ; se.rTime=se.lTime; se.rSize=se.lTime; se.cSize = se.lSize; se.cTime = se.lTime; se.relevant = false }
               case A_USEREMOTE => { remote.getfile(se.path, se.rTime) ; se.lTime=se.rTime; se.lSize=se.rTime; se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false }
-              case A_NOTHING => {
-                se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false
-                if (se.isEqual) se.relevant = false
-              }
-              case A_IGNORE => { se.relevant = false ; canSetDidIniSync = false }
+              case A_ISEQUAL => { se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false }
+              case A_SKIP => { se.relevant = false ; canSetDidIniSync = false }
               case A_CACHEONLY => { se.delete = true }
               case _ => { }
             }
@@ -268,7 +268,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
             }
           }
           se
-        })) // update
+        })) // update loop
         MySchema.files.deleteWhere(se => se.delete === true)
       } // for state
       // update cache: remove removed files
