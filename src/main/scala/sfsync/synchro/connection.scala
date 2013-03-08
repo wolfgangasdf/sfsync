@@ -51,6 +51,7 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
         if (Files.isDirectory(cc)) {
           val dir = Files.newDirectoryStream(cc)
           for (cc <- dir) parseContent(cc)
+          dir.close()
         }
       }
       unit()
