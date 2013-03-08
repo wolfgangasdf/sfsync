@@ -456,6 +456,7 @@ object CacheDB {
       if (!dbexists) {
         MySchema.create
         println("  Created the schema")
+        MySchema.printDdl
       }
     }
     updateSyncEntries(onlyRelevant = Option(false))

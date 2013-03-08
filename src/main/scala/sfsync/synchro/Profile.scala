@@ -163,14 +163,12 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
           }
         }
         case 'replyWhenDone => if (finished==0) {
-          if (receiveSession!=null) receiveSession.close
           sender ! 'done
           println("exit actor receiveList")
           context.stop(self)
         } else sender ! 'notyet
       }
     })
-
     runUIwait {
       Main.Status.status.value = "list local files..."
     }
@@ -187,6 +185,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     implicit val timeout = Timeout(36500 days)
     println("*********************** wait until all received...")
     while (Await.result(receiveList ? 'replyWhenDone, Duration.Inf) != 'done) { Thread.sleep(100) }
+    if (receiveSession!=null) receiveSession.close
     println("*********************** list finished")
     runUIwait {
       Main.Status.local.value = lfiles.toString
@@ -194,7 +193,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       Main.Status.status.value = "Initialize actions..."
     }
     // init with best guess
-    println("*********************** ini with best guess")
+    println("*********************** ini with best guess remaining syncentries")
     transaction {
       val q = MySchema.files.where(se => (se.relevant === true) and (se.action === A_UNCHECKED))
       MySchema.files.update(q.map(se => se.iniAction(!server.didInitialSync.value)))
@@ -272,7 +271,8 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
         MySchema.files.deleteWhere(se => se.delete === true)
       } // for state
       // update cache: remove removed files
-    } // transaction
+    } // using(syncsession)
+    syncSession.close
 
     server.didInitialSync.value = canSetDidIniSync
 
