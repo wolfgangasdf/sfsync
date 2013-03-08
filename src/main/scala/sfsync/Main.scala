@@ -175,6 +175,11 @@ object Main extends JFXApp with Logging {
           println("store saved!")
         }
       },
+      new Button("Stop") {
+        onAction = (ae: ActionEvent) => {
+          Main.doCleanup()
+        }
+      },
       new Button("test") {
         onAction = (ae: ActionEvent) => {
           unit()
@@ -262,8 +267,11 @@ object Main extends JFXApp with Logging {
   }
 
   def doCleanup() {
-    if (profile != null) profile.finish()
+    if (profile != null) profile.stop()
+    if (threadCompare != null) threadCompare.stop()
   }
+
+  var threadCompare: Thread = null
 
   def runCompare() {
     doCleanup()
@@ -271,6 +279,7 @@ object Main extends JFXApp with Logging {
     filesView.setProfile(profile)
     tabpane.selectionModel().select(filesView)
     future { // this is key, do in new thread!
+      threadCompare = Thread.currentThread()
       try {
         profile.init()
         profile.compare()

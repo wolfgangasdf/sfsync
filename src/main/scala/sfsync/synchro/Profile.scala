@@ -20,6 +20,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import org.squeryl.Session
 import org.squeryl.PrimitiveTypeMode._
 import sfsync.Main.Dialog
+import akka.actor.ActorRef
 
 //import sfsync.synchro.addFile
 
@@ -52,6 +53,10 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
   var remote: GeneralConnection = null
   var syncLog = ""
   var UIUpdateInterval = 2.5
+
+  @volatile var threadLocal: Thread = null
+  @volatile var threadRemote: Thread = null
+  var receiveActor: ActorRef = null
 
   def init() {
     view.updateSyncButton(allow = false)
@@ -90,6 +95,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     // reset
     runUIwait { view.enableActions = true }
     // reset table
+    runUIwait { Main.Status.status.value = "Resetting database..." }
     println("resetting table...")
     import org.squeryl.PrimitiveTypeMode.transaction
     import org.squeryl.PrimitiveTypeMode._
@@ -118,7 +124,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     var lfiles = 0
     var rfiles = 0
     val sw = new StopWatch // for UI update
-    val receiveList = actor(Main.system)(new Act {
+    receiveActor = actor(Main.system, name = "receive")(new Act {
       var finished = 2*subfolder.subfolders.length // cowntdown for lists
       println("receiveList in thread " + Thread.currentThread().getId)
       become {
@@ -126,10 +132,9 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
 //          println("  received " + vf)
           if (sw.getTime > UIUpdateInterval) {
             runUIwait { // give UI time
-              Main.Status.status.value = "list " + vf.path
+              Main.Status.status.value = "Find files... " + vf.path
               Main.Status.local.value = lfiles.toString
               Main.Status.remote.value = rfiles.toString
-              Main.Status.status.value = "list " + vf.path
               view.updateSyncEntries()
             }
             sw.restart()
@@ -169,22 +174,20 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
         } else sender ! 'notyet
       }
     })
-    runUIwait {
-      Main.Status.status.value = "list local files..."
-    }
-    println("***********************list local")
-    future {
-      for (sf <- subfolder.subfolders) local.listrec(sf, server.filterRegexp, receiveList)
-    }
 
-    runUIwait { Main.Status.status.value = "list remote files..." }
-    println("***********************list remote")
+    println("*********************** start find files local and remote...")
+    runUIwait { Main.Status.status.value = "Find files..." }
     future {
-      subfolder.subfolders.map( sf => remote.listrec(sf, server.filterRegexp, receiveList) )
+      threadLocal = Thread.currentThread()
+      for (sf <- subfolder.subfolders) local.listrec(sf, server.filterRegexp, receiveActor)
+    }
+    future {
+      threadRemote = Thread.currentThread()
+      subfolder.subfolders.map( sf => remote.listrec(sf, server.filterRegexp, receiveActor) )
     }
     implicit val timeout = Timeout(36500 days)
     println("*********************** wait until all received...")
-    while (Await.result(receiveList ? 'replyWhenDone, Duration.Inf) != 'done) { Thread.sleep(100) }
+    while (Await.result(receiveActor ? 'replyWhenDone, Duration.Inf) != 'done) { Thread.sleep(100) }
     if (receiveSession!=null) receiveSession.close
     println("*********************** list finished")
     runUIwait {
@@ -285,15 +288,27 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       Main.Status.local.value = ""
       Main.Status.remote.value = ""
     }
+    stop()
   }
-  def finish() {
+  def stop() {
+    println("stopping profile...")
+    // killing stuff... TODO
     if (remote != null) remote.finish()
+    if (local != null) local.finish()
+    if (threadLocal != null) threadLocal.stop()
+    if (threadRemote != null) threadRemote.stop()
+    if (receiveActor != null) Main.system.stop(receiveActor)
+
+    // execute after protocol
     if (protocol.executeAfter.value != "") {
       import sys.process._
       val res = protocol.executeAfter.value.split("#").toSeq.!
       if (res != 0) {
         throw new Exception("error executing 'after' command!")
       }
+    }
+    runUI {
+      Main.tabpane.selectionModel.get().select(0)
     }
   }
 

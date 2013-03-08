@@ -142,10 +142,16 @@ class FilesView() extends Tab {
     // javafx bug: http://javafx-jira.kenai.com/browse/RT-22599
     CacheDB.invalidateCache()
     CacheDB.updateSyncEntries(Option(true), getFilter)
-    tv.setItems(null)
-    tv.layout()
-    tv.selectionModel.get().clearSelection() // dangerous if not TODO make selection on SyncEntry.selected basis
+
+
     setListItems(CacheDB.syncEntries)
+    tv.getColumns().get(0).setVisible(false);// workaround for tableview update...
+    tv.getColumns().get(0).setVisible(true);
+//    tv.setItems(null)
+//    tv.layout()
+//    tv.selectionModel.get().clearSelection() // dangerous if not TODO make selection on SyncEntry.selected basis
+//    setListItems(CacheDB.syncEntries)
+
     // restore scrollbar pos
 //    tv.lookupAll("VirtualScrollBar").toArray.foreach (obj => {
 //      val sb = obj.asInstanceOf[javafx.scene.control.ScrollBar]

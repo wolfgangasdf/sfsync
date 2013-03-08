@@ -283,7 +283,7 @@ class SyncEntry(var path: String, var action: Int,
   def iniAction(newcache: Boolean) = {
     import sfsync.synchro.Actions._
     action = -9
-    if (lSize == -1 && rSize == -1 && cSize != -1) { // cache only?
+    if (lSize == -1 && rSize == -1) { // cache only?
       action = A_CACHEONLY
     } else  if (isEqual) { // just equal?
       action = A_ISEQUAL
