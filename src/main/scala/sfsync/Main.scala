@@ -145,6 +145,9 @@ object Main extends JFXApp with Logging {
     }
   }
 
+//  import scala.collection.JavaConversions._
+//  System.getProperties.foreach( p => println("prop " + p.getKey + " : " + p.getValue) )
+
   // init
 
   val menu = new Menu("File") {
@@ -179,31 +182,29 @@ object Main extends JFXApp with Logging {
         onAction = (ae: ActionEvent) => {
           Main.doCleanup()
         }
-      },
-      new Button("test") {
-        onAction = (ae: ActionEvent) => {
-          unit()
-        }
-      },
-      new Button("test") {
-        onAction = (ae: ActionEvent) => {
-          unit()
-        }
-      },
-      new Button("test info entry") {
-        onAction = (ae: ActionEvent) => {
-          val se = filesView.tv.selectionModel.get().getSelectedItem
-          println("se = " + se)
-          unit()
-        }
-      },
-      new Button("test: updatelistview") {
-        onAction = (ae: ActionEvent) => {
-//          CacheDB.invalidateCache()
-//          CacheDB.updateSyncEntries()
-          filesView.updateSyncEntries()
-        }
       }
+//      new Button("test") {
+//        onAction = (ae: ActionEvent) => {
+//          unit()
+//        }
+//      },
+//      new Button("test") {
+//        onAction = (ae: ActionEvent) => {
+//          unit()
+//        }
+//      },
+//      new Button("test info entry") {
+//        onAction = (ae: ActionEvent) => {
+//          val se = filesView.tv.selectionModel.get().getSelectedItem
+//          println("se = " + se)
+//          unit()
+//        }
+//      },
+//      new Button("test: updatelistview") {
+//        onAction = (ae: ActionEvent) => {
+//          filesView.updateSyncEntries()
+//        }
+//      }
     )
   }
 
