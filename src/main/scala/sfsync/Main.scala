@@ -267,8 +267,10 @@ object Main extends JFXApp with Logging {
   }
 
   def doCleanup() {
-    if (profile != null) profile.stop()
-    if (threadCompare != null) threadCompare.stop()
+    if (profile != null) {
+      profile.stop()
+      profile = null
+    }
   }
 
   var threadCompare: Thread = null

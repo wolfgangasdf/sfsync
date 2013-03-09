@@ -295,8 +295,6 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     // killing stuff... TODO
     if (remote != null) remote.finish()
     if (local != null) local.finish()
-    if (threadLocal != null) threadLocal.stop()
-    if (threadRemote != null) threadRemote.stop()
     if (receiveActor != null) Main.system.stop(receiveActor)
 
     // execute after protocol
@@ -310,6 +308,8 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     runUI {
       Main.tabpane.selectionModel.get().select(0)
     }
+    println("profile stopped!")
+    finalize()
   }
 
 }

@@ -46,6 +46,7 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
       if (Files.isDirectory(cc) && strippedPath != "/") strippedPath += "/"
       val vf = new VirtualFile(strippedPath, Files.getLastModifiedTime(cc).toMillis, Files.size(cc))
       if ( !vf.fileName.matches(filterregexp) ) {
+        if (stopRequested) return
 //        println("sending " + vf)
         receiver ! addFile(vf, isLocal)
         if (Files.isDirectory(cc)) {
@@ -65,7 +66,6 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
     }
     receiver ! 'done
   }
-  def finish() {}
 }
 
 class MyURI(var protocol: String, var username: String, var password: String, var host: String, var port: String) {
@@ -162,6 +162,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
       for (obj <- xx ) { tmp += obj.asInstanceOf[ChannelSftp#LsEntry] } // doesn't work otherwise!
       val ord = new Ordering[ChannelSftp#LsEntry]() { def compare(l: ChannelSftp#LsEntry, r: ChannelSftp#LsEntry) = l.getFilename compare r.getFilename }
       for (obj <- tmp.sorted(ord) ) {
+        if (stopRequested) return
         if (!obj.getFilename.equals(".") && !obj.getFilename.equals("..")) {
           val fullFilePath = folder + "/" + obj.getFilename
           val vf = VFfromLse(fullFilePath, obj)
@@ -269,7 +270,8 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
     throw new Exception("sftp not connected!")
   }
 
-  def finish() {
+  override def finish() {
+    super.finish()
     if (sftp.isConnected) sftp.disconnect()
     if (session.isConnected) session.disconnect()
   }
@@ -280,11 +282,14 @@ abstract class GeneralConnection(isLocal: Boolean) {
   var localBasePath: String = ""
   var remoteBasePath: String = ""
   var filterregex: Regex = new Regex(""".*""")
+  @volatile var stopRequested = false
   def getfile(from: String, mtime: Long)
   def putfile(from: String, mtime: Long)
   def deletefile(what: String, mtime: Long)
   def listrec(where: String, filterregexp: String, receiver: ActorRef)
-  def finish()
+  def finish() = {
+    stopRequested = true
+  }
   def checkIsDir(path: String) = {
     val isdir = path.endsWith("/")
     val resp = if (isdir) path.substring(0, path.length-1) else path
