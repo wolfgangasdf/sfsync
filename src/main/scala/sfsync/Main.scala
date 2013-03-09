@@ -119,7 +119,7 @@ class MainView(filesView: FilesView) extends Tab {
 
 object Main extends JFXApp with Logging {
 
-  val VERSION = "0.1" // TODO: read from build.sbt but how?
+  val VERSION = "0.2" // TODO: read from build.sbt but how?
   val resv = getClass.getResource("/sfsync/HGVERSION.txt")
   val version = VERSION + (if (resv != null) " (" + io.Source.fromURL(resv).mkString.trim + ")" else "")
   def system = ActorSystem("sfsyncactors")
@@ -180,7 +180,7 @@ object Main extends JFXApp with Logging {
       },
       new Button("Stop") {
         onAction = (ae: ActionEvent) => {
-          Main.doCleanup()
+          Main.doStop()
         }
       }
 //      new Button("test") {
@@ -267,9 +267,15 @@ object Main extends JFXApp with Logging {
     sys.exit(0)
   }
 
-  def doCleanup() {
+  def doStop() {
     if (profile != null) {
       profile.stop()
+    }
+    doCleanup()
+  }
+
+  def doCleanup() {
+    if (profile != null) {
       profile = null
     }
   }

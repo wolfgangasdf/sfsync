@@ -130,34 +130,15 @@ class FilesView() extends Tab {
 
   def updateSyncEntries() {
     println("updateSyncEntries in thread " + Thread.currentThread().getId)
-    // store scrollbar pos TODO this kills tableview sometimes
-//    var sbvv = -1.0
-//    var sbhv = -1.0
-//    tv.lookupAll("VirtualScrollBar").toArray.foreach (obj => {
-//      val sb = obj.asInstanceOf[javafx.scene.control.ScrollBar]
-//      if (sb.orientation.value == javafx.geometry.Orientation.VERTICAL) sbvv = sb.value.value
-//      if (sb.orientation.value == javafx.geometry.Orientation.HORIZONTAL) sbhv = sb.value.value
-//    })
-    // force re-draw of tableview
-    // javafx bug: http://javafx-jira.kenai.com/browse/RT-22599
     CacheDB.invalidateCache()
     CacheDB.updateSyncEntries(Option(true), getFilter)
 
 
     setListItems(CacheDB.syncEntries)
-    tv.getColumns().get(0).setVisible(false);// workaround for tableview update...
+    // workaround for tableview update...
+    // javafx bug: http://javafx-jira.kenai.com/browse/RT-22599
+    tv.getColumns().get(0).setVisible(false);
     tv.getColumns().get(0).setVisible(true);
-//    tv.setItems(null)
-//    tv.layout()
-//    tv.selectionModel.get().clearSelection() // dangerous if not TODO make selection on SyncEntry.selected basis
-//    setListItems(CacheDB.syncEntries)
-
-    // restore scrollbar pos
-//    tv.lookupAll("VirtualScrollBar").toArray.foreach (obj => {
-//      val sb = obj.asInstanceOf[javafx.scene.control.ScrollBar]
-//      if (sb.orientation.value == javafx.geometry.Orientation.VERTICAL) sb.value.set(sbvv)
-//      if (sb.orientation.value == javafx.geometry.Orientation.HORIZONTAL) sb.value.set(sbhv)
-//    })
   }
 
   val btSync = new Button("Synchronize") {
@@ -263,8 +244,8 @@ class FilesView() extends Tab {
   def getFilter = {
     cFilter.getValue match {
       case F.all => ALLACTIONS
-      case F.changes => ALLACTIONS.filter(_ != A_ISEQUAL)
-      case F.problems => List(A_UNKNOWN, A_UNCHECKED, A_SKIP)
+      case F.changes => ALLACTIONS.filter( x => ( x != A_ISEQUAL && x != A_UNCHECKED) )
+      case F.problems => List(A_UNKNOWN, A_UNCHECKED, A_SKIP, A_CACHEONLY, A_SYNCERROR)
       case _ => ALLACTIONS
     }
   }
@@ -277,7 +258,7 @@ class FilesView() extends Tab {
 
   tv.selectionModel.get().setSelectionMode(javafx.scene.control.SelectionMode.MULTIPLE)
   colPath.prefWidth <== (vb.width - colStatus.prefWidth-1 - colDetailsLocal.prefWidth - colDetailsRemote.prefWidth)
-  tv.prefHeight <== (vb.height - bv.height -40) // TODO
+  tv.prefHeight <== (vb.height - bv.height -40)
   bv.prefWidth <== vb.width
 
   content = vb

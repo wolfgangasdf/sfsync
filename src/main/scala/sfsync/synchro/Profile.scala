@@ -241,7 +241,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
           if (se.action == A_USELOCAL) { if (se.lSize>10000) showit = true }
           if (se.action == A_USEREMOTE) { if (se.rSize>10000) showit = true }
           if (swd.getTime > UIUpdateInterval || showit) {
-            syncSession.connection.commit()
+            syncSession.connection.commit() // TODO it does not seem to work
             runUIwait { // give UI time
               Main.Status.status.value = "Synchronize(" + iii + "): " + se.path
               view.updateSyncEntries()
@@ -292,7 +292,6 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
   }
   def stop() {
     println("stopping profile...")
-    // killing stuff... TODO
     if (remote != null) remote.finish()
     if (local != null) local.finish()
     if (receiveActor != null) Main.system.stop(receiveActor)
@@ -309,7 +308,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       Main.tabpane.selectionModel.get().select(0)
     }
     println("profile stopped!")
-    finalize()
+    Main.doCleanup()
   }
 
 }

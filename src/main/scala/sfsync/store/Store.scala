@@ -361,7 +361,6 @@ object CacheDB {
     }
   }
 
-  // TODO: probably the whole syncentry-stuff should go into own factory class
   def updateSyncEntries(onlyRelevant: Option[Boolean], filterActions: List[Int] = ALLACTIONS) {
     if (seSession != null) {
       seSession.close

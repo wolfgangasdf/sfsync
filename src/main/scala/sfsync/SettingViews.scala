@@ -198,8 +198,8 @@ abstract class ServerView(val config: Config) extends BorderPane {
       canDropFile = true
     ) { tf.text <==> server.localFolder }
     val cbDidIniSync = new CheckBox("Performed initial sync") { selected <==> server.didInitialSync }
-    // TODO cbDidIniSync.setDisable(true)
-    var bClearCache = new Button("Clear cache") { onAction = (ae: ActionEvent) => CacheDB.clearCache() }
+    cbDidIniSync.setDisable(true)
+    var bClearCache = new Button("Clear cache") { onAction = (ae: ActionEvent) => { CacheDB.clearCache() ; server.didInitialSync.value = false } }
     val clist = List(tfLocalFolder,tfFilter,tfID,cbDidIniSync,bClearCache)
     tfLocalFolder.prefWidth <== this.prefWidth
     tfFilter.prefWidth <== this.prefWidth
