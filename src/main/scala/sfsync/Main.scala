@@ -56,7 +56,7 @@ object Helpers {
   def unit() {}
 
   def runUIwait( f: => Any ) : Any = {
-    var stat: Any = null
+    @volatile var stat: Any = null
     //    synchronized(stat) // not needed??
     val runable = new Runnable() {
       def run() {
@@ -165,6 +165,18 @@ object Main extends JFXApp with Logging {
 
   var tmpse: SyncEntry = null
 
+  val btSync = new Button("Synchronize") {
+    onAction = (ae: ActionEvent) => {
+      future {
+        profile.synchronize()
+      }
+      unit()
+    }
+  }
+  btSync.setDisable(true)
+
+  val lbInfo = new Label()
+
   val toolBar = new ToolBar {
     content = List(
       new Button("Compare") {
@@ -172,6 +184,7 @@ object Main extends JFXApp with Logging {
           Main.runCompare()
         }
       },
+      btSync,
       new Button("Save settings") {
         onAction = (ae: ActionEvent) => {
           Store.save()
@@ -182,7 +195,8 @@ object Main extends JFXApp with Logging {
         onAction = (ae: ActionEvent) => {
           Main.doStop()
         }
-      }
+      },
+    lbInfo
 //      new Button("test") {
 //        onAction = (ae: ActionEvent) => {
 //          unit()
@@ -275,6 +289,8 @@ object Main extends JFXApp with Logging {
   }
 
   def doCleanup() {
+    lbInfo.text.set("")
+    btSync.setDisable(true)
     if (profile != null) {
       profile = null
     }
@@ -285,7 +301,8 @@ object Main extends JFXApp with Logging {
   def runCompare() {
     doCleanup()
     profile = new Profile (filesView, settingsView.serverView.server, settingsView.protocolView.protocol, settingsView.subfolderView.subfolder)
-    filesView.setProfile(profile)
+    lbInfo.text.set("" + settingsView.serverView.server.toString + " | " + settingsView.subfolderView.subfolder.toString)
+    filesView.profile = profile
     tabpane.selectionModel().select(filesView)
     future { // this is key, do in new thread!
       threadCompare = Thread.currentThread()

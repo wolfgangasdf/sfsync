@@ -66,7 +66,7 @@ class FilesView() extends Tab {
   closable = false
 
   var profile: Profile = null
-  def setProfile(profilex: Profile) { profile = profilex }
+  private var syncEnabled = false
 
 //  val colSelected = new TableColumn[SyncEntry, String]("Sel") {
 //    /*cellValueFactory = _.value.firstName// DOESNT WORK do below*/
@@ -141,22 +141,11 @@ class FilesView() extends Tab {
     tv.getColumns().get(0).setVisible(true);
   }
 
-  val btSync = new Button("Synchronize") {
-    onAction = (ae: ActionEvent) => {
-      future {
-        profile.synchronize()
-      }
-      unit()
-    }
-  }
-  btSync.setDisable(true)
-
   val btDebugInfo = new Button("Debug info") {
     onAction = (ae: ActionEvent) => {
       println("SE: " + tv.selectionModel.get().getSelectedItem)
     }
   }
-  btSync.setDisable(true)
 
   def createActionButton(lab: String, action: Int): Button = {
     new Button(lab) {
@@ -179,7 +168,6 @@ class FilesView() extends Tab {
   var btRmBoth = createActionButton("Delete both", A_RMBOTH)
   List(btRmLocal, btUseLocal, btMerge, btSkip, btRmBoth, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
 
-  private var syncEnabled = false
   def updateSyncButton(allow: Boolean) {
     syncEnabled = allow
     updateSyncButton()
@@ -187,9 +175,9 @@ class FilesView() extends Tab {
   def updateSyncButton() {
     println("update sync button")
     if (syncEnabled)
-      btSync.setDisable(!CacheDB.canSync)
+      Main.btSync.setDisable(!CacheDB.canSync)
     else
-      btSync.setDisable(true)
+      Main.btSync.setDisable(true)
   }
 
   var enableActions = false
@@ -239,7 +227,7 @@ class FilesView() extends Tab {
     }
   }
 
-  var bv = new HBox { content = List(cFilter,btSync, btRmLocal, btUseLocal, btMerge, btSkip, btRmBoth, btUseRemote, btRmRemote, btDebugInfo) }
+  var bv = new HBox { content = List(cFilter,btRmLocal, btUseLocal, btMerge, btSkip, btRmBoth, btUseRemote, btRmRemote, btDebugInfo) }
 
   def getFilter = {
     cFilter.getValue match {
@@ -258,7 +246,7 @@ class FilesView() extends Tab {
 
   tv.selectionModel.get().setSelectionMode(javafx.scene.control.SelectionMode.MULTIPLE)
   colPath.prefWidth <== (vb.width - colStatus.prefWidth-1 - colDetailsLocal.prefWidth - colDetailsRemote.prefWidth)
-  tv.prefHeight <== (vb.height - bv.height - 0)
+  tv.prefHeight <== (vb.height - bv.height)
   bv.prefWidth <== vb.width
 
   content = vb

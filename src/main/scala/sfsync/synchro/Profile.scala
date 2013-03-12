@@ -306,9 +306,9 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     }
     runUI {
       Main.tabpane.selectionModel.get().select(0)
+      println("profile stopped!")
+      Main.doCleanup()
     }
-    println("profile stopped!")
-    Main.doCleanup()
   }
 
 }
