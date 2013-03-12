@@ -301,7 +301,7 @@ object Main extends JFXApp with Logging {
   def runCompare() {
     doCleanup()
     profile = new Profile (filesView, settingsView.serverView.server, settingsView.protocolView.protocol, settingsView.subfolderView.subfolder)
-    lbInfo.text.set("" + settingsView.serverView.server.toString + " | " + settingsView.subfolderView.subfolder.toString)
+    lbInfo.text.set(" Current profile:" + settingsView.serverView.server.toString + " | " + settingsView.subfolderView.subfolder.toString)
     filesView.profile = profile
     tabpane.selectionModel().select(filesView)
     future { // this is key, do in new thread!

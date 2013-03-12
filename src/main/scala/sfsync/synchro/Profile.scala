@@ -102,6 +102,9 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     var cacheall = false
     for (sf <- subfolder.subfolders) if (sf == "") cacheall = true
     transaction {
+      // remove cache orphans (happens if user doesn't click synchronize
+      MySchema.files.deleteWhere(se => (se.cSize === -1))
+      // ini files
       val q = from(MySchema.files)(s=>select(s))
       MySchema.files.update(q.map(a =>{
         var tmp = cacheall
