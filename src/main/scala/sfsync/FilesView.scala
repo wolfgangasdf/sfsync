@@ -154,6 +154,9 @@ class FilesView() extends Tab {
           idx.action = action
           CacheDB.updateSE(idx, false)
         }
+        // advance
+        tv.selectionModel.get().clearAndSelect(tv.selectionModel.get().getSelectedIndices.max+1)
+
         updateSyncEntries()
         updateSyncButton()
       }
