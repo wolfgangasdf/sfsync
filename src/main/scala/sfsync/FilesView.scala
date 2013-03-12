@@ -258,7 +258,7 @@ class FilesView() extends Tab {
 
   tv.selectionModel.get().setSelectionMode(javafx.scene.control.SelectionMode.MULTIPLE)
   colPath.prefWidth <== (vb.width - colStatus.prefWidth-1 - colDetailsLocal.prefWidth - colDetailsRemote.prefWidth)
-  tv.prefHeight <== (vb.height - bv.height -40)
+  tv.prefHeight <== (vb.height - bv.height - 0)
   bv.prefWidth <== vb.width
 
   content = vb

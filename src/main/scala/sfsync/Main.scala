@@ -244,7 +244,7 @@ object Main extends JFXApp with Logging {
 
   maincontent.prefHeight <== stage.height
   maincontent.prefWidth <== stage.width
-  tabpane.prefHeight <== stage.height - menuBar.height - toolBar.height - statusBar.height - 30
+  tabpane.prefHeight <== stage.height - menuBar.height - toolBar.height - statusBar.height - 21
   tabpane.tabs = List(settingsView, filesView)
   statusBar.prefWidth <== stage.width
 
