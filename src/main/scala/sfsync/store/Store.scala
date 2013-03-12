@@ -18,17 +18,23 @@ import Actions._
 import scala.language.{reflectiveCalls, postfixOps}
 
 object DBSettings {
-  def settpath = {
-    var res = ""
-    if (isMac) res = System.getProperty("user.home") + "/Library/SFSync"
-    else if (isLinux) res = System.getProperty("user.home") + "/.sfsync"
-    else if (isWin) res = toJavaPathSeparator(System.getenv("APPDATA")) + "/SFSync"
-    else throw new Exception("operating system not found")
-    res
-  }
+  var settpath = ""
+  var dbdir = ""
+  if (isMac) {
+    settpath = System.getProperty("user.home") + "/Library/Application Support/SFSync"
+    dbdir = System.getProperty("user.home") + "/Library/Caches/SFSync"
+  } else if (isLinux) {
+    settpath = System.getProperty("user.home") + "/.sfsync"
+    dbdir = settpath + "/cache"
+  } else if (isWin) {
+    settpath = toJavaPathSeparator(System.getenv("APPDATA")) + "/SFSync"
+    dbdir = settpath + "/cache"
+  } else throw new Exception("operating system not found")
 
-  def settdbpath = settpath + "/sfsyncsettings"
-  def getSettingPath = DBSettings.settdbpath + ".txt"
+  def dbpath(name: String) = dbdir + "/" + name
+
+  def getSettingPath = settpath + "/sfsyncsettings" + ".txt"
+
   def getLines = {
     val fff = Paths.get(getSettingPath)
     if (!Files.exists(fff)) {
@@ -419,8 +425,6 @@ object CacheDB {
     }
   }
 
-  def dbpath(name: String) = DBSettings.settpath + "/cache/" + name
-
   val sessionFactory = SessionFactory
 
   def cleanup() {
@@ -443,10 +447,10 @@ object CacheDB {
     cleanup()
     connected = false
 
-    println("connecting to database name=" + name)
+    println("connecting to database name=" + name + " at " + DBSettings.dbpath(name))
     Class.forName("org.h2.Driver")
-    val dbexists = (Files.exists(Paths.get(dbpath(name) + ".h2.db") ))
-    val databaseConnection = s"jdbc:h2:" + dbpath(name) + ";MVCC=TRUE;CACHE_SIZE=131072" + (if (dbexists) ";create=true" else "")
+    val dbexists = (Files.exists(Paths.get(DBSettings.dbpath(name) + ".h2.db") ))
+    val databaseConnection = s"jdbc:h2:" + DBSettings.dbpath(name) + ";MVCC=TRUE;CACHE_SIZE=131072" + (if (dbexists) ";create=true" else "")
     sessionFactory.concreteFactory = Some(() => {
       Session.create(java.sql.DriverManager.getConnection(databaseConnection), new H2Adapter)
     })
