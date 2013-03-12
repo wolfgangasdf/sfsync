@@ -454,6 +454,7 @@ object CacheDB {
     sessionFactory.concreteFactory = Some(() => {
       Session.create(java.sql.DriverManager.getConnection(databaseConnection), new H2Adapter)
     })
+
     connected = true
     transaction {
       if (!dbexists) {
