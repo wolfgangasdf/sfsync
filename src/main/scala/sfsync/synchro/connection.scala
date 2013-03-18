@@ -200,7 +200,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
       println(s"getPassword passcount = $getPassCount")
       getPassCount += 1
       if (getPassCount < 2 && password != "") password
-      else runUIwait(Dialog.showInputString("Enter password:")).asInstanceOf[String]
+      else runUIwait(Dialog.showInputString("Enter password (to keep password: add to URI string, it will be encrypted):")).asInstanceOf[String]
     }
     def promptYesNo(str: String) : Boolean = {
       runUIwait(Dialog.showYesNo(str)) == true

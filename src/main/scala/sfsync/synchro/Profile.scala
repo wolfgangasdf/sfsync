@@ -200,17 +200,28 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     }
     // init with best guess
     println("*********************** ini with best guess remaining syncentries")
+    var haveChanges = true
     transaction {
       val q = MySchema.files.where(se => (se.relevant === true) and (se.action === A_UNCHECKED))
       MySchema.files.update(q.map(se => se.iniAction(!server.didInitialSync.value)))
+      val q2 = MySchema.files.where(se => (se.relevant === true) and (se.action <> A_ISEQUAL))
+      if (q2.size == 0) haveChanges = false
     }
-
 
     println("*********************** compare: finish up")
     runUIwait {
       view.updateSyncEntries()
       view.updateSyncButton(allow = true)
-      Main.Status.status.value = "Finished compare"
+      if (haveChanges) {
+        Main.Status.status.value = "Finished compare"
+      } else {
+        if (server.didInitialSync.value) {
+          Main.Status.status.value = "Finished compare: no changes found."
+          stop()
+        } else {
+          Main.Status.status.value = "Finished compare: no changes found but click \"Synchronize\" for initial sync!"
+        }
+      }
     }
   }
 

@@ -165,12 +165,27 @@ object Main extends JFXApp with Logging {
 
   var tmpse: SyncEntry = null
 
-  val btSync = new Button("Synchronize") {
+  val btSync: Button = new Button("Synchronize") {
     onAction = (ae: ActionEvent) => {
+      runUI {
+        btCompare.setDisable(true)
+        btSync.setDisable(true)
+      }
       future {
         profile.synchronize()
       }
       unit()
+    }
+  }
+  val btCompare: Button = new Button("Compare") {
+    onAction = (ae: ActionEvent) => {
+      runUI {
+        btSync.setDisable(true)
+        btCompare.setDisable(true)
+      }
+      if (!Main.runCompare()) {
+        btCompare.setDisable(false)
+      }
     }
   }
   btSync.setDisable(true)
@@ -179,11 +194,7 @@ object Main extends JFXApp with Logging {
 
   val toolBar = new ToolBar {
     content = List(
-      new Button("Compare") {
-        onAction = (ae: ActionEvent) => {
-          Main.runCompare()
-        }
-      },
+      btCompare,
       btSync,
       new Button("Save settings") {
         onAction = (ae: ActionEvent) => {
@@ -290,6 +301,7 @@ object Main extends JFXApp with Logging {
 
   def doCleanup() {
     lbInfo.text.set("")
+    btCompare.setDisable(false)
     btSync.setDisable(true)
     if (profile != null) {
       profile = null
@@ -298,27 +310,34 @@ object Main extends JFXApp with Logging {
 
   var threadCompare: Thread = null
 
-  def runCompare() {
+  def runCompare() = {
     doCleanup()
-    profile = new Profile (filesView, settingsView.serverView.server, settingsView.protocolView.protocol, settingsView.subfolderView.subfolder)
-    lbInfo.text.set("  Current profile:  " + settingsView.serverView.server.toString + " | " + settingsView.subfolderView.subfolder.toString)
-    filesView.profile = profile
-    tabpane.selectionModel().select(filesView)
-    future { // this is key, do in new thread!
-      threadCompare = Thread.currentThread()
-      try {
-        profile.init()
-        profile.compare()
-      } catch {
-        case e: Exception => {
-          runUIwait(Main.Dialog.showMessage("Exception: " + e + "\n" + e.getMessage))
-          e.printStackTrace()
-          runUI {
-            doCleanup()
+    val sane = (settingsView.serverView.server != null && settingsView.serverView.server.localFolder.value != "" &&
+      settingsView.protocolView.protocol.protocoluri != "" && !settingsView.subfolderView.subfolder.subfolders.isEmpty)
+    if (sane) {
+      profile = new Profile (filesView, settingsView.serverView.server, settingsView.protocolView.protocol, settingsView.subfolderView.subfolder)
+      lbInfo.text.set("  Current profile:  " + settingsView.serverView.server.toString + " | " + settingsView.subfolderView.subfolder.toString)
+      filesView.profile = profile
+      tabpane.selectionModel().select(filesView)
+      future { // this is key, do in new thread!
+        threadCompare = Thread.currentThread()
+        try {
+          profile.init()
+          profile.compare()
+        } catch {
+          case e: Exception => {
+            runUIwait(Main.Dialog.showMessage("Exception: " + e + "\n" + e.getMessage))
+            e.printStackTrace()
+            runUI {
+              doCleanup()
+            }
           }
         }
       }
+    } else {
+      Dialog.showMessage("Correct sync settings and try again!")
     }
+    sane
   }
 
   object Dialog {
