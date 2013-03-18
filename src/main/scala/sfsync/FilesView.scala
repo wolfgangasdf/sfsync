@@ -85,7 +85,9 @@ class FilesView() extends Tab {
     /*cellValueFactory = _.value.firstName// DOESNT WORK do below*/
   }
   colStatus.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[SyncEntry, String], jfxbv.ObservableValue[String]] {
-    def call(param: jfxsc.TableColumn.CellDataFeatures[SyncEntry, String]) = param.getValue.status
+    def call(param: jfxsc.TableColumn.CellDataFeatures[SyncEntry, String]) = {
+      if (param.getValue != null) param.getValue.status else StringProperty("null")
+    }
   })
   colStatus.setCellFactory(new Callback[jfxsc.TableColumn[SyncEntry, String],jfxsc.TableCell[SyncEntry, String]] {
     def call(param: jfxsc.TableColumn[SyncEntry, String]): jfxsc.TableCell[SyncEntry, String] = {
@@ -102,11 +104,15 @@ class FilesView() extends Tab {
   })
   val colDetailsLocal = new TableColumn[SyncEntry, String]("Local") {prefWidth=200/*cellValueFactory = _.value.firstName// DOESNT WORK do below*/ }
   colDetailsLocal.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[SyncEntry, String], jfxbv.ObservableValue[String]] {
-    def call(param: jfxsc.TableColumn.CellDataFeatures[SyncEntry, String]) = { param.getValue.detailsLocal }
+    def call(param: jfxsc.TableColumn.CellDataFeatures[SyncEntry, String]) = {
+      if (param.getValue != null) param.getValue.detailsLocal else StringProperty("null")
+    }
   })
   val colDetailsRemote = new TableColumn[SyncEntry, String]("Remote") {prefWidth=200/*cellValueFactory = _.value.firstName// DOESNT WORK do below*/ }
   colDetailsRemote.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[SyncEntry, String], jfxbv.ObservableValue[String]] {
-    def call(param: jfxsc.TableColumn.CellDataFeatures[SyncEntry, String]) = param.getValue.detailsRemote
+    def call(param: jfxsc.TableColumn.CellDataFeatures[SyncEntry, String]) = {
+      if (param.getValue != null) param.getValue.detailsRemote else StringProperty("null")
+    }
   })
 
   var tv = new TableView[SyncEntry](CacheDB.syncEntries) { // only string-listview is properly updated!
