@@ -14,10 +14,12 @@ import collection.mutable
 import scala.Some
 import org.squeryl.{Schema, Optimistic, KeyedEntity, Session, SessionFactory}
 import sfsync.synchro.Actions
+import sfsync.util.Logging
 import Actions._
 import scala.language.{reflectiveCalls, postfixOps}
 
-object DBSettings {
+
+object DBSettings extends Logging {
   var settpath = ""
   var dbdir = ""
   if (isMac) {
@@ -38,7 +40,7 @@ object DBSettings {
   def getLines = {
     val fff = Paths.get(getSettingPath)
     if (!Files.exists(fff)) {
-      println("creating setting file " + fff.toString)
+      info("creating setting file " + fff.toString)
       Files.createDirectories(fff.getParent)
       Files.createFile(fff)
     }
@@ -52,7 +54,7 @@ object Tools {
     val commapos = ss.indexOf(",")
     val tag = ss.substring(0,commapos)
     val content = ss.substring(commapos+1).trim
-    //    println(tag+" , " + content)
+    //    debug(tag+" , " + content)
     List(tag,content)
   }
   val crypto = new JavaCryptoEncryption("DES")
@@ -133,11 +135,11 @@ class SubFolder extends ListableThing {
 }
 
 
-object Store {
+object Store extends Logging {
   var config : Config = null
 
   def save() {
-    println("-----------save " + config)
+    info("-----------save " + config)
     val fff = Paths.get(DBSettings.getSettingPath)
     Files.delete(fff)
     Files.createFile(fff)
@@ -175,17 +177,17 @@ object Store {
         }
       }
     }
-    println("-----------/save")
+    info("-----------/save")
   }
 
   def load() {
     var lastserver: Server = null
     var lastprotocol: Protocol = null
     var lastsubfolder: SubFolder = null
-    println("----------load")
+    info("----------load")
     val lines = DBSettings.getLines
     if (lines.size == 0) {
-      println("no config file...")
+      info("no config file...")
       config = new Config
     } else {
       lines.foreach(lll => {
@@ -223,20 +225,20 @@ object Store {
             lastserver.subfolders += lastsubfolder
           }
           case "subfolderfolder" => {lastsubfolder.subfolders.add(sett(1))}
-          case _ => {println("unknown tag in config file: <" + sett(0) + ">")}
+          case _ => {warn("unknown tag in config file: <" + sett(0) + ">")}
         }
       })
     }
   }
 
   def dumpConfig() {
-    println("--------------dumpconfig")
+    info("--------------dumpconfig")
     for (server <- config.servers) {
-      println("server: " + server + " currprot=" + server.currentProtocol + " currsf=" + server.currentSubFolder)
-      server.protocols.foreach( proto => println("  proto: " + proto))
-      server.subfolders.foreach( sf => println("  subfolder: " + sf) )
+      info("server: " + server + " currprot=" + server.currentProtocol + " currsf=" + server.currentSubFolder)
+      server.protocols.foreach( proto => info("  proto: " + proto))
+      server.subfolders.foreach( sf => info("  subfolder: " + sf) )
     }
-    println("--------------/dumpconfig")
+    info("--------------/dumpconfig")
   }
 
   load()
@@ -309,9 +311,9 @@ class SyncEntry(var path: String, var action: Int,
       else if ( isReqC && lTime > rTime) action = A_USELOCAL // fremote unchanged, local newer
       else action = A_UNKNOWN // both changed and all other strange things that might occur
     }
-    //  println("CF: " + toString)
+    //  debug("CF: " + toString)
     assert(action != -9)
-    //println("iniaction: " + this.toString)
+    //debug("iniaction: " + this.toString)
     this
   }
   override def toString = {s"[path=$path action=$action lTime=$lTime lSize=$lSize rTime=$rTime rSize=$rSize cTime=$cTime cSize=$cSize rel=$relevant"}
@@ -326,14 +328,14 @@ object MySchema extends Schema {
   ))
 }
 
-object CacheDB {
+object CacheDB extends Logging {
 
   var connected = false
 
   def getSession: Session = {
     if (connected) {
       val session = sessionFactory.newSession
-      println("getSession: new session " + session + " in thread " + Thread.currentThread().getId)
+      debug("getSession: new session " + session + " in thread " + Thread.currentThread().getId)
       session
     } else null
   }
@@ -354,7 +356,7 @@ object CacheDB {
     if (connected) {
       if (seSession == null) {
         seSession = sessionFactory.newSession
-        println("getSESession: new SEsession " + seSession + " in thread " + Thread.currentThread().getId)
+        debug("getSESession: new SEsession " + seSession + " in thread " + Thread.currentThread().getId)
       }
     }
     seSession
@@ -377,7 +379,7 @@ object CacheDB {
         try {
           if (!seCache.contains(p1)) {
             if (seCache.size > 5000) seCache.clear()
-            println("get p1=" + p1)
+            debug("get p1=" + p1)
             using(getSESession) {
               var startindex = p1 - 10 // cache for scrolling etc
               if (startindex < 0 ) startindex = 0
@@ -397,7 +399,7 @@ object CacheDB {
               })
             }
           }
-        } catch { case e: Exception => println("se.get: ignored exception:" + e) }
+        } catch { case e: Exception => warn("se.get: ignored exception:" + e) }
         seCache.get(p1).getOrElse(null)
       }
       def size(): Int = {
@@ -413,11 +415,11 @@ object CacheDB {
                     )
                       select (se)
                   ).size
-                println("get size=" + sizeCache)
+                debug("get size=" + sizeCache)
               }
             else sizeCache = 0
           }
-        } catch { case e: Exception => println("se.size: ignored exception:" + e) }
+        } catch { case e: Exception => warn("se.size: ignored exception:" + e) }
         sizeCache
       }
       def toArray[T](a: Array[T]): Array[T] = null
@@ -443,11 +445,11 @@ object CacheDB {
   }
 
   def connectDB(name: String) = {
-    println("connectDB() in thread " + Thread.currentThread().getId)
+    debug("connectDB() in thread " + Thread.currentThread().getId)
     cleanup()
     connected = false
 
-    println("connecting to database name=" + name + " at " + DBSettings.dbpath(name))
+    info("connecting to database name=" + name + " at " + DBSettings.dbpath(name))
     Class.forName("org.h2.Driver")
     val dbexists = (Files.exists(Paths.get(DBSettings.dbpath(name) + ".h2.db") ))
     val databaseConnection = s"jdbc:h2:" + DBSettings.dbpath(name) + ";MVCC=TRUE;CACHE_SIZE=131072" + (if (dbexists) ";create=true" else "")
@@ -459,7 +461,7 @@ object CacheDB {
     transaction {
       if (!dbexists) {
         MySchema.create
-        println("  Created the schema")
+        info("  Created the schema")
         MySchema.printDdl
       }
     }
@@ -469,7 +471,7 @@ object CacheDB {
 
   def clearCache() {
     transaction {
-      MySchema.files.deleteWhere(se => se.id isNotNull)
+      MySchema.files.deleteWhere(se => se.id.isNotNull)
       invalidateCache()
     }
   }

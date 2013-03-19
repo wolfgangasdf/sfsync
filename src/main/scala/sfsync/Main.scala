@@ -199,7 +199,6 @@ object Main extends JFXApp with Logging {
       new Button("Save settings") {
         onAction = (ae: ActionEvent) => {
           Store.save()
-          println("store saved!")
         }
       },
       new Button("Stop") {
@@ -283,7 +282,7 @@ object Main extends JFXApp with Logging {
   })
 
   override def stopApp() {
-    println("*************** stop app")
+    info("*************** stop app")
     Store.config.width.value = stage.width.toInt
     Store.config.height.value = stage.height.toInt
     Store.config.dividerPositions = ArrayBuffer(settingsView.sp.dividerPositions: _*)

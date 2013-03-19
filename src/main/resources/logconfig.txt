@@ -1,5 +1,5 @@
 # list attributes that are logged such as
 # levels:debug,info,warn,error
-levels=debug,info,error
+levels=debug,info,warn,error
 # output:console,/tmp/log.txt
-outputs=console,/tmp/log.txt
+outputs=console

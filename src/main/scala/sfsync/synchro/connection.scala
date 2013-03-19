@@ -12,6 +12,7 @@ import sfsync.store.Tools
 import java.text.Normalizer
 import java.nio.file._
 import attribute.FileTime
+import sfsync.util.Logging
 
 class cachedFile(path: String, modTime: Long, size: Long) {
 }
@@ -23,7 +24,7 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
   def deletefile(what: String, mtime: Long) {
     val (cp, _) = checkIsDir(what)
     Files.delete(Paths.get(remoteBasePath + "/" + cp))
-//    println("deleted " + remoteBasePath + what.path)
+//    debug("deleted " + remoteBasePath + what.path)
   }
   def putfile(from: String, mtime: Long) {
     val (cp, _) = checkIsDir(from)
@@ -35,7 +36,7 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
   }
   // include the subfolder but root "/" is not allowed!
   def listrec(subfolder: String, filterregexp: String, receiver: ActorRef) {
-    println("listrec(" + remoteBasePath + ") in thread " + Thread.currentThread().getId)
+    debug("listrec(" + remoteBasePath + ") in thread " + Thread.currentThread().getId)
     // scalax.io is horribly slow, there is an issue filed
     def parseContent(cc: Path, firstTime: Boolean = false) {
       // on mac 10.8 with oracle java 7, filenames are encoded with strange 'decomposed unicode'. grr
@@ -47,7 +48,7 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
       val vf = new VirtualFile(strippedPath, Files.getLastModifiedTime(cc).toMillis, Files.size(cc))
       if ( !vf.fileName.matches(filterregexp) ) {
         if (stopRequested) return
-//        println("sending " + vf)
+//        debug("sending " + vf)
         receiver ! addFile(vf, isLocal)
         if (Files.isDirectory(cc)) {
           val dir = Files.newDirectoryStream(cc)
@@ -145,7 +146,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
   }
 
   def listrec(subfolder: String, filterregexp: String, receiver: ActorRef) {
-    println("listrecsftp(" + remoteBasePath + ") in thread " + Thread.currentThread().getId)
+    debug("listrecsftp(" + remoteBasePath + ") in thread " + Thread.currentThread().getId)
     def VFfromLse(fullFilePath: String, lse: ChannelSftp#LsEntry) = {
       new VirtualFile {
         path=(fullFilePath).substring(remoteBasePath.length)
@@ -156,7 +157,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
       }
     }
     def parseContent(folder: String) {
-      println("parseContent: " + folder)
+      debug("parseContent: " + folder)
       val xx = sftp.ls(folder)
       val tmp = new ListBuffer[ChannelSftp#LsEntry]
       for (obj <- xx ) { tmp += obj.asInstanceOf[ChannelSftp#LsEntry] } // doesn't work otherwise!
@@ -176,7 +177,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
       }
       unit()
     }
-    println("searching " + remoteBasePath + "/" + subfolder)
+    debug("searching " + remoteBasePath + "/" + subfolder)
     val sp = remoteBasePath + (if (subfolder.length>0) "/" else "") + subfolder
     val sftpsp = sftpexists(sp)
     if (sftpsp != null) { // not nice, copied basically from above. but no other way
@@ -188,16 +189,14 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
         }
       }
     }
-    println("parsing done")
+    debug("parsing done")
     receiver ! 'done
   }
-
-  import scala.collection.immutable.Map
 
   class MyUserInfo(val user: String, val password: String) extends jsch.UserInfo with jsch.UIKeyboardInteractive {
     var getPassCount = 0
     def getPassword = {
-      println(s"getPassword passcount = $getPassCount")
+      debug(s"getPassword passcount = $getPassCount")
       getPassCount += 1
       if (getPassCount < 2 && password != "") password
       else runUIwait(Dialog.showInputString("Enter password (to keep password: add to URI string, it will be encrypted):")).asInstanceOf[String]
@@ -210,24 +209,23 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
 
     def getPassphrase: String = ""
 
-    def promptPassword(message: String): Boolean = { println("prompt pwd") ; true }
+    def promptPassword(message: String): Boolean = { debug("prompt pwd") ; true }
 
-    def promptPassphrase(message: String): Boolean = { println("prompt pwd") ; true }
+    def promptPassphrase(message: String): Boolean = { debug("prompt pwd") ; true }
 
     def showMessage(message: String) { runUIwait(Dialog.showMessage(message)) }
   }
 
   class MyJschLogger extends jsch.Logger {
-    val name = Map(jsch.Logger.DEBUG -> "DEBUG: ",
-      jsch.Logger.INFO -> "INFO: ",
-      jsch.Logger.WARN -> "WARN: ",
-      jsch.Logger.ERROR -> "ERROR: ",
-      jsch.Logger.FATAL -> "FATAL: ")
 
     def isEnabled(level: Int) = true
 
     def log(level: Int, message: String) {
-      println(name(level) + message)
+      level match {
+        case jsch.Logger.INFO => info("jsch: " + message)
+        case jsch.Logger.WARN => warn("jsch: " + message)
+        case jsch.Logger.ERROR | jsch.Logger.FATAL => error("jsch: " + message)
+      }
     }
 
   }
@@ -244,9 +242,9 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
   if (isMac || isLinux) {
       prvkeypath = System.getProperty("user.home") + "/.ssh/id_dsa"
       knownhostspath = System.getProperty("user.home") + "/.ssh/known_hosts"
-  } else println("Can't get private key file, os not supported yet." )
+  } else info("Can't get private key file, os not supported yet." )
   if (prvkeypath != "") {
-    println("prv key: " + prvkeypath)
+    debug("prv key: " + prvkeypath)
     var prvkey: Array[Byte] = null
     if (Files.exists(Paths.get(prvkeypath))) prvkey = Files.readAllBytes(Paths.get(prvkeypath))
     if (Files.exists(Paths.get(knownhostspath))) jSch.setKnownHosts(knownhostspath)
@@ -277,7 +275,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
   }
 }
 
-abstract class GeneralConnection(isLocal: Boolean) {
+abstract class GeneralConnection(isLocal: Boolean) extends Logging {
 //  var conntype: ConnType.Value
   var localBasePath: String = ""
   var remoteBasePath: String = ""
@@ -287,7 +285,7 @@ abstract class GeneralConnection(isLocal: Boolean) {
   def putfile(from: String, mtime: Long)
   def deletefile(what: String, mtime: Long)
   def listrec(where: String, filterregexp: String, receiver: ActorRef)
-  def finish() = {
+  def finish() {
     stopRequested = true
   }
   def checkIsDir(path: String) = {

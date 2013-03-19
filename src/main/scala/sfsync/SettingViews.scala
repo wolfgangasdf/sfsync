@@ -162,12 +162,12 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
   }
 }
 
-abstract class ServerView(val config: Config) extends BorderPane {
+abstract class ServerView(val config: Config) extends BorderPane with Logging {
   prefHeight = 130
   def onServerChange()
   var server = new Server
   def serverChanged() {
-    println("serverChanged!")
+    debug("serverChanged!")
     val idx = lvs.lvs.getSelectionModel.getSelectedIndices.head
     if (idx > -1) {
       server=config.servers(idx)
@@ -235,14 +235,14 @@ class ProtocolView(val server: Server) extends BorderPane {
       right = pdv
     }
   }
-  class ProtocolDetailView extends VBox {
+  class ProtocolDetailView extends VBox with Logging {
     var tfBaseFolder = new MyTextField("Base folder: ", null, "/remotebasedir", "/.*[^/]", canDropFile = true) { tf.text <==> protocol.protocolbasefolder }
     var tfURI = new MyTextField("Protocol URI: ", null, "file:/// or sftp://user@host:port", "(file:///)|(sftp://\\S+@\\S+:\\S+)") {
       tf.onAction = (ae: ActionEvent) => {
         val uri = new MyURI()
         if (uri.parseString(tf.text.value)) {
           if (!uri.password.startsWith("##")) {
-            println("encrypt password...")
+            info("encrypt password...")
             val crypto = new JavaCryptoEncryption("DES")
             uri.password = "##" + crypto.encrypt(uri.password, "bvfxsdfk")
             tf.text.value = uri.toURIString
@@ -283,7 +283,7 @@ class SubFolderView(val server: Server) extends BorderPane {
       sfdv.prefWidth <== (this.width - lvp.prefWidth)
     }
   }
-  class SubFolderDetailView extends VBox {
+  class SubFolderDetailView extends VBox with Logging {
     margin = insetsstd
     def fcSubfolder(basedir: String, inisf: String) = {
       var ressf: String = ""
@@ -303,7 +303,7 @@ class SubFolderView(val server: Server) extends BorderPane {
     def PathToSubdir(file: java.io.File) = {
       var ressf = ""
       val realfile = SVHelpers.getDroppedFile(file)
-      println("ptsd: " + realfile.getCanonicalPath + " " + realfile.exists() + " " + realfile.getPath.startsWith(server.localFolder))
+      debug("ptsd: " + realfile.getCanonicalPath + " " + realfile.exists() + " " + realfile.getPath.startsWith(server.localFolder))
       if (realfile.exists && realfile.isDirectory && realfile.getPath.startsWith(server.localFolder)) {
         var sd = realfile.getPath.substring(server.localFolder.length)
         if (sd.startsWith("/")) sd = sd.substring(1)

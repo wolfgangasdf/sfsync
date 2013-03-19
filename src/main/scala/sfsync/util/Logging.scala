@@ -2,7 +2,7 @@ package sfsync.util
 
 import java.nio.file.{Files, Paths}
 import java.nio.charset.Charset
-import java.io.{PrintWriter, PrintStream, File}
+import java.io.{PrintStream, File}
 import scala.collection.JavaConversions._
 
 object LoggerBase extends {
@@ -57,14 +57,14 @@ object LoggerBase extends {
 trait Logging {
   self =>
 
-  protected def debug(msg: => Any, t: => Throwable = null): Unit = if (LoggerBase.logDebug) dolog("DEB: ", msg, t)
-  protected def error(msg: => Any, t: => Throwable = null): Unit = if (LoggerBase.logError) dolog("ERR: ", msg, t)
-  protected def info(msg: => Any, t: => Throwable = null): Unit = if (LoggerBase.logInfo) dolog("INF: ", msg, t)
-  protected def warn(msg: => Any, t: => Throwable = null): Unit = if (LoggerBase.logWarning) dolog("WRN: ", msg, t)
+  protected def debug(msg: => Any, t: => Throwable = null) { if (LoggerBase.logDebug) dolog("DEB: ", msg, t) }
+  protected def error(msg: => Any, t: => Throwable = null) { if (LoggerBase.logError) dolog("ERR: ", msg, t) }
+  protected def info(msg: => Any, t: => Throwable = null) { if (LoggerBase.logInfo) dolog("INF: ", msg, t) }
+  protected def warn(msg: => Any, t: => Throwable = null) { if (LoggerBase.logWarning) dolog("WRN: ", msg, t) }
 
   def dolog(prefix: String, msg: Any, exc: Throwable) {
     synchronized {
-      var logs = prefix + self.getClass + "[" + Thread.currentThread().getId + "]: " + msg
+      var logs = prefix + self.getClass.getName + "[" + Thread.currentThread().getId + "]: " + msg
       if (exc != null) logs += "\nException: " + exc.getMessage
       LoggerBase.outStreams.map(ps => ps.println(logs))
       if (exc != null) LoggerBase.outStreams.map(ps => exc.printStackTrace(ps))

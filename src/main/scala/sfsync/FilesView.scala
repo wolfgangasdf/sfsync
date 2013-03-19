@@ -14,13 +14,11 @@ import javafx.scene. {control => jfxsc}
 import sfsync.synchro._
 import sfsync.synchro.Actions._
 import store.{CacheDB, SyncEntry, Store}
+import util.Logging
 import Helpers._
 
 import javafx.util.Callback
-import scala.concurrent.future
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.{implicitConversions, reflectiveCalls, postfixOps}
-import javafx.collections.ObservableList
 
 object CF {
   val amap = Map(
@@ -61,7 +59,7 @@ object CF {
   }
 }
 
-class FilesView() extends Tab {
+class FilesView() extends Tab with Logging {
   text = "Files"
   closable = false
 
@@ -123,7 +121,7 @@ class FilesView() extends Tab {
     selectionModel.get().selectedItems.onChange(
       (ob, _) => {
         if (ob.size > 0) {
-          println("selitemsonchange: ob.size=" + ob.size)
+          debug("selitemsonchange: ob.size=" + ob.size)
           updateActionButtons()
         }
       }
@@ -135,7 +133,7 @@ class FilesView() extends Tab {
   }
 
   def updateSyncEntries() {
-    println("updateSyncEntries in thread " + Thread.currentThread().getId)
+    debug("updateSyncEntries in thread " + Thread.currentThread().getId)
     CacheDB.invalidateCache()
     CacheDB.updateSyncEntries(Option(true), getFilter)
 
@@ -143,13 +141,13 @@ class FilesView() extends Tab {
     setListItems(CacheDB.syncEntries)
     // workaround for tableview update...
     // javafx bug: http://javafx-jira.kenai.com/browse/RT-22599
-    tv.getColumns().get(0).setVisible(false);
-    tv.getColumns().get(0).setVisible(true);
+    tv.getColumns.get(0).setVisible(false)
+    tv.getColumns.get(0).setVisible(true)
   }
 
   val btDebugInfo = new Button("Debug info") {
     onAction = (ae: ActionEvent) => {
-      println("SE: " + tv.selectionModel.get().getSelectedItem)
+      debug("SE: " + tv.selectionModel.get().getSelectedItem)
     }
   }
 
@@ -158,7 +156,7 @@ class FilesView() extends Tab {
       onAction = (ae: ActionEvent) => {
         for (idx <- tv.selectionModel.get().getSelectedItems) {
           idx.action = action
-          CacheDB.updateSE(idx, false)
+          CacheDB.updateSE(idx, clearCache = false)
         }
         // advance
         tv.selectionModel.get().clearAndSelect(tv.selectionModel.get().getSelectedIndices.max+1)
@@ -182,7 +180,7 @@ class FilesView() extends Tab {
     updateSyncButton()
   }
   def updateSyncButton() {
-    println("update sync button")
+    debug("update sync button")
     if (syncEnabled)
       Main.btSync.setDisable(!CacheDB.canSync)
     else
@@ -192,7 +190,7 @@ class FilesView() extends Tab {
   var enableActions = false
 
   def updateActionButtons() {
-    println("update action buttons")
+    debug("update action buttons")
     List(btRmLocal, btUseLocal, btMerge, btSkip, btRmBoth, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
     if (enableActions) {
       var allEqual = true
@@ -248,7 +246,7 @@ class FilesView() extends Tab {
   }
 
   // init
-  println("FilesView() in thread " + Thread.currentThread().getId)
+  debug("FilesView() in thread " + Thread.currentThread().getId)
   val vb = new VBox {
     content = List(tv,bv)
   }
