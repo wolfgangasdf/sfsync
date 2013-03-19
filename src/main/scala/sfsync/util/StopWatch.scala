@@ -1,4 +1,4 @@
-package util
+package sfsync.util
 
 // all in seconds!
 class StopWatch {

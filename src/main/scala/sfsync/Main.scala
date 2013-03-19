@@ -81,14 +81,14 @@ object Helpers {
 //    scala.util.Marshal.load[A](scala.util.Marshal.dump(a))
 }
 
-class MainView(filesView: FilesView) extends Tab {
+class MainView(filesView: FilesView) extends Tab with Logging {
   this.text = "Settings"
   closable = false
 
   var firstStart = true
   var serverView = new ServerView(Store.config) {
     def onServerChange() {
-      println("onServerChange!")
+      debug("onServerChange!")
       // connect to database
       val dbexists = CacheDB.connectDB(server.id)
       if (!dbexists) server.didInitialSync.value = false
@@ -132,16 +132,16 @@ object Main extends JFXApp with Logging {
   Checks.CheckComparedFile()
 
   // startup
-  println("sfsync version = " + version)
-  println("java.version = " + System.getProperty("java.version"))
-  println("scala version = " + util.Properties.versionString)
-  println("javafx.runtime.version = " + System.getProperty("javafx.runtime.version"))
-  println("LC_CTYPE = " + System.getenv("LC_CTYPE"))
-  println("(isMac,isLinux,isWin) = " + List(isMac,isLinux,isWin).mkString(","))
-  println("settings path = " + DBSettings.settpath)
+  info("sfsync version = " + version)
+  info("java.version = " + System.getProperty("java.version"))
+  info("scala version = " + scala.util.Properties.versionString)
+  info("javafx.runtime.version = " + System.getProperty("javafx.runtime.version"))
+  info("LC_CTYPE = " + System.getenv("LC_CTYPE"))
+  info("(isMac,isLinux,isWin) = " + List(isMac,isLinux,isWin).mkString(","))
+  info("settings path = " + DBSettings.settpath)
   if (isMac) {
     if (System.getenv("LC_CTYPE") == null) {
-      println("!!!!!!!!!!! set LC_CTYPE variable for correct foreign character handling!")
+      warn("!!!!!!!!!!! set LC_CTYPE variable for correct foreign character handling!")
     }
   }
 

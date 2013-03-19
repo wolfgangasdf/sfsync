@@ -1,4 +1,4 @@
-package util
+package sfsync.util
 
 import java.io._
 import scala.language.implicitConversions

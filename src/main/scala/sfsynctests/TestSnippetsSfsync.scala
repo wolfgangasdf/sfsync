@@ -2,7 +2,7 @@ package sfsynctests
 
 import akka.actor.{ActorRef, Actor}
 import collection.mutable.ListBuffer
-import util.StopWatch
+import sfsync.util.StopWatch
 import sfsync.synchro.VirtualFile
 
 object TestListRecSpeed1java extends App {

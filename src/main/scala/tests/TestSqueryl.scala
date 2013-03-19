@@ -2,7 +2,7 @@ package tests
 
 import java.nio.file._
 import attribute.BasicFileAttributes
-import util.StopWatch
+import sfsync.util.StopWatch
 import java.io.IOException
 import org.squeryl.adapters.{H2Adapter, DerbyAdapter}
 import org.squeryl.PrimitiveTypeMode._

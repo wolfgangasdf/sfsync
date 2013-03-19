@@ -1,5 +1,6 @@
 package sfsync
 
+import sfsync.util._
 import scala.collection.JavaConversions._
 import scalafx.Includes._
 import scalafx.scene._
@@ -20,11 +21,11 @@ import scalafx.util.StringConverter
 //import javafx.{util => jfxu, event => jfxe}
 //import javafx.scene.{control => jfxsc}
 
-object SVHelpers {
+object SVHelpers extends Logging {
   def getDroppedFile(file: java.io.File) = {
     // bug in javafx: filename is url-encoded string, .exists() = false
     val path = toJavaPathSeparator(URLDecoder.decode(file.getPath,"UTF-8"))
-    println("getdrfile=" + path)
+    debug("getdrfile=" + path)
     new java.io.File(path)
   }
 }

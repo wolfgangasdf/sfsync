@@ -10,7 +10,7 @@ import akka.actor.ActorDSL._
 import sfsync.store._
 import sfsync.{Main, FilesView}
 import sfsync.Helpers._
-import util.StopWatch
+import sfsync.util.StopWatch
 import akka.pattern.ask
 import akka.util.Timeout
 import scala.concurrent._
