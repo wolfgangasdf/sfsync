@@ -11,7 +11,7 @@ import scala.language.reflectiveCalls
 
 import javafx.geometry. {Orientation=>jgo}
 
-import util.Logging
+import util.{LoggerBase, Logging}
 import scala._
 import collection.mutable.ArrayBuffer
 import store._
@@ -127,6 +127,9 @@ object Main extends JFXApp with Logging {
   var settingsView: MainView = null
   var filesView: FilesView = null
   var profile: Profile = null
+
+  // logging but allow override by file
+  LoggerBase.configure(overrideConfigFile = false, logdebug = false, loginfo = false, logwarning = true, logerror = true, logconsole = true, "")
 
   // run checks
   Checks.CheckComparedFile()
