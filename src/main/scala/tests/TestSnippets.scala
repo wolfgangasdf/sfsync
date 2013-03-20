@@ -8,6 +8,7 @@ import concurrent.Await
 import concurrent.duration.Duration
 import scalafx.beans.property.IntegerProperty
 import java.security.{Key, KeyStore}
+import sfsync.util.Logging
 
 //import akka.actor.{ActorRefFactory, ActorSystem}
 
@@ -266,4 +267,32 @@ object EncryptionTest extends App {
   println(s"e1=$e1")
   val d1 = DES.decrypt("0vmYC8J01+Q=", "huhupass")
   println(s"d1=$d1")
+}
+
+class aaa extends Logging {
+  info("new class info")
+}
+
+object TestLogging extends App with Logging {
+  import scala.concurrent.future
+  import scala.concurrent.ExecutionContext.Implicits.global
+  future {
+    info("f1info")
+    warn("f1warn")
+    error("f1error")
+    debug("f1debug")
+  }
+  future {
+    info("f2info")
+    warn("f2warn")
+    error("f2error")
+    debug("f2debug")
+  }
+  info("info")
+  warn("warn")
+  error("error")
+  debug("debug")
+  error("asdf", new Exception())
+  println("test other class")
+  val a = new aaa
 }

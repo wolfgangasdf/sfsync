@@ -1,11 +1,22 @@
 package sfsync.util
 
-import java.nio.file.{Files, Paths}
-import java.nio.charset.Charset
 import java.io.{PrintStream, File}
-import scala.collection.JavaConversions._
 
-object LoggerBase extends {
+/*
+A truly simple logger trait, just mixin "Logger" and use info(),debug(),warn(),error()
+specify config file location below
+without config file: just set LoggerBase.logInfo = true ... and call LoggerBase.init()
+example config file:
+
+# list attributes that are logged such as
+# levels:debug,info,warn,error
+levels=debug,info,warn,error
+# output:console,/tmp/log.txt
+outputs=console
+
+ */
+
+object LoggerBase {
   var logInfo = false
   var logDebug = false
   var logWarning = false
@@ -13,44 +24,51 @@ object LoggerBase extends {
   var logConsole = false
   var logFile = ""
   var outStreams = new scala.collection.mutable.ArrayBuffer[PrintStream]()
-
-  val res = getClass.getResource("/logconfig.txt")
+  var haveConfig = false
+  val res = getClass.getResourceAsStream("/sfsync/logconfig.txt")
   if (res != null) {
-    val fff = Paths.get(res.getFile)
-    if (Files.exists(fff)) {
-      val sl = Files.readAllLines(fff, Charset.forName("UTF-8"))
-      sl.foreach(s => {
-        // DO WITH PATTERN MATCHING!
-        s.replaceFirst("#.*","")
-        if (s.matches(".*=.*")) {
-          val rKeyval =  "\\s*(\\S*)\\s*=\\s*(\\S*)\\s*".r
-          val rKeyval(k,v) = s
-          k match {
-            case "levels" => {
-              if (v.contains("debug")) logDebug = true
-              if (v.contains("info")) logInfo = true
-              if (v.contains("warning")) logWarning = true
-              if (v.contains("error")) logError = true
-            }
-            case "outputs" => {
-              v.split(",").foreach(outp => {
-                println("outp=" + outp)
-                if (outp == "console")
-                  logConsole = true
-                else logFile = outp
-              })
-            }
+    haveConfig = true
+    val sl = scala.io.Source.fromInputStream(res).getLines()
+    sl.foreach(s => {
+      // DO WITH PATTERN MATCHING!
+      s.replaceFirst("#.*","")
+      if (s.matches(".*=.*")) {
+        val rKeyval =  "\\s*(\\S*)\\s*=\\s*(\\S*)\\s*".r
+        val rKeyval(k,v) = s
+        k match {
+          case "levels" => {
+            if (v.contains("debug")) logDebug = true
+            if (v.contains("info")) logInfo = true
+            if (v.contains("warning")) logWarning = true
+            if (v.contains("error")) logError = true
+          }
+          case "outputs" => {
+            v.split(",").foreach(outp => {
+              println("log outp=" + outp)
+              if (outp == "console")
+                logConsole = true
+              else logFile = outp
+            })
           }
         }
-      })
+      }
+    })
+  }
+  if (!haveConfig) {
+    println("log config file not found, using defaults")
+    logWarning = true
+    logError = true
+    logConsole = true
+  }
+  def init() {
+    if (logConsole) outStreams += Console.out
+    if (logFile != "") {
+      val f = new File(logFile)
+      outStreams += new PrintStream(f)
     }
+    println("log config: " + List(logDebug, logInfo, logWarning, logError, logConsole, logFile))
   }
-  if (logConsole) outStreams += Console.out
-  if (logFile != "") {
-    val f = new File(logFile)
-    outStreams += new PrintStream(f)
-  }
-  println("log config: " + List(logDebug, logInfo, logWarning, logError, logConsole, logFile))
+  init()
 
 }
 
@@ -73,30 +91,4 @@ trait Logging {
 
 }
 
-class aaa extends Logging {
-  info("new class info")
-}
 
-object TestLogging extends App with Logging {
-  import scala.concurrent.future
-  import scala.concurrent.ExecutionContext.Implicits.global
-  future {
-    info("f1info")
-    warn("f1warn")
-    error("f1error")
-    debug("f1debug")
-  }
-  future {
-    info("f2info")
-    warn("f2warn")
-    error("f2error")
-    debug("f2debug")
-  }
-  info("info")
-  warn("warn")
-  error("error")
-  debug("debug")
-  error("asdf", new Exception())
-  println("test other class")
-  val a = new aaa
-}
