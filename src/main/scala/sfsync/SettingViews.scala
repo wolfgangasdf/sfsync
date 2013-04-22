@@ -84,7 +84,7 @@ class MyListView[T <: ListableThing](
             sortit()
             lvs.selectionModel.get().clearSelection()
             lvs.selectionModel.get().select(newi)
-            onChange
+            onChange()
             unit()
           }
         },
@@ -96,7 +96,7 @@ class MyListView[T <: ListableThing](
                 obsBuffer.remove(idx)
                 lvs.selectionModel.get().clearSelection()
                 lvs.selectionModel.get().select(0)
-                onChange
+                onChange()
               }
             }
             unit()

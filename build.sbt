@@ -2,12 +2,9 @@ name := "sfsync"
 
 version := "0.2" // change also sfsync.Main.VERSION
 
-scalaVersion := "2.10.0"
+scalaVersion := "2.10.1"
 
 scalacOptions ++= Seq("-feature", "-deprecation")
-
-////////// intellij doesn't like same output path
-// doesntwork target in Compile <<= baseDirectory(_ / "targetsbt") 
 
 /////////////// akka actors (should work without this but doesn't)
 resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/"
@@ -21,7 +18,10 @@ unmanagedJars in Compile += Attributed.blank(file(System.getenv("JAVA_HOME") + "
 mainClass in (Compile, run) := Some("sfsync.Main")
 
 ////////////////// locally compiled scalafx!
-libraryDependencies += "org.scalafx" %% "scalafx-core" % "1.0-SNAPSHOT"
+//libraryDependencies += "org.scalafx" %% "scalafx-core" % "1.0-SNAPSHOT"
+
+////////////////// scalafx
+libraryDependencies += "org.scalafx" % "scalafx_2.10" % "1.0.0-M3"
 
 ////////////////// sftp
 resolvers += "JAnalyse Repository" at "http://www.janalyse.fr/repository/"
