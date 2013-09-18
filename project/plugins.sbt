@@ -1,16 +1,9 @@
 ////////////////// sbt-idea
 
-//addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.1.0")
-// for scala 2.10, i need snapshot...
-
-resolvers += "Sonatype snapshots" at "http://oss.sonatype.org/content/repositories/snapshots/"
-
-addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.5.0-SNAPSHOT")
-
+addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.5.1")
 
 ////////////////// sbt-javafx
 addSbtPlugin("no.vedaadata" %% "sbt-javafx" % "0.4.1-SNAPSHOT")
-
 
 ////////////////// onejar
 // addSbtPlugin("com.github.retronym" % "sbt-onejar" % "0.8")

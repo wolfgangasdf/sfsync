@@ -7,7 +7,7 @@ import scala.Predef._
 import scala.collection.JavaConversions._
 import akka.actor.ActorRef
 import com.jcraft.jsch
-import jsch.ChannelSftp
+import com.jcraft.jsch.{SftpException, ChannelSftp}
 import sfsync.store.Tools
 import java.text.Normalizer
 import java.nio.file._
@@ -109,10 +109,34 @@ object MyURI {
 class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection(isLocal) {
   def deletefile(what: String, mtime: Long) {
     val (cp, isdir) = checkIsDir(what)
-    if (isdir)
-      sftp.rmdir(remoteBasePath + "/" + cp)
-    else
+    if (isdir) {
+      try {
+        sftp.rmdir(remoteBasePath + "/" + cp)
+      } catch {
+        case sftpe: SftpException => { // unfortunately only "Failure"
+          val xx = sftp.ls(remoteBasePath + "/" + cp)
+          if (xx.length > 0) {
+            val tmp = new ListBuffer[ChannelSftp#LsEntry]
+            for (obj <- xx ) {
+              val lse = obj.asInstanceOf[ChannelSftp#LsEntry]
+              lse.getFilename match {
+                case "." | ".." => {}
+                case s => tmp += lse
+              }
+            }
+            val msg = s"Directory \n $cp \n not empty, content:\n" + tmp.map(a => a.getFilename).mkString("\n") + "\n DELETE ALL?"
+            if (runUIwait(Dialog.showYesNo(msg)) == true) {
+              tmp.map( f => sftp.rm(remoteBasePath + "/" + cp + "/" + f.getFilename) )
+              sftp.rmdir(remoteBasePath + "/" + cp)
+              return
+            }
+          }
+          throw sftpe
+        }
+      }
+    } else {
       sftp.rm(remoteBasePath + "/" + cp)
+    }
   }
   def putfile(from: String, mtime: Long) {
     val (cp, isdir) = checkIsDir(from)

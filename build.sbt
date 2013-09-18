@@ -2,14 +2,12 @@ name := "sfsync"
 
 version := "0.2" // change also sfsync.Main.VERSION
 
-scalaVersion := "2.10.1"
+scalaVersion := "2.10.2"
 
 scalacOptions ++= Seq("-feature", "-deprecation")
 
 /////////////// akka actors (should work without this but doesn't)
-resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/"
-
-libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.1.0"
+libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.1"
 
 ////////////////// for compile with javafx
 
@@ -17,19 +15,16 @@ unmanagedJars in Compile += Attributed.blank(file(System.getenv("JAVA_HOME") + "
 
 mainClass in (Compile, run) := Some("sfsync.Main")
 
-////////////////// locally compiled scalafx!
-//libraryDependencies += "org.scalafx" %% "scalafx-core" % "1.0-SNAPSHOT"
-
 ////////////////// scalafx
-libraryDependencies += "org.scalafx" % "scalafx_2.10" % "1.0.0-M3"
+libraryDependencies += "org.scalafx" % "scalafx_2.10" % "1.0.0-M5"
 
 ////////////////// sftp
 resolvers += "JAnalyse Repository" at "http://www.janalyse.fr/repository/"
 
-libraryDependencies += "fr.janalyse" %% "janalyse-ssh" % "0.9.5-b3" % "compile"
+libraryDependencies += "fr.janalyse" %% "janalyse-ssh" % "0.9.10" % "compile"
 
 ////////////////// squeryl & derby
-libraryDependencies += "com.h2database" % "h2" % "1.3.170"
+libraryDependencies += "com.h2database" % "h2" % "1.3.173"
 
 libraryDependencies += "org.squeryl" %% "squeryl" % "0.9.5-6"
 
@@ -45,7 +40,10 @@ JFX.addJfxrtToClasspath := true
 
 ////////////////// old unused
 
-////////////////// file io 
+////////////////// locally compiled scalafx!
+//libraryDependencies += "org.scalafx" %% "scalafx-core" % "1.0-SNAPSHOT"
+
+////////////////// file io
 // libraryDependencies += "com.github.scala-incubator.io" %% "scala-io-core" % "0.5.0-SNAPSHOT"
 
 // libraryDependencies += "com.github.scala-incubator.io" %% "scala-io-file" % "0.5.0-SNAPSHOT"
