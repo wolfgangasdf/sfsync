@@ -2,13 +2,17 @@ package sfsync.synchro
 
 /*
 this runs not in ui thread, so use runUI and runUIwait!
+for 20000 local files (testlocalmany):
+rev 99227ee (before new compare algo):
+reset: 1s, then 0.8s
+timings: 16s, 13s (view all) or 12s (only changes)
  */
 
 import scala.collection.mutable.ListBuffer
 import Actions._
 import akka.actor.ActorDSL._
 import sfsync.store._
-import sfsync.{Main, FilesView}
+import sfsync.{CF, Main, FilesView}
 import sfsync.Helpers._
 import sfsync.util.{Logging, StopWatch}
 import akka.pattern.ask
@@ -46,6 +50,77 @@ object Actions {
 }
 
 case class addFile(vf: VirtualFile, islocal: Boolean)
+
+object CompareStuff {
+  def getParentFolder(path: String) = {
+    path.split("/").dropRight(1).mkString("/") + "/"
+  }
+  // compare, update database entries only.
+  def compareSyncEntries() {
+    // q contains all entries to be checked
+    val q = MySchema.files.where(se => (se.relevant === true) and (se.action === A_UNCHECKED))
+    println("**** all relevant:") ; q.map(se => println(se))
+    // iterate over all folders not in cache and check if it has parent folder that has been synced before in current set
+    val qfsnocache = q.where(se => se.path.like("%/") and se.cSize === -1)
+    //println("**** all dirs without cache:") ; qfsnocache.map(se => println(se))
+    MySchema.files.update(qfsnocache.map(se => {
+      println("check if there is synced parent in current set of: " + se.path)
+      var tmpf = se.path
+      var haveCacheParentDir = false
+      var doit = true
+      while (!haveCacheParentDir && doit) {
+        tmpf = getParentFolder(tmpf)
+        if (tmpf != "/") {
+          println(s"  checking parent $tmpf")
+          val pq = q.where(se => se.path === tmpf)
+          if (pq.size == 1) {
+            if (pq.head.cSize != -1) haveCacheParentDir = true
+          } else {
+            doit = false // parent not in relevant set in DB
+          }
+        } else doit = false
+      }
+      // compare...
+      se.hasCachedParent = haveCacheParentDir
+      se.iniAction2(!haveCacheParentDir)
+      println(s"  havecachedparent: $haveCacheParentDir => action: " + CF.amap(se.action))
+      se
+    }))
+    // iterate over all folders that are cacheed
+    val qfscache = q.where(se => se.path.like("%/") and se.cSize <> -1)
+    //println("**** all dirs with cache:") ; qfscache.map(se => println(se))
+    MySchema.files.update(qfscache.map(se => {
+      se.hasCachedParent = true
+      se.iniAction2(false)
+      se
+    }))
+    // iterate over the rest: all files.
+    println("**** checking all files:")
+    //        val qfiles = q.minus(qfsnocache).minus(qfscache) // not implemented :-(
+    val qfiles = q.where(se => not (se.path.like("%/")) )
+    MySchema.files.update(qfiles.map(se => {
+      //println("   file: " + se.path)
+      if (se.cSize == -1) { // only get parent folder for unknown files, faster!
+      val parent = getParentFolder(se.path)
+        // TODO: I can't only use the check if a folder is A_UNKNOWN ; I need to record if a subfolder was "new" or not, no matter if equal or not!!!!
+        if (!MySchema.files.where(sex => sex.path === parent).head.hasCachedParent) {
+          se.iniAction2(true) // test
+          //print("  [c]")
+        } else {
+          se.iniAction2(false)
+          //print("  [b]")
+        }
+      } else {
+        se.iniAction2(false)
+        //print("  [a]")
+      }
+      //println(" ==> " + CF.amap(se.action))
+      se
+    }))
+
+  }
+
+}
 
 class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: SubFolder) extends Logging {
   var cache: ListBuffer[VirtualFile] = null
@@ -90,6 +165,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     remote.remoteBasePath = protocol.protocolbasefolder
   }
 
+
   def compare() {
     debug("compare() in thread " + Thread.currentThread().getId)
     // reset
@@ -97,6 +173,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     // reset table
     runUIwait { Main.Status.status.value = "Resetting database..." }
     debug("resetting table...")
+    val sw = new StopWatch // for timing meas
     import org.squeryl.PrimitiveTypeMode.transaction
     import org.squeryl.PrimitiveTypeMode._
     var cacheall = false
@@ -121,26 +198,27 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
         a
       }))
     }
+    debug("  resetting table took " + sw.getTimeRestart)
     runUIwait { view.updateSyncEntries() }
     var receiveSession: Session = null
     // the receive actor
     var lfiles = 0
     var rfiles = 0
-    val sw = new StopWatch // for UI update
+    val swUI = new StopWatch // for UI update
     receiveActor = actor(Main.system, name = "receive")(new Act {
       var finished = 2*subfolder.subfolders.length // cowntdown for lists
       debug("receiveList in thread " + Thread.currentThread().getId)
       become {
         case addFile(vf, islocal) => {
 //          debug("  received " + vf)
-          if (sw.getTime > UIUpdateInterval) {
+          if (swUI.getTime > UIUpdateInterval) {
             runUIwait { // give UI time
               Main.Status.status.value = "Find files... " + vf.path
               Main.Status.local.value = lfiles.toString
               Main.Status.remote.value = rfiles.toString
               view.updateSyncEntries()
             }
-            sw.restart()
+            swUI.restart()
           }
           if (islocal) lfiles += 1 else rfiles += 1
           if (receiveSession==null) {
@@ -158,7 +236,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
               var se = q.single
               if (islocal) { se.lTime = vf.modTime ; se.lSize = vf.size }
               else         { se.rTime = vf.modTime ; se.rSize = vf.size }
-              if (se.lSize != -1 && se.rSize != -1) se = se.iniAction(!server.didInitialSync.value) // ini action!
+//              if (se.lSize != -1 && se.rSize != -1) se = se.iniAction(!server.didInitialSync.value) // ini action!
               MySchema.files.update(se)
               //debug("updated   " + se)
             }
@@ -191,25 +269,24 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     implicit val timeout = Timeout(36500 days)
     info("*********************** wait until all received...")
     while (Await.result(receiveActor ? 'replyWhenDone, Duration.Inf) != 'done) { Thread.sleep(100) }
-    if (receiveSession!=null) receiveSession.close
+//    if (receiveSession!=null) receiveSession.close
     info("*********************** list finished")
     runUIwait {
       Main.Status.local.value = lfiles.toString
       Main.Status.remote.value = rfiles.toString
-      Main.Status.status.value = "Initialize actions..."
+      Main.Status.status.value = "Compare files..."
     }
     // init with best guess
-    info("*********************** ini with best guess remaining syncentries")
-    var haveChanges = true
-    transaction {
-      val q = MySchema.files.where(se => (se.relevant === true) and (se.action === A_UNCHECKED))
-      MySchema.files.update(q.map(se => se.iniAction(!server.didInitialSync.value)))
-      val q2 = MySchema.files.where(se => (se.relevant === true) and (se.action <> A_ISEQUAL))
-      if (q2.size == 0) haveChanges = false
+    info("*********************** compare sync entries")
+    var haveChanges = true // TODO add this to function below!
+    using(receiveSession) {
+      CompareStuff.compareSyncEntries()
     }
+    if (receiveSession!=null) receiveSession.close
 
     info("*********************** compare: finish up")
     runUIwait {
+      Main.btCompare.setDisable(false)
       view.updateSyncEntries()
       view.updateSyncButton(allow = true)
       if (haveChanges) {
@@ -223,6 +300,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
         }
       }
     }
+    debug("  comparing etc took " + sw.getTimeRestart)
   }
 
   def synchronize() {
@@ -323,6 +401,8 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       Main.doCleanup()
     }
   }
+
+
 
 }
 

@@ -8,6 +8,11 @@ class StopWatch {
     deltaSecs = (System.nanoTime - startNanos)/1e9
   }
   def getTime = (System.nanoTime - startNanos)/1e9
+  def getTimeRestart = {
+    val x = getTime
+    restart()
+    x
+  }
   def timeIt = { // a little overhead... 0.13s
     if (deltaSecs == 0) stop
     "%g s" format deltaSecs

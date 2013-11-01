@@ -259,6 +259,7 @@ class SyncEntry(var path: String, var action: Int,
                 var selected: Boolean = false,
                 var delete: Boolean = false
                  ) extends BaseEntity with Optimistic {
+  var hasCachedParent = false
   def status = new StringProperty(this, "status", CF.amap(action))
   def dformat = new java.text.SimpleDateFormat("dd-MM-yyyy HH:mm:ss")
   def detailsLocal = new StringProperty(this, "detailsl",
@@ -288,7 +289,7 @@ class SyncEntry(var path: String, var action: Int,
     }
   }
 
-  def iniAction(newcache: Boolean) = {
+  def iniAction2(newcache: Boolean) = {
     import sfsync.synchro.Actions._
     action = -9
     if (lSize == -1 && rSize == -1) { // cache only?
@@ -471,7 +472,11 @@ object CacheDB extends Logging {
 
   def clearCache() {
     transaction {
-      MySchema.files.deleteWhere(se => se.id.isNotNull)
+      MySchema.drop // now drop database to make updates easier!
+      MySchema.create
+      info("  Created the schema")
+      MySchema.printDdl
+//      MySchema.files.deleteWhere(se => se.id.isNotNull)
       invalidateCache()
     }
   }

@@ -21,6 +21,7 @@ object LoggerBase {
   var logFile = ""
   var outStreams = new scala.collection.mutable.ArrayBuffer[PrintStream]()
   var haveConfigFile = false
+  println("Resources root directory: " + getClass.getResource("/"))
   val res = getClass.getResourceAsStream("/sfsync/logconfig.txt")
   if (res != null) {
     haveConfigFile = true

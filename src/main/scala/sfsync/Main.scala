@@ -133,7 +133,6 @@ object Main extends JFXApp with Logging {
 
   // run checks
   Checks.CheckComparedFile()
-
   // startup
   info("sfsync version = " + version)
   info("java.version = " + System.getProperty("java.version"))
