@@ -4,18 +4,11 @@ import scalafx.application.JFXApp
 import scalafx.Includes._
 import scalafx.scene._
 import scalafx.scene.paint.Color
-import scalafx.stage._
 import scalafx.scene.layout._
 import scalafx.scene.control._
 import scalafx.event.ActionEvent
-import javafx.util
-import javafx.scene.control
-import javafx.beans.value
-import scalafx.scene
-import scalafx.beans.property.StringProperty
 import javafx.collections.ListChangeListener
-import collection.mutable.{ListBuffer, ArrayBuffer}
-import java.util
+import collection.mutable.ListBuffer
 
 
 object TestSFXScenes extends JFXApp {

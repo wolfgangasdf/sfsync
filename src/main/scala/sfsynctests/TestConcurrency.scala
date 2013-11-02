@@ -11,6 +11,8 @@ import scalafx. {collections => sfxc}
 import javafx. {stage => jfxs}
 import scala.concurrent.future
 import scala.concurrent.ExecutionContext.Implicits.global
+import java.util.concurrent.FutureTask
+
 
 object TestConcurrency extends JFXApp {
   var obslist = new sfxc.ObservableBuffer[String]
@@ -23,22 +25,20 @@ object TestConcurrency extends JFXApp {
       }
     })
   }
-  def runUIwait( f: => Any ) : Any = {
+
+  def runUIwait2( f: => Any) : Any = {
     @volatile var stat: Any = null
-//    synchronized(stat) // not needed??
-    val runable = new Runnable() {
+    val runnable = new Runnable() {
       def run() {
         stat = f
-        println("after f!!!!!")
       }
     }
-    javafx.application.Platform.runLater(runable)
-    while(stat == null) {
-      Thread.sleep(1)
-    }
-    println("after loopwhile!!!!!")
+    val future = new FutureTask[Any](runnable, null)
+    scalafx.application.Platform.runLater( future )
+    future.get()
     stat
   }
+
   stage = new JFXApp.PrimaryStage {
     title = "SFSynchro"
     width = 800
@@ -54,11 +54,11 @@ object TestConcurrency extends JFXApp {
         }
         bottom = new Button("add many in other thread") {
           onAction = (ae: ActionEvent) => {
-            future {
+            future { // this launces a new thread that can't access UI
               while (true) {
                 Thread.sleep(1000)
-                println("xxx")
-                val res = runUIwait( Dialog.showTest() )
+                println("XXXXXXX before launching dialog via runuiwait")
+                val res = runUIwait2( Dialog.showTest() )
                 runUI { obslist += "newt" + res ; println("nt") }
                 if (res == true) println("tr") else println("fa")
 

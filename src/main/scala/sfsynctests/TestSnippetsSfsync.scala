@@ -1,15 +1,12 @@
 package sfsynctests
 
-import akka.actor.{ActorRef, Actor}
-import collection.mutable.ListBuffer
+import akka.actor.Actor
 import sfsync.util.StopWatch
-import sfsync.synchro.VirtualFile
 
 object TestListRecSpeed1java extends App {
   var numfiles = 0
   def listrec(subfolder: String, filterregexp: String, receiver: Actor) = {
     //    println("searching " + remoteBasePath + "/" + subfolder)
-    val list = new ListBuffer[VirtualFile]()
     def parseContent(folder: String) : Unit = {
       val files = new java.io.File(folder).listFiles()
       for (ff <- files) {

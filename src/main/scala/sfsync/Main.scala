@@ -25,6 +25,7 @@ import scala.language.implicitConversions
 import scalafx.geometry.Pos
 import java.nio.charset.Charset
 import scalafx.beans.property.StringProperty
+import java.util.concurrent.FutureTask
 
 object Helpers {
 
@@ -55,18 +56,16 @@ object Helpers {
     })
   }
 
-  def runUIwait( f: => Any ) : Any = {
+  def runUIwait( f: => Any) : Any = {
     @volatile var stat: Any = null
-    //    synchronized(stat) // not needed??
-    val runable = new Runnable() {
+    val runnable = new Runnable() {
       def run() {
         stat = f
       }
     }
-    javafx.application.Platform.runLater(runable)
-    while(stat == null) { // ugly
-      Thread.sleep(0,10000)
-    }
+    val future = new FutureTask[Any](runnable, null)
+    scalafx.application.Platform.runLater( future )
+    future.get()
     stat
   }
 
@@ -166,6 +165,7 @@ object Main extends JFXApp with Logging {
 
   var tmpse: SyncEntry = null
 
+  var btCompare: Button = null // to prevent suspicious forward reference in btSync
   val btSync: Button = new Button("Synchronize") {
     onAction = (ae: ActionEvent) => {
       runUI {
@@ -178,7 +178,7 @@ object Main extends JFXApp with Logging {
       unit()
     }
   }
-  val btCompare: Button = new Button("Compare") {
+  btCompare = new Button("Compare") {
     onAction = (ae: ActionEvent) => {
       runUI {
         btSync.setDisable(true)
@@ -355,14 +355,21 @@ object Main extends JFXApp with Logging {
           text = ""
           onAction = (ae: ActionEvent) => { res = text.value; dstage.close }
         }
-        var lab = new Label {
+        var ta = new TextArea {
           text = msg
-          textAlignment = scalafx.scene.text.TextAlignment.CENTER
+          editable = false
         }
+        var sp = new ScrollPane {
+          content = ta
+          fitToWidth = true
+          fitToHeight = true
+        }
+
         mtype match {
-          case 1 | 2 => { center = lab }
-          case 3 => { top = lab ; center = tf }
+          case 1 | 2 => { center = sp }
+          case 3 => { top = sp ; center = tf }
         }
+
         bottom = new HBox {
           margin = insetsstd
           spacing = 5

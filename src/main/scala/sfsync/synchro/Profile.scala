@@ -10,11 +10,11 @@ timings: 16s, 13s (view all) or 12s (only changes)
 
 import scala.collection.mutable.ListBuffer
 import Actions._
-import akka.actor.ActorDSL._
 import sfsync.store._
 import sfsync.{Main, FilesView}
 import sfsync.Helpers._
 import sfsync.util.{Logging, StopWatch}
+import akka.actor.ActorDSL._
 import akka.pattern.ask
 import akka.util.Timeout
 import scala.concurrent._

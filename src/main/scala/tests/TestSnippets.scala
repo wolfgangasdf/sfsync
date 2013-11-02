@@ -2,18 +2,12 @@ package tests
 
 import akka.actor.ActorDSL._
 import akka.actor._
-import javax.swing.JOptionPane
-import com.jcraft.jsch.ChannelSftp._
-import concurrent.Await
-import concurrent.duration.Duration
-import scalafx.beans.property.IntegerProperty
 import java.security.{Key, KeyStore}
 import sfsync.util.Logging
 
 //import akka.actor.{ActorRefFactory, ActorSystem}
 
 //import sfsync.synchro.{ComparedFile, VirtualFile, SftpConnection}
-import collection.mutable.ListBuffer
 
 object ActorTest extends App{
   var doit = true
@@ -109,10 +103,6 @@ object TestJanalysessh extends App {
   }
 }
 
-
-import com.jcraft.jsch
-import jsch.ChannelSftp
-import scala.collection.JavaConversions._
 
 //object TestJsch extends App {
 //
