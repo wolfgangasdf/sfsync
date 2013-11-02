@@ -1,5 +1,8 @@
 import sbt._
-import Keys._
+import sbt.Keys._
+import no.vedaadata.sbtjavafx.JavaFXPlugin._
+import scala.Some
+import scala.Some
 
 object BuildSettings {
   val buildOrganization = "com.sfsync"
@@ -58,6 +61,18 @@ object WMPBuild extends Build {
 
   lazy val unmanagedListing = unmanagedJars in Compile += Attributed.blank(file(javaHome.get + "/jre/lib/jfxrt.jar"))
 
+  // javafx ini for scalafx. needed only for package-javafx, in principle
+
+//  jfxSettings
+
+//  val myjfxsettings = jfxSettings ++ Seq(
+//    JFX.mainClass := Some("sfsync.Main"),
+//    JFX.devKit := JFX.jdk(javaHome.get),
+//    JFX.addJfxrtToClasspath := true
+//  )
+
+//  no.vedaadata.sbtjavafx.JavaFXPlugin.packageJavaFxTask
+
   lazy val sfsyncSettings = buildSettings ++ Seq(
     name := "SFSync",
     libraryDependencies ++= Seq(scala, akka, scalafx, sftp, h2, squeryl),
@@ -69,5 +84,8 @@ object WMPBuild extends Build {
     base = file("."),
     settings = sfsyncSettings
   ).settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
+
+
+//  packageJavaFxTask
 
 }
