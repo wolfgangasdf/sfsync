@@ -163,6 +163,7 @@ class FilesView() extends Tab with Logging {
 
         updateSyncEntries()
         updateSyncButton()
+        print("")
       }
     }
   }
@@ -175,16 +176,16 @@ class FilesView() extends Tab with Logging {
   var btRmBoth = createActionButton("Delete both", A_RMBOTH)
   List(btRmLocal, btUseLocal, btMerge, btSkip, btRmBoth, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
 
-  def updateSyncButton(allow: Boolean) {
+  def updateSyncButton(allow: Boolean): Boolean = {
     syncEnabled = allow
     updateSyncButton()
   }
-  def updateSyncButton() {
+  // returns true if can synchronize
+  def updateSyncButton() = {
     debug("update sync button")
-    if (syncEnabled)
-      Main.btSync.setDisable(!CacheDB.canSync)
-    else
-      Main.btSync.setDisable(true)
+    val canSync = if (syncEnabled) CacheDB.canSync else false
+    Main.btSync.setDisable(!canSync)
+    canSync
   }
 
   var enableActions = false
@@ -239,7 +240,7 @@ class FilesView() extends Tab with Logging {
   def getFilter = {
     cFilter.getValue match {
       case F.all => ALLACTIONS
-      case F.changes => ALLACTIONS.filter( x => ( x != A_ISEQUAL && x != A_UNCHECKED) )
+      case F.changes => ALLACTIONS.filter( x => x != A_ISEQUAL && x != A_UNCHECKED )
       case F.problems => List(A_UNKNOWN, A_UNCHECKED, A_SKIP, A_CACHEONLY, A_SYNCERROR)
       case _ => ALLACTIONS
     }

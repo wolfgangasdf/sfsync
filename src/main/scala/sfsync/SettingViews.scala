@@ -51,12 +51,11 @@ class MyListView[T <: ListableThing](
   lvs.cellFactory = TextFieldListCell.forListView(new StringConverter[T] {
     def fromString(string: String): T = {
       // this is only called (?) if editing is finished. overwrite old name
+      assert(lvs.getSelectionModel.getSelectedItems.size() == 1)
       val xx = lvs.getSelectionModel.getSelectedItem
-      if (xx != null) {
-        xx.name.value = string
-        sortit()
-        lvs.getSelectionModel.select(xx)
-      }
+      xx.name.value = string
+      sortit()
+      lvs.getSelectionModel.select(xx)
       xx
     }
     def toString(t: T): String = t.toString
@@ -198,10 +197,8 @@ abstract class ServerView(val config: Config) extends BorderPane with Logging {
       () => fcLocalDir(server.localFolder), "/localdir","/.*[^/]",
       canDropFile = true
     ) { tf.text <==> server.localFolder }
-    val cbDidIniSync = new CheckBox("Performed initial sync") { selected <==> server.didInitialSync }
-    cbDidIniSync.setDisable(true)
-    var bClearCache = new Button("Clear cache") { onAction = (ae: ActionEvent) => { CacheDB.clearCache() ; server.didInitialSync.value = false } }
-    val clist = List(tfLocalFolder,tfFilter,tfID,cbDidIniSync,bClearCache)
+    var bClearCache = new Button("Clear cache") { onAction = (ae: ActionEvent) => { CacheDB.clearCache() } }
+    val clist = List(tfLocalFolder,tfFilter,tfID,bClearCache)
     tfLocalFolder.prefWidth <== this.prefWidth
     tfFilter.prefWidth <== this.prefWidth
     tfID.prefWidth <== this.prefWidth

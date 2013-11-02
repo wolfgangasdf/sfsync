@@ -113,7 +113,6 @@ class Server extends ListableThing {
   var currentProtocol: IntegerProperty = -1
   var subfolders = new sfxc.ObservableBuffer[SubFolder]
   var currentSubFolder: IntegerProperty = -1
-  var didInitialSync: BooleanProperty = BooleanProperty(value = false)
   override def toString: String = name // used for listview
 }
 
@@ -161,7 +160,6 @@ object Store extends Logging {
       saveVal("filterregexp", server.filterRegexp)
       saveVal("id", server.id)
       saveVal("protocolcurr", server.currentProtocol)
-      saveVal("didinitialsync", server.didInitialSync)
       for (proto <- server.protocols) {
         saveVal("protocol", proto.name)
         saveVal("protocoluri", proto.protocoluri)
@@ -199,7 +197,7 @@ object Store extends Logging {
           }
           case "width" => { config.width.value = sett(1).toInt }
           case "height" => { config.height.value = sett(1).toInt }
-          case "dividerpositions" => { config.dividerPositions ++= (sett(1).split("#").map(x => x.toDouble))}
+          case "dividerpositions" => { config.dividerPositions ++= sett(1).split("#").map(x => x.toDouble)}
           case "servercurr" => { config.currentServer.value = sett(1).toInt }
           case "currentFilter" => config.currentFilter.value = sett(1).toInt
           case "server" => {
@@ -209,7 +207,6 @@ object Store extends Logging {
           case "localfolder" => { lastserver.localFolder.value = sett(1) }
           case "filterregexp" => { lastserver.filterRegexp.value = sett(1) }
           case "id" => { lastserver.id.value = sett(1) }
-          case "didinitialsync" => {lastserver.didInitialSync.value = sett(1).toBoolean }
           case "protocolcurr" => { lastserver.currentProtocol.value = sett(1).toInt }
           case "protocol" => {
             lastprotocol = new Protocol { name = sett(1) }
@@ -263,9 +260,9 @@ class SyncEntry(var path: String, var action: Int,
   def status = new StringProperty(this, "status", CF.amap(action))
   def dformat = new java.text.SimpleDateFormat("dd-MM-yyyy HH:mm:ss")
   def detailsLocal = new StringProperty(this, "detailsl",
-      (if (lSize != -1) (dformat.format(new java.util.Date(lTime)) + "," + lSize) else "none"))
+      if (lSize != -1) dformat.format(new java.util.Date(lTime)) + "," + lSize else "none")
   def detailsRemote = new StringProperty(this, "detailsr",
-    (if (rSize != -1) (dformat.format(new java.util.Date(rTime)) + "," + rSize) else "none"))
+    if (rSize != -1) dformat.format(new java.util.Date(rTime)) + "," + rSize else "none")
   def isDir = path.endsWith("/")
   def isEqual = {
     if (isDir) {
@@ -390,8 +387,8 @@ object CacheDB extends Logging {
                     (se.relevant === onlyRelevant.?) and
                     (se.action in filterActions)
                   )
-                  select(se)
-                  orderBy(se.path)
+                  select se
+                  orderBy se.path
                 ) page(startindex,300)
               var iii = startindex
               res.foreach(se => { // update cache
@@ -414,7 +411,7 @@ object CacheDB extends Logging {
                       (se.relevant === onlyRelevant.?) and
                         (se.action in filterActions)
                     )
-                      select (se)
+                      select se
                   ).size
                 debug("get size=" + sizeCache)
               }
@@ -441,7 +438,7 @@ object CacheDB extends Logging {
   def canSync = {
     transaction {
       val si = MySchema.files.where(se => (se.relevant === true) and (se.action === A_UNKNOWN)).size
-      (si == 0)
+      si == 0
     }
   }
 
@@ -452,7 +449,7 @@ object CacheDB extends Logging {
 
     info("connecting to database name=" + name + " at " + DBSettings.dbpath(name))
     Class.forName("org.h2.Driver")
-    val dbexists = (Files.exists(Paths.get(DBSettings.dbpath(name) + ".h2.db") ))
+    val dbexists = Files.exists(Paths.get(DBSettings.dbpath(name) + ".h2.db"))
     val databaseConnection = s"jdbc:h2:" + DBSettings.dbpath(name) + ";MVCC=TRUE;CACHE_SIZE=131072" + (if (dbexists) ";create=true" else "")
     sessionFactory.concreteFactory = Some(() => {
       Session.create(java.sql.DriverManager.getConnection(databaseConnection), new H2Adapter)

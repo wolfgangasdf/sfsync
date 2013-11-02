@@ -24,7 +24,7 @@ object TestConcurrency extends JFXApp {
     })
   }
   def runUIwait( f: => Any ) : Any = {
-    var stat: Any = null
+    @volatile var stat: Any = null
 //    synchronized(stat) // not needed??
     val runable = new Runnable() {
       def run() {

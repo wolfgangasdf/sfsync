@@ -4,7 +4,7 @@ package sfsync.util
 class StopWatch {
   private var startNanos = System.nanoTime
   var deltaSecs: Double = 0
-  def stop { // fast stopping
+  def stop() { // fast stopping
     deltaSecs = (System.nanoTime - startNanos)/1e9
   }
   def getTime = (System.nanoTime - startNanos)/1e9
@@ -14,7 +14,7 @@ class StopWatch {
     x
   }
   def timeIt = { // a little overhead... 0.13s
-    if (deltaSecs == 0) stop
+    if (deltaSecs == 0) stop()
     "%g s" format deltaSecs
   }
   def printTime(msg: String) = {

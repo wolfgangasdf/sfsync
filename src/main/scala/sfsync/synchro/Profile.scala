@@ -12,7 +12,7 @@ import scala.collection.mutable.ListBuffer
 import Actions._
 import akka.actor.ActorDSL._
 import sfsync.store._
-import sfsync.{CF, Main, FilesView}
+import sfsync.{Main, FilesView}
 import sfsync.Helpers._
 import sfsync.util.{Logging, StopWatch}
 import akka.pattern.ask
@@ -51,27 +51,28 @@ object Actions {
 
 case class addFile(vf: VirtualFile, islocal: Boolean)
 
-object CompareStuff {
+object CompareStuff extends Logging {
   def getParentFolder(path: String) = {
     path.split("/").dropRight(1).mkString("/") + "/"
   }
   // compare, update database entries only.
-  def compareSyncEntries() {
+  def compareSyncEntries() = {
+    val swse = new StopWatch
     // q contains all entries to be checked
     val q = MySchema.files.where(se => (se.relevant === true) and (se.action === A_UNCHECKED))
-    println("**** all relevant:") ; q.map(se => println(se))
+    //println("**** all relevant:") ; q.map(se => println(se))
     // iterate over all folders not in cache and check if it has parent folder that has been synced before in current set
     val qfsnocache = q.where(se => se.path.like("%/") and se.cSize === -1)
     //println("**** all dirs without cache:") ; qfsnocache.map(se => println(se))
     MySchema.files.update(qfsnocache.map(se => {
-      println("check if there is synced parent in current set of: " + se.path)
+      //println("check if there is synced parent in current set of: " + se.path)
       var tmpf = se.path
       var haveCacheParentDir = false
       var doit = true
       while (!haveCacheParentDir && doit) {
         tmpf = getParentFolder(tmpf)
         if (tmpf != "/") {
-          println(s"  checking parent $tmpf")
+          //println(s"  checking parent $tmpf")
           val pq = q.where(se => se.path === tmpf)
           if (pq.size == 1) {
             if (pq.head.cSize != -1) haveCacheParentDir = true
@@ -83,41 +84,45 @@ object CompareStuff {
       // compare...
       se.hasCachedParent = haveCacheParentDir
       se.iniAction2(!haveCacheParentDir)
-      println(s"  havecachedparent: $haveCacheParentDir => action: " + CF.amap(se.action))
+      //println(s"  havecachedparent: $haveCacheParentDir => action: " + CF.amap(se.action))
       se
     }))
+    debug("TTT a took = " + swse.getTimeRestart)
     // iterate over all folders that are cacheed
     val qfscache = q.where(se => se.path.like("%/") and se.cSize <> -1)
     //println("**** all dirs with cache:") ; qfscache.map(se => println(se))
     MySchema.files.update(qfscache.map(se => {
       se.hasCachedParent = true
-      se.iniAction2(false)
+      se.iniAction2(newcache = false)
       se
     }))
+    debug("TTT b took = " + swse.getTimeRestart)
     // iterate over the rest: all files.
-    println("**** checking all files:")
+    //println("**** checking all files:")
     //        val qfiles = q.minus(qfsnocache).minus(qfscache) // not implemented :-(
     val qfiles = q.where(se => not (se.path.like("%/")) )
     MySchema.files.update(qfiles.map(se => {
       //println("   file: " + se.path)
       if (se.cSize == -1) { // only get parent folder for unknown files, faster!
       val parent = getParentFolder(se.path)
-        // TODO: I can't only use the check if a folder is A_UNKNOWN ; I need to record if a subfolder was "new" or not, no matter if equal or not!!!!
         if (!MySchema.files.where(sex => sex.path === parent).head.hasCachedParent) {
-          se.iniAction2(true) // test
+          se.iniAction2(newcache = true) // test
           //print("  [c]")
         } else {
-          se.iniAction2(false)
+          se.iniAction2(newcache = false)
           //print("  [b]")
         }
       } else {
-        se.iniAction2(false)
+        se.iniAction2(newcache = false)
         //print("  [a]")
       }
       //println(" ==> " + CF.amap(se.action))
       se
     }))
+    debug("TTT c took = " + swse.getTimeRestart)
 
+    // return true if changes
+    !MySchema.files.where(se => (se.relevant === true) and (se.action <> A_ISEQUAL)).isEmpty
   }
 
 }
@@ -180,7 +185,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     for (sf <- subfolder.subfolders) if (sf == "") cacheall = true
     transaction {
       // remove cache orphans (happens if user doesn't click synchronize
-      MySchema.files.deleteWhere(se => (se.cSize === -1))
+      MySchema.files.deleteWhere(se => se.cSize === -1)
       // ini files
       val q = from(MySchema.files)(s=>select(s))
       MySchema.files.update(q.map(a =>{
@@ -188,9 +193,8 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
         if (!cacheall) for (sf <- subfolder.subfolders) if (a.path.startsWith("/" + sf + "/")) tmp = true
         if (tmp) {
           a.action = A_UNCHECKED
-          a.lSize = -1; a.lTime = 0
-          a.rSize = -1; a.rTime = 0
-          if (!server.didInitialSync.value) a.cSize = -1 // disable cache if not ini sync (could happen if error before)
+          a.lSize = -1; a.lTime = -1
+          a.rSize = -1; a.rTime = -1
           a.relevant = true
         } else {
           a.relevant = false
@@ -226,17 +230,18 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
             debug("created receivesession " + receiveSession + " in Thread " + Thread.currentThread().getId)
           }
           using (receiveSession) {
-            val q = MySchema.files.where(se => (se.path === vf.path))
+            val q = MySchema.files.where(se => se.path === vf.path)
             if (q.size == 0) { // new entry
               val senew = new SyncEntry(vf.path, A_UNCHECKED, if (islocal) vf.modTime else 0, if (islocal) vf.size else -1,
                 if (!islocal) vf.modTime else 0, if (!islocal) vf.size else -1,0,-1,true)
               MySchema.files.insert(senew)
               //debug("added new " + senew)
             } else {
-              var se = q.single
+              val se = q.single
               if (islocal) { se.lTime = vf.modTime ; se.lSize = vf.size }
               else         { se.rTime = vf.modTime ; se.rSize = vf.size }
-//              if (se.lSize != -1 && se.rSize != -1) se = se.iniAction(!server.didInitialSync.value) // ini action!
+              // optimization if entry not modified and in cache: not really needed... 3 secs gain for 20k files
+//              if (se.lSize != -1 && se.rSize != -1 && se.cSize != -1) se = se.iniAction2(false)
               MySchema.files.update(se)
               //debug("updated   " + se)
             }
@@ -278,35 +283,30 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     }
     // init with best guess
     info("*********************** compare sync entries")
-    var haveChanges = true // TODO add this to function below!
-    using(receiveSession) {
+    val haveChanges = using(receiveSession) {
       CompareStuff.compareSyncEntries()
     }
     if (receiveSession!=null) receiveSession.close
 
     info("*********************** compare: finish up")
-    runUIwait {
+    val runSync = runUIwait {
       Main.btCompare.setDisable(false)
       view.updateSyncEntries()
-      view.updateSyncButton(allow = true)
+      val canSync = view.updateSyncButton(allow = true)
       if (haveChanges) {
         Main.Status.status.value = "Finished compare"
       } else {
-        if (server.didInitialSync.value) {
-          Main.Status.status.value = "Finished compare: no changes found."
-          stop()
-        } else {
-          Main.Status.status.value = "Finished compare: no changes found but click \"Synchronize\" for initial sync!"
-        }
+        Main.Status.status.value = "Finished compare, no changes found. Synchronizing..."
       }
+      !haveChanges && canSync
     }
     debug("  comparing etc took " + sw.getTimeRestart)
+    if (runSync == true) synchronize()
   }
 
   def synchronize() {
     debug("synchronize() in thread " + Thread.currentThread().getId)
     runUIwait { Main.Status.status.value = "Synchronize..." }
-    var canSetDidIniSync = true // can be reset if something violates it (e.g., skip action)
     val sw = new StopWatch
     val swd = new StopWatch
     var iii = 0
@@ -317,12 +317,12 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
         val q = state match {
           case 1 => { // delete
           from (MySchema.files) (se => where((se.relevant === true) and (se.action in List(A_RMBOTH,A_RMLOCAL,A_RMREMOTE)))
-            select(se)
+            select se
             orderBy(se.path desc) // this allows deletion of dirs!
           )}
           case _ => { // put/get and others
             from (MySchema.files) (se => where(se.relevant === true)
-              select(se)
+              select se
               orderBy(se.path asc) // this allows deletion of dirs!
             )}
         }
@@ -349,7 +349,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
               case A_USELOCAL => { remote.putfile(se.path, se.lTime) ; se.rTime=se.lTime; se.rSize=se.lTime; se.cSize = se.lSize; se.cTime = se.lTime; se.relevant = false }
               case A_USEREMOTE => { remote.getfile(se.path, se.rTime) ; se.lTime=se.rTime; se.lSize=se.rTime; se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false }
               case A_ISEQUAL => { se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false }
-              case A_SKIP => { se.relevant = false ; canSetDidIniSync = false }
+              case A_SKIP => { se.relevant = false }
               case A_CACHEONLY => { se.delete = true }
               case _ => { }
             }
@@ -368,11 +368,9 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     } // using(syncsession)
     syncSession.close
 
-    server.didInitialSync.value = canSetDidIniSync
-
     sw.printTime("TTTTTTTTT synchronized in ")
     runUIwait {
-      if (syncLog != "") Dialog.showMessage("Errors during synchronization (mind that excluded files are not shown):\n" + syncLog)
+      if (syncLog != "") Dialog.showMessage("Errors during synchronization\n(mind that excluded files are not shown):\n" + syncLog)
       view.updateSyncEntries()
       view.enableActions = false
       Main.Status.status.value = "Finished synchronize"

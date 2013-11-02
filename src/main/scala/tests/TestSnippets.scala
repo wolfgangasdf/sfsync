@@ -211,7 +211,7 @@ object TestKeystore extends App {
 //  ks.aliases().foreach(x => println("alias: " + x))
 //  ks.setKeyEntry("asdf","asdf".getBytes,null)
   val key = new Key {
-  def getEncoded: Array[Byte] = "asdf".getBytes()
+  def getEncoded: Array[Byte] = "asdf".getBytes
 
   def getFormat: String = "asdf"
 

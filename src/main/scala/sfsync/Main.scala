@@ -37,14 +37,6 @@ object Helpers {
     else in
   }
 
-  def runUI( f: => Unit ) {
-    javafx.application.Platform.runLater( new Runnable() {
-      def run() {
-        f
-      }
-    })
-  }
-
   def isMac = System.getProperty("os.name").toLowerCase.contains("mac")
   def isLinux = System.getProperty("os.name").toLowerCase.contains("nix")
   def isWin = System.getProperty("os.name").toLowerCase.contains("win")
@@ -54,6 +46,14 @@ object Helpers {
   }
 
   def unit() {}
+
+  def runUI( f: => Unit ) {
+    javafx.application.Platform.runLater( new Runnable() {
+      def run() {
+        f
+      }
+    })
+  }
 
   def runUIwait( f: => Any ) : Any = {
     @volatile var stat: Any = null
@@ -90,8 +90,7 @@ class MainView(filesView: FilesView) extends Tab with Logging {
     def onServerChange() {
       debug("onServerChange!")
       // connect to database
-      val dbexists = CacheDB.connectDB(server.id)
-      if (!dbexists) server.didInitialSync.value = false
+      CacheDB.connectDB(server.id)
       // update filesview
       filesView.setListItems(CacheDB.syncEntries)
       val tmpdp =  ArrayBuffer(sp.dividerPositions: _*)
@@ -313,8 +312,8 @@ object Main extends JFXApp with Logging {
 
   def runCompare() = {
     doCleanup()
-    val sane = (settingsView.serverView.server != null && settingsView.serverView.server.localFolder.value != "" &&
-      settingsView.protocolView.protocol.protocoluri != "" && !settingsView.subfolderView.subfolder.subfolders.isEmpty)
+    val sane = settingsView.serverView.server != null && settingsView.serverView.server.localFolder.value != "" &&
+      settingsView.protocolView.protocol.protocoluri.value != "" && !settingsView.subfolderView.subfolder.subfolders.isEmpty
     if (sane) {
       profile = new Profile (filesView, settingsView.serverView.server, settingsView.protocolView.protocol, settingsView.subfolderView.subfolder)
       lbInfo.text.set("  Current profile:  " + settingsView.serverView.server.toString + " | " + settingsView.subfolderView.subfolder.toString)

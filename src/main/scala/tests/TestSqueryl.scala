@@ -29,7 +29,7 @@ object TestSqueryl extends App {
 
     on(files)(file => declare(
       file.id is (primaryKey,autoIncremented),
-      file.email is (unique)))
+      file.email is unique))
   }
 
   // delete first

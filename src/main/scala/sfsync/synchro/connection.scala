@@ -173,7 +173,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
     debug("listrecsftp(" + remoteBasePath + ") in thread " + Thread.currentThread().getId)
     def VFfromLse(fullFilePath: String, lse: ChannelSftp#LsEntry) = {
       new VirtualFile {
-        path=(fullFilePath).substring(remoteBasePath.length)
+        path= fullFilePath.substring(remoteBasePath.length)
         if (path == "") path = "/"
         modTime = lse.getAttrs.getMTime.toLong * 1000
         size = lse.getAttrs.getSize

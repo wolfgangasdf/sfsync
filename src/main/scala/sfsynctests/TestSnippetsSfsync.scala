@@ -11,7 +11,7 @@ object TestListRecSpeed1java extends App {
     //    println("searching " + remoteBasePath + "/" + subfolder)
     val list = new ListBuffer[VirtualFile]()
     def parseContent(folder: String) : Unit = {
-      val files = (new java.io.File(folder)).listFiles()
+      val files = new java.io.File(folder).listFiles()
       for (ff <- files) {
 //        val vf = new VirtualFile(ff.getPath, ff.lastModified(), ff.length, if (ff.isDirectory) 1 else 0)
 //        if (!vf.fileName.matches(filterregexp)) {
@@ -44,7 +44,7 @@ object TestListRecSpeed2 extends App {
   }
   val sw1 = new StopWatch
   listrec()
-  sw1.stop
+  sw1.stop()
   println("loaded local list1 in " + sw1.timeIt )
 }
 

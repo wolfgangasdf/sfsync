@@ -101,7 +101,7 @@ object Checks {
 
       // check if ok
       println("**** checks:")
-      var fail = false;
+      var fail = false
       ces.foreach(ce => {
         val senew = MySchema.files.where(se => se.path === ce.se.path).head
         println(

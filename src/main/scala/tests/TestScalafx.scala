@@ -93,7 +93,7 @@ object TestSFXTableView extends JFXApp {
   var itemList =  new com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[MyItem]() {
     def get(p1: Int): MyItem = {
       println("get " + p1)
-      return new MyItem(StringProperty(database(p1)))
+      new MyItem(StringProperty(database(p1)))
     }
     def size(): Int = 50
 
