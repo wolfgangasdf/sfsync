@@ -369,8 +369,12 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     syncSession.close
 
     sw.printTime("TTTTTTTTT synchronized in ")
+    var switchBackToSettings = true
     runUIwait {
-      if (syncLog != "") Dialog.showMessage("Errors during synchronization\n(mind that excluded files are not shown):\n" + syncLog)
+      if (syncLog != "") {
+        switchBackToSettings = false
+        Dialog.showMessage("Errors during synchronization\n(mind that excluded files are not shown):\n" + syncLog)
+      }
       view.updateSyncEntries()
       view.enableActions = false
       Main.Status.status.value = "Finished synchronize"
@@ -379,7 +383,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     }
     stop()
   }
-  def stop() {
+  def stop(switchBackToSettings: Boolean = true) {
     debug("stopping profile...")
     if (remote != null) remote.finish()
     if (local != null) local.finish()
@@ -394,7 +398,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       }
     }
     runUI {
-      Main.tabpane.selectionModel.get().select(0)
+      if (switchBackToSettings) Main.tabpane.selectionModel.get().select(0)
       debug("profile stopped!")
       Main.doCleanup()
     }

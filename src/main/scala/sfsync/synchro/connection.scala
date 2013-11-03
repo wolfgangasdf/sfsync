@@ -7,7 +7,7 @@ import scala.Predef._
 import scala.collection.JavaConversions._
 import akka.actor.ActorRef
 import com.jcraft.jsch
-import com.jcraft.jsch.{SftpException, ChannelSftp}
+import com.jcraft.jsch.{SftpATTRS, SftpException, ChannelSftp}
 import sfsync.store.Tools
 import java.text.Normalizer
 import java.nio.file._
@@ -28,17 +28,32 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
 //    debug("deleted " + remoteBasePath + what.path)
   }
   def putfile(from: String, mtime: Long) {
-    val (cp, _) = checkIsDir(from)
+    val (cp, isdir) = checkIsDir(from)
+    debug(s"from=$from isdir=$isdir")
+    if (isdir) { // ensure that target path exists
+      val abspath = remoteBasePath + "/" + cp
+      if (!Files.exists(Paths.get(abspath).getParent)) {
+        debug(s"creating folder $cp")
+        mkdirrec(Paths.get(abspath).getParent.toString)
+      }
+    }
     Files.copy(Paths.get(localBasePath + "/" + cp), Paths.get(remoteBasePath + "/" + cp), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES)
   }
   def getfile(from: String, mtime: Long) {
-    val (cp, _) = checkIsDir(from)
+    val (cp, isdir) = checkIsDir(from)
+    if (isdir) { // ensure that target path exists
+    val abspath = localBasePath + "/" + cp
+      if (!Files.exists(Paths.get(abspath).getParent)) {
+        debug(s"creating folder $cp")
+        mkdirrec(Paths.get(abspath).getParent.toString)
+      }
+    }
     Files.copy(Paths.get(remoteBasePath + "/" + cp), Paths.get(localBasePath + "/" + cp), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES)
   }
 
   // include the subfolder but root "/" is not allowed!
   def list(subfolder: String, filterregexp: String, receiver: ActorRef, recursive: Boolean, viaActor: Boolean) = {
-    debug(s"listrec(rbp=$remoteBasePath sf=${subfolder} rec=$recursive) in thread ${Thread.currentThread().getId}")
+    debug(s"listrec(rbp=$remoteBasePath sf=$subfolder rec=$recursive) in thread ${Thread.currentThread().getId}")
     val reslist = new ArrayBuffer[VirtualFile]
     // scalax.io is horribly slow, there is an issue filed
     def parseContent(cc: Path, goDeeper: Boolean) {
@@ -64,13 +79,13 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
     val sp = Paths.get(remoteBasePath + (if (subfolder.length>0) "/" else "") + subfolder)
     if (Files.exists(sp)) {
       parseContent(sp, goDeeper = true)
-    } else {
-      if (runUIwait(Dialog.showYesNo("Local directory \n" + sp + "\n doesn't exist. Create?")) == true)
-        Files.createDirectories(sp)
     }
     if (viaActor) {receiver ! 'done ; null} else reslist
   }
 
+  def mkdirrec(absolutePath: String) = {
+    Files.createDirectories(Paths.get(absolutePath))
+  }
 }
 
 class MyURI(var protocol: String, var username: String, var password: String, var host: String, var port: String) {
@@ -117,7 +132,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
       try {
         sftp.rmdir(remoteBasePath + "/" + cp)
       } catch {
-        case sftpe: SftpException => { // unfortunately only "Failure"
+        case sftpe: SftpException => { // unfortunately only "Failure" ; checking for content would be slow
           val xx = sftp.ls(remoteBasePath + "/" + cp)
           if (xx.length > 0) {
             val tmp = new ListBuffer[ChannelSftp#LsEntry]
@@ -145,9 +160,17 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
   def putfile(from: String, mtime: Long) {
     val (cp, isdir) = checkIsDir(from)
     val rp = remoteBasePath + "/" + cp
-    if (isdir)
+    if (isdir) {
+      def checkit(p: String) { // recursively create parents
+        val parent = Paths.get(p).getParent.toString
+        if (sftpexists(parent) == null) {
+          checkit(parent)
+          sftp.mkdir(parent)
+        }
+      }
+      checkit(rp)
       sftp.mkdir(rp)
-    else
+    } else
       sftp.put(localBasePath + "/" + cp, rp)
     sftp.setMtime(rp, (mtime/1000).toInt)
   }
@@ -155,34 +178,47 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
     val (cp, isdir) = checkIsDir(from)
     val lp = localBasePath + "/" + cp
     if (isdir) {
-      Files.createDirectory(Paths.get(lp))
+      Files.createDirectories(Paths.get(lp)) // simply create parents if necessary, avoids separate check
     } else {
       sftp.get(remoteBasePath + "/" + cp, lp)
     }
     Files.setLastModifiedTime(Paths.get(lp), FileTime.fromMillis(mtime))
   }
 
-  def sftpexists(sp: String): ChannelSftp#LsEntry = {
-    val xx = sftp.ls(Paths.get(sp).getParent.toString)
-    for (obj <- xx) {
-      val sftplse = obj.asInstanceOf[ChannelSftp#LsEntry]
-      if (sftplse.getFilename == Paths.get(sp).getFileName.toString) {
-        return sftplse
-      }
+  def sftpexists(sp: String): SftpATTRS = {
+    var resls: SftpATTRS = null
+    try {
+      resls = sftp.stat(sp) // throws exception if not
+    } catch {
+      case e: SftpException if e.id == ChannelSftp.SSH_FX_NO_SUCH_FILE => debug(e)
+      case e: Throwable => throw e
     }
-    null
+    debug("sftpexists return: " + resls)
+    resls
   }
+//def sftpexists(sp: String): ChannelSftp#LsEntry = {
+//  debug("sftpexists sp=" + sp)
+//  val xx = sftp.ls(Paths.get(sp).getParent.toString)
+//  for (obj <- xx) {
+//    val sftplse = obj.asInstanceOf[ChannelSftp#LsEntry]
+//    if (sftplse.getFilename == Paths.get(sp).getFileName.toString) {
+//      debug(s"ZZZZZZZ fn=${sftplse.getFilename} ln=${sftplse.getLongname}")
+//      return sftplse
+//    }
+//  }
+//  null
+//}
 
   def list(subfolder: String, filterregexp: String, receiver: ActorRef, recursive: Boolean, viaActor: Boolean) = {
     debug(s"listrecsftp(rbp=$remoteBasePath sf=$subfolder rec=$recursive) in thread ${Thread.currentThread().getId}")
     val reslist = new ArrayBuffer[VirtualFile]
-    def VFfromLse(fullFilePath: String, lse: ChannelSftp#LsEntry) = {
+    def VFfromSftp(fullFilePath: String, attrs: SftpATTRS) = {
       new VirtualFile {
         path= fullFilePath.substring(remoteBasePath.length)
         if (path == "") path = "/"
-        modTime = lse.getAttrs.getMTime.toLong * 1000
-        size = lse.getAttrs.getSize
-        if (lse.getAttrs.isDir && path != "/") path += "/"
+        modTime = attrs.getMTime.toLong * 1000
+        size = attrs.getSize
+        if (attrs.isDir && path != "/") path += "/"
       }
     }
     def parseContent(folder: String) {
@@ -195,7 +231,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
         if (stopRequested) return
         if (!obj.getFilename.equals(".") && !obj.getFilename.equals("..")) {
           val fullFilePath = folder + "/" + obj.getFilename
-          val vf = VFfromLse(fullFilePath, obj)
+          val vf = VFfromSftp(fullFilePath, obj.getAttrs)
           if ( !vf.fileName.matches(filterregexp) ) {
             if (viaActor) receiver ! addFile(vf, isLocal) else reslist += vf
             if (obj.getAttrs.isDir && recursive ) {
@@ -209,11 +245,11 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
     debug("searching " + remoteBasePath + "/" + subfolder)
     val sp = remoteBasePath + (if (subfolder.length>0) "/" else "") + subfolder
     val sftpsp = sftpexists(sp)
-    if (sftpsp != null) { // not nice, copied basically from above. but no other way
-      val vf = VFfromLse(sp, sftpsp)
+    if (sftpsp != null) { // not nice: duplicate code (above)
+      val vf = VFfromSftp(sp, sftpsp) // not nice: duplicate code (above)
       if ( !vf.fileName.matches(filterregexp) ) {
         if (viaActor) receiver ! addFile(vf, isLocal) else reslist += vf
-        if (sftpsp.getAttrs.isDir) {
+        if (sftpsp.isDir) {
           parseContent(sp)
         }
       }
@@ -302,6 +338,10 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
     if (sftp.isConnected) sftp.disconnect()
     if (session.isConnected) session.disconnect()
   }
+
+  def mkdirrec(absolutePath: String) {
+    // TODO
+  }
 }
 
 abstract class GeneralConnection(isLocal: Boolean) extends Logging {
@@ -312,11 +352,14 @@ abstract class GeneralConnection(isLocal: Boolean) extends Logging {
   @volatile var stopRequested = false
   def getfile(from: String, mtime: Long)
   def putfile(from: String, mtime: Long)
+  def mkdirrec(absolutePath: String)
   def deletefile(what: String, mtime: Long)
   def list(where: String, filterregexp: String, receiver: ActorRef, recursive: Boolean, viaActor: Boolean): ArrayBuffer[VirtualFile]
   def finish() {
     stopRequested = true
   }
+
+  // return dir (most likely NOT absolute path but subfolder!) without trailing /
   def checkIsDir(path: String) = {
     val isdir = path.endsWith("/")
     val resp = if (isdir) path.substring(0, path.length-1) else path

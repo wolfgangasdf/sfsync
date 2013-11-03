@@ -215,19 +215,12 @@ object Main extends JFXApp with Logging {
           Main.doStop()
         }
       },
-    lbInfo,
-      new Button("testX") {
-        onAction = (ae: ActionEvent) => {
-          // TODO testing
-          println("XXXXXX")
-          val dc = new MyFileChooser(filesView, settingsView.serverView.server, settingsView.protocolView.protocol, null, true)
-          println("XXXXXX")
-          val res = dc.showDirChooser("Select folder:")
-          println("res=" + res)
-
-          unit()
-        }
-      }
+    lbInfo
+//      new Button("testX") {
+//        onAction = (ae: ActionEvent) => {
+//          unit()
+//        }
+//      }
 //      new Button("test") {
 //        onAction = (ae: ActionEvent) => {
 //          unit()
