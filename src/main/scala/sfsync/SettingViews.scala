@@ -271,9 +271,10 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, subfold
   debug("init profile...")
   profile.init()
   debug("init profile done")
-  var rootPath = "/"
 
   val myConn = if (localremote) profile.local else profile.remote
+  var rootPath = "/" // subfolders (for conn.list) are named "subf/subsubf" while the paths are "/subf/subsubf/" ... confusing
+  val rootNode = new FilePathTreeItem(rootPath, "root")
 
   val dstage = new Stage(jfxs.StageStyle.UTILITY) {
     initOwner(Main.stage)
@@ -283,18 +284,15 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, subfold
   }
 
   def showDirChooser(msg: String) : String = {
-    debug("show dir chooser...")
     val res = showIt(1, msg)
     res
   }
 
-  // TODO make wth scalafx, but I had problems...
   class FilePathTreeItem(var path: String, var filename: String) extends jfxsc.TreeItem[String](filename) {
     val (_, isDir) = myConn.checkIsDir(path)
-    val isDummy = path == "" && filename == ""
-    debug("fpti: " + path + " : isdir=" + isDir)
+    val isDummy = path == "" && filename == "dummy"
 
-    if (isDir) getChildren += new FilePathTreeItem("", "") // add dummy, if expanded will read
+    if (isDir) getChildren += new FilePathTreeItem("", "dummy") // add dummy, if expanded will read
 
     addEventHandler(jfxsc.TreeItem.branchExpandedEvent, new jfxe.EventHandler[jfxsc.TreeItem.TreeModificationEvent[Nothing]]() {
       override def handle(e: jfxsc.TreeItem.TreeModificationEvent[Nothing]) {
@@ -305,17 +303,14 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, subfold
         if (isDir && !haveread) {
           getChildren.clear()
           val fixedPath = Normalizer.normalize(path, Normalizer.Form.NFC)
-          val strippedPath: String = if (fixedPath == rootPath) "/" else fixedPath.substring(rootPath.length - 1) // -1: has trailing "/"
-          debug("listing strippedpath=" + strippedPath)
-          val list = myConn.list(strippedPath, server.filterRegexp, null, recursive = false, viaActor = false)
-          debug("adding children.....")
+          val strippedPath: String = if (fixedPath == rootPath) "/" else fixedPath.substring(rootPath.length - 1) // -1: has trailing "/"// TODO
+          val subfolderpath = strippedPath.replaceAll("^/","").replaceAll("/$","")
+          val list = myConn.list(subfolderpath, server.filterRegexp, null, recursive = false, viaActor = false)
           list.foreach(vf => {
             val newPath = (rootPath + vf.path).replaceAllLiterally("//","/")
             val newFpti = new FilePathTreeItem(newPath, vf.fileName)
-            debug(s"  child:${vf.fileName} pah=${vf.path} newPath = $newPath")
             if (path != newPath) getChildren += newFpti
           })
-          debug("finished adding children")
         }
       }
     })
@@ -323,15 +318,13 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, subfold
   }
   private def showIt(mtype: Int, msg: String) : String  = {
     var res = ""
-
-    val rootNode = new FilePathTreeItem(rootPath, "root")
-
     var tv: TreeView[String] = null
     val btSelect = new Button("Select") {
       disable = true
       onAction = (ae: ActionEvent) => {
         val si = tv.selectionModel.get().selectedItems.head.asInstanceOf[FilePathTreeItem]
-        res=si.path; dstage.close
+        res=si.path.replaceAll("^/","").replaceAll("/$","")
+        dstage.close
       }
     }
     tv = new TreeView[String](rootNode) {

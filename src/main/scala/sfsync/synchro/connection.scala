@@ -38,7 +38,7 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
 
   // include the subfolder but root "/" is not allowed!
   def list(subfolder: String, filterregexp: String, receiver: ActorRef, recursive: Boolean, viaActor: Boolean) = {
-    debug("listrec(" + remoteBasePath + ") in thread " + Thread.currentThread().getId)
+    debug(s"listrec(rbp=$remoteBasePath sf=${subfolder} rec=$recursive) in thread ${Thread.currentThread().getId}")
     val reslist = new ArrayBuffer[VirtualFile]
     // scalax.io is horribly slow, there is an issue filed
     def parseContent(cc: Path, goDeeper: Boolean) {
@@ -174,7 +174,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
   }
 
   def list(subfolder: String, filterregexp: String, receiver: ActorRef, recursive: Boolean, viaActor: Boolean) = {
-    debug("listrecsftp(" + remoteBasePath + ") in thread " + Thread.currentThread().getId)
+    debug(s"listrecsftp(rbp=$remoteBasePath sf=$subfolder rec=$recursive) in thread ${Thread.currentThread().getId}")
     val reslist = new ArrayBuffer[VirtualFile]
     def VFfromLse(fullFilePath: String, lse: ChannelSftp#LsEntry) = {
       new VirtualFile {
@@ -185,7 +185,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
         if (lse.getAttrs.isDir && path != "/") path += "/"
       }
     }
-    def parseContent(folder: String, goDeeper: Boolean) {
+    def parseContent(folder: String) {
       debug("parseContent: " + folder)
       val xx = sftp.ls(folder)
       val tmp = new ListBuffer[ChannelSftp#LsEntry]
@@ -198,8 +198,8 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
           val vf = VFfromLse(fullFilePath, obj)
           if ( !vf.fileName.matches(filterregexp) ) {
             if (viaActor) receiver ! addFile(vf, isLocal) else reslist += vf
-            if (obj.getAttrs.isDir && goDeeper ) {
-              parseContent(fullFilePath, goDeeper = recursive)
+            if (obj.getAttrs.isDir && recursive ) {
+              parseContent(fullFilePath)
             }
           }
         }
@@ -214,7 +214,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
       if ( !vf.fileName.matches(filterregexp) ) {
         if (viaActor) receiver ! addFile(vf, isLocal) else reslist += vf
         if (sftpsp.getAttrs.isDir) {
-          parseContent(sp, true)
+          parseContent(sp)
         }
       }
     }
