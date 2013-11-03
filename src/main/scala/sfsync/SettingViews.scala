@@ -15,9 +15,16 @@ import sfsync.Helpers._
 import scala._
 import sfsync.Main.Dialog
 import scalafx.beans.property.StringProperty
-import synchro.MyURI
+import sfsync.synchro.{Profile, MyURI}
 import java.net.URLDecoder
 import scalafx.util.StringConverter
+import javafx.{stage => jfxs}
+import scalafx.geometry.Pos
+import java.io.File
+import javafx.{event => jfxe}
+import javafx.scene.{control => jfxsc}
+import java.text.Normalizer
+
 //import javafx.{util => jfxu, event => jfxe}
 //import javafx.scene.{control => jfxsc}
 
@@ -262,6 +269,98 @@ class ProtocolView(val server: Server) extends BorderPane {
   left = lvp
 }
 
+class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, subfolder: SubFolder, localremote: Boolean) extends Logging {
+
+  val profile = new Profile(view, server, protocol, subfolder)
+  debug("init profile...")
+  profile.init()
+  debug("init profile done")
+  var rootPath = server.localFolder.value + "/" // TODO add different thing for remote
+  val myConn = if (localremote) profile.local else profile.remote
+
+  val dstage = new Stage(jfxs.StageStyle.UTILITY) {
+    initOwner(Main.stage)
+    initModality(jfxs.Modality.APPLICATION_MODAL)
+    width = 700
+    height = 500
+  }
+
+  def showDirChooser(msg: String) : String = {
+    debug("show dir chooser...")
+    val res = showIt(1, msg)
+    res
+  }
+
+  class FilePathTreeItem(path: String) extends TreeItem[String](path) {
+    val (_, isDir) = myConn.checkIsDir(path)
+    debug("fpti: " + path + " : isdir=" + isDir)
+
+    if (isDir) children += new FilePathTreeItem("dummy") // add dummy, if expanded will read
+
+    // something in scalafx is broken...
+    delegate.addEventHandler(jfxsc.TreeItem.branchExpandedEvent, new jfxe.EventHandler[jfxsc.TreeItem.TreeModificationEvent[Nothing]]() {
+      override def handle(e: jfxsc.TreeItem.TreeModificationEvent[Nothing]) {
+        val source = e.getSource
+        debug("EEEEEEEEEEEEEEE branchExpandedEvent in " + path + " isdir=" + isDir + " isexpanded=" + e.getSource.isExpanded + " sclass=" + source.getClass)
+        var haveread = false
+        if (isDir) if (children.head.getValue != "dummy") haveread = true // TODO shit, I need a FPTI here!!! OR maintain two trees?
+        if (isDir && !haveread) {
+          children.clear()
+          val fixedPath = Normalizer.normalize(path, Normalizer.Form.NFC)
+          val strippedPath: String = if (fixedPath == rootPath) "/" else fixedPath.substring(rootPath.length - 1) // -1: has trailing "/"
+          debug("listing strippedpath=" + strippedPath)
+          val list = myConn.list(strippedPath, server.filterRegexp, null, false, false)
+          debug("adding children.....")
+          list.foreach(vf => {
+            val newPath = (rootPath + vf.path).replaceAllLiterally("//","/")
+            val newFpti = new FilePathTreeItem(newPath)
+            debug(s"  child:${vf.fileName} pah=${vf.path} newPath = $newPath")
+            if (path != newPath) children += newFpti
+          })
+          debug("finished adding children")
+        }
+      }
+    })
+  }
+  private def showIt(mtype: Int, msg: String) : String  = {
+    var res = ""
+
+    val rootNode = new FilePathTreeItem(rootPath)
+
+    val tv = new TreeView[String](rootNode) {
+      editable = false
+    }
+    val cont = new BorderPane {
+      style = "-fx-background-color: lightblue;"
+
+      center = tv
+
+      bottom = new HBox {
+        margin = insetsstd
+        spacing = 5
+        alignment = Pos.CENTER
+        content = List(
+          new Button("Select") {
+            onAction = (ae: ActionEvent) => { res="blabla"; dstage.close }
+          },
+          new Button("Cancel") {
+            onAction = (ae: ActionEvent) => { res=""; dstage.close }
+          }
+        )
+      }
+    }
+    dstage.scene = new Scene {
+      content = cont
+    }
+    cont.prefWidth <== dstage.scene.width
+    cont.prefHeight <== dstage.scene.height
+
+    dstage.showAndWait
+    res
+  }
+
+}
+
 class SubFolderView(val server: Server) extends BorderPane {
   prefHeight = 150
   var subfolder: SubFolder= null
@@ -332,9 +431,21 @@ class SubFolderView(val server: Server) extends BorderPane {
 
     var controls = new HBox {
       content = List(
-        new Button("Add") {
+        new Button("Add (local)") {
           onAction = (ae: ActionEvent) => {
-            val res = fcSubfolder(server.localFolder, lvs.selectionModel.get().getSelectedItem)
+//            val res = fcSubfolder(server.localFolder, lvs.selectionModel.get().getSelectedItem)
+            val dc = new MyFileChooser(Main.filesView, Main.settingsView.serverView.server, Main.settingsView.protocolView.protocol, null, true)
+            val res = dc.showDirChooser("Select local folder:")
+            if (res != "") {
+              subfolder.subfolders.add(res)
+            }
+            unit()
+          }
+        },
+        new Button("Add (remote)") {
+          onAction = (ae: ActionEvent) => {
+            val dc = new MyFileChooser(Main.filesView, Main.settingsView.serverView.server, Main.settingsView.protocolView.protocol, null, false)
+            val res = dc.showDirChooser("Select remote folder:")
             if (res != "") {
               subfolder.subfolders.add(res)
             }

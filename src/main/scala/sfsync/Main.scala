@@ -49,24 +49,32 @@ object Helpers {
   def unit() {}
 
   def runUI( f: => Unit ) {
-    javafx.application.Platform.runLater( new Runnable() {
-      def run() {
-        f
-      }
-    })
+    if (!scalafx.application.Platform.isFxApplicationThread) {
+      scalafx.application.Platform.runLater( new Runnable() {
+        def run() {
+          f
+        }
+      })
+    } else {
+      f
+    }
   }
 
   def runUIwait( f: => Any) : Any = {
-    @volatile var stat: Any = null
-    val runnable = new Runnable() {
-      def run() {
-        stat = f
+    if (!scalafx.application.Platform.isFxApplicationThread) {
+      @volatile var stat: Any = null
+      val runnable = new Runnable() {
+        def run() {
+          stat = f
+        }
       }
+      val future = new FutureTask[Any](runnable, null)
+      scalafx.application.Platform.runLater( future )
+      future.get()
+      stat
+    } else {
+      f
     }
-    val future = new FutureTask[Any](runnable, null)
-    scalafx.application.Platform.runLater( future )
-    future.get()
-    stat
   }
 
   import scalafx.beans.property._
@@ -207,12 +215,19 @@ object Main extends JFXApp with Logging {
           Main.doStop()
         }
       },
-    lbInfo
-//      new Button("test") {
-//        onAction = (ae: ActionEvent) => {
-//          unit()
-//        }
-//      },
+    lbInfo,
+      new Button("testX") {
+        onAction = (ae: ActionEvent) => {
+          // TODO testing
+          println("XXXXXX")
+          val dc = new MyFileChooser(filesView, settingsView.serverView.server, settingsView.protocolView.protocol, null, true)
+          println("XXXXXX")
+          val res = dc.showDirChooser("Select folder:")
+          println("res=" + res)
+
+          unit()
+        }
+      }
 //      new Button("test") {
 //        onAction = (ae: ActionEvent) => {
 //          unit()

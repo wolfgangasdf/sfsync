@@ -265,16 +265,16 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     runUIwait { Main.Status.status.value = "Find files..." }
     future {
       threadLocal = Thread.currentThread()
-      for (sf <- subfolder.subfolders) local.listrec(sf, server.filterRegexp, receiveActor)
+      subfolder.subfolders.map(local.list(_, server.filterRegexp, receiveActor, recursive = true, viaActor = true))
     }
     future {
       threadRemote = Thread.currentThread()
-      subfolder.subfolders.map( sf => remote.listrec(sf, server.filterRegexp, receiveActor) )
+      subfolder.subfolders.map(remote.list(_, server.filterRegexp, receiveActor, recursive = true, viaActor = true))
     }
     implicit val timeout = Timeout(36500 days)
     info("*********************** wait until all received...")
     while (Await.result(receiveActor ? 'replyWhenDone, Duration.Inf) != 'done) { Thread.sleep(100) }
-//    if (receiveSession!=null) receiveSession.close
+
     info("*********************** list finished")
     runUIwait {
       Main.Status.local.value = lfiles.toString

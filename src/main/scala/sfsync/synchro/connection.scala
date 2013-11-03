@@ -24,6 +24,7 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
   def deletefile(what: String, mtime: Long) {
     val (cp, _) = checkIsDir(what)
     Files.delete(Paths.get(remoteBasePath + "/" + cp))
+    // TODO add same thing as for sftp
 //    debug("deleted " + remoteBasePath + what.path)
   }
   def putfile(from: String, mtime: Long) {
@@ -34,11 +35,13 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
     val (cp, _) = checkIsDir(from)
     Files.copy(Paths.get(remoteBasePath + "/" + cp), Paths.get(localBasePath + "/" + cp), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES)
   }
+
   // include the subfolder but root "/" is not allowed!
-  def listrec(subfolder: String, filterregexp: String, receiver: ActorRef) {
+  def list(subfolder: String, filterregexp: String, receiver: ActorRef, recursive: Boolean, viaActor: Boolean) = {
     debug("listrec(" + remoteBasePath + ") in thread " + Thread.currentThread().getId)
+    val reslist = new ArrayBuffer[VirtualFile]
     // scalax.io is horribly slow, there is an issue filed
-    def parseContent(cc: Path, firstTime: Boolean = false) {
+    def parseContent(cc: Path, goDeeper: Boolean) {
       // on mac 10.8 with oracle java 7, filenames are encoded with strange 'decomposed unicode'. grr
       // this is in addition to the bug that LC_CTYPE is not set. grrr
       // don't use cc.getPath directly!!
@@ -46,13 +49,13 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
       var strippedPath: String = if (fixedPath == remoteBasePath) "/" else fixedPath.substring(remoteBasePath.length)
       if (Files.isDirectory(cc) && strippedPath != "/") strippedPath += "/"
       val vf = new VirtualFile(strippedPath, Files.getLastModifiedTime(cc).toMillis, Files.size(cc))
-      if ( !vf.fileName.matches(filterregexp) ) {
+      if ( !vf.fileName.matches(filterregexp)) {
         if (stopRequested) return
 //        debug("sending " + vf)
-        receiver ! addFile(vf, isLocal)
-        if (Files.isDirectory(cc)) {
+        if (viaActor) receiver ! addFile(vf, isLocal) else reslist += vf
+        if (Files.isDirectory(cc) && goDeeper ) {
           val dir = Files.newDirectoryStream(cc)
-          for (cc <- dir) parseContent(cc)
+          for (cc <- dir) parseContent(cc, goDeeper = recursive)
           dir.close()
         }
       }
@@ -60,13 +63,14 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
     }
     val sp = Paths.get(remoteBasePath + (if (subfolder.length>0) "/" else "") + subfolder)
     if (Files.exists(sp)) {
-      parseContent(sp, firstTime = true)
+      parseContent(sp, goDeeper = true)
     } else {
       if (runUIwait(Dialog.showYesNo("Local directory \n" + sp + "\n doesn't exist. Create?")) == true)
         Files.createDirectories(sp)
     }
-    receiver ! 'done
+    if (viaActor) {receiver ! 'done ; null} else reslist
   }
+
 }
 
 class MyURI(var protocol: String, var username: String, var password: String, var host: String, var port: String) {
@@ -169,8 +173,9 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
     null
   }
 
-  def listrec(subfolder: String, filterregexp: String, receiver: ActorRef) {
+  def list(subfolder: String, filterregexp: String, receiver: ActorRef, recursive: Boolean, viaActor: Boolean) = {
     debug("listrecsftp(" + remoteBasePath + ") in thread " + Thread.currentThread().getId)
+    val reslist = new ArrayBuffer[VirtualFile]
     def VFfromLse(fullFilePath: String, lse: ChannelSftp#LsEntry) = {
       new VirtualFile {
         path= fullFilePath.substring(remoteBasePath.length)
@@ -180,7 +185,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
         if (lse.getAttrs.isDir && path != "/") path += "/"
       }
     }
-    def parseContent(folder: String) {
+    def parseContent(folder: String, goDeeper: Boolean) {
       debug("parseContent: " + folder)
       val xx = sftp.ls(folder)
       val tmp = new ListBuffer[ChannelSftp#LsEntry]
@@ -192,9 +197,9 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
           val fullFilePath = folder + "/" + obj.getFilename
           val vf = VFfromLse(fullFilePath, obj)
           if ( !vf.fileName.matches(filterregexp) ) {
-            receiver ! addFile(vf, isLocal)
-            if (obj.getAttrs.isDir) {
-              parseContent(fullFilePath)
+            if (viaActor) receiver ! addFile(vf, isLocal) else reslist += vf
+            if (obj.getAttrs.isDir && goDeeper ) {
+              parseContent(fullFilePath, goDeeper = recursive)
             }
           }
         }
@@ -207,14 +212,14 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
     if (sftpsp != null) { // not nice, copied basically from above. but no other way
       val vf = VFfromLse(sp, sftpsp)
       if ( !vf.fileName.matches(filterregexp) ) {
-        receiver ! addFile(vf, isLocal)
+        if (viaActor) receiver ! addFile(vf, isLocal) else reslist += vf
         if (sftpsp.getAttrs.isDir) {
-          parseContent(sp)
+          parseContent(sp, true)
         }
       }
     }
     debug("parsing done")
-    receiver ! 'done
+    if (viaActor) { receiver ! 'done ; null } else reslist
   }
 
   class MyUserInfo(val user: String, val password: String) extends jsch.UserInfo with jsch.UIKeyboardInteractive {
@@ -308,7 +313,7 @@ abstract class GeneralConnection(isLocal: Boolean) extends Logging {
   def getfile(from: String, mtime: Long)
   def putfile(from: String, mtime: Long)
   def deletefile(what: String, mtime: Long)
-  def listrec(where: String, filterregexp: String, receiver: ActorRef)
+  def list(where: String, filterregexp: String, receiver: ActorRef, recursive: Boolean, viaActor: Boolean): ArrayBuffer[VirtualFile]
   def finish() {
     stopRequested = true
   }
