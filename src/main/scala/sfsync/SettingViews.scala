@@ -20,13 +20,9 @@ import java.net.URLDecoder
 import scalafx.util.StringConverter
 import javafx.{stage => jfxs}
 import scalafx.geometry.Pos
-import java.io.File
 import javafx.{event => jfxe}
 import javafx.scene.{control => jfxsc}
 import java.text.Normalizer
-
-//import javafx.{util => jfxu, event => jfxe}
-//import javafx.scene.{control => jfxsc}
 
 object SVHelpers extends Logging {
   def getDroppedFile(file: java.io.File) = {
@@ -275,7 +271,8 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, subfold
   debug("init profile...")
   profile.init()
   debug("init profile done")
-  var rootPath = server.localFolder.value + "/" // TODO add different thing for remote
+  var rootPath = "/"
+
   val myConn = if (localremote) profile.local else profile.remote
 
   val dstage = new Stage(jfxs.StageStyle.UTILITY) {
@@ -291,58 +288,76 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, subfold
     res
   }
 
-  class FilePathTreeItem(path: String) extends TreeItem[String](path) {
+  // TODO make wth scalafx, but I had problems...
+  class FilePathTreeItem(var path: String, var filename: String) extends jfxsc.TreeItem[String](filename) {
     val (_, isDir) = myConn.checkIsDir(path)
+    val isDummy = path == "" && filename == ""
     debug("fpti: " + path + " : isdir=" + isDir)
 
-    if (isDir) children += new FilePathTreeItem("dummy") // add dummy, if expanded will read
+    if (isDir) getChildren += new FilePathTreeItem("", "") // add dummy, if expanded will read
 
-    // something in scalafx is broken...
-    delegate.addEventHandler(jfxsc.TreeItem.branchExpandedEvent, new jfxe.EventHandler[jfxsc.TreeItem.TreeModificationEvent[Nothing]]() {
+    addEventHandler(jfxsc.TreeItem.branchExpandedEvent, new jfxe.EventHandler[jfxsc.TreeItem.TreeModificationEvent[Nothing]]() {
       override def handle(e: jfxsc.TreeItem.TreeModificationEvent[Nothing]) {
-        val source = e.getSource
+        val source = e.getSource.asInstanceOf[FilePathTreeItem]
         debug("EEEEEEEEEEEEEEE branchExpandedEvent in " + path + " isdir=" + isDir + " isexpanded=" + e.getSource.isExpanded + " sclass=" + source.getClass)
         var haveread = false
-        if (isDir) if (children.head.getValue != "dummy") haveread = true // TODO shit, I need a FPTI here!!! OR maintain two trees?
+        if (isDir) if (!getChildren.head.asInstanceOf[FilePathTreeItem].isDummy) haveread = true // important... but why?
         if (isDir && !haveread) {
-          children.clear()
+          getChildren.clear()
           val fixedPath = Normalizer.normalize(path, Normalizer.Form.NFC)
           val strippedPath: String = if (fixedPath == rootPath) "/" else fixedPath.substring(rootPath.length - 1) // -1: has trailing "/"
           debug("listing strippedpath=" + strippedPath)
-          val list = myConn.list(strippedPath, server.filterRegexp, null, false, false)
+          val list = myConn.list(strippedPath, server.filterRegexp, null, recursive = false, viaActor = false)
           debug("adding children.....")
           list.foreach(vf => {
             val newPath = (rootPath + vf.path).replaceAllLiterally("//","/")
-            val newFpti = new FilePathTreeItem(newPath)
+            val newFpti = new FilePathTreeItem(newPath, vf.fileName)
             debug(s"  child:${vf.fileName} pah=${vf.path} newPath = $newPath")
-            if (path != newPath) children += newFpti
+            if (path != newPath) getChildren += newFpti
           })
           debug("finished adding children")
         }
       }
     })
+
   }
   private def showIt(mtype: Int, msg: String) : String  = {
     var res = ""
 
-    val rootNode = new FilePathTreeItem(rootPath)
+    val rootNode = new FilePathTreeItem(rootPath, "root")
 
-    val tv = new TreeView[String](rootNode) {
+    var tv: TreeView[String] = null
+    val btSelect = new Button("Select") {
+      disable = true
+      onAction = (ae: ActionEvent) => {
+        val si = tv.selectionModel.get().selectedItems.head.asInstanceOf[FilePathTreeItem]
+        res=si.path; dstage.close
+      }
+    }
+    tv = new TreeView[String](rootNode) {
       editable = false
+      selectionModel.get().selectedItems.onChange(
+        (ob, _) => {
+          var goodselection = false
+          if (ob.size == 1) {
+            val si = selectionModel.get().selectedItems.head.asInstanceOf[FilePathTreeItem]
+            debug("si=" + si)
+            if (si.isDir) goodselection = true
+          }
+          btSelect.disable = !goodselection
+        }
+      )
     }
     val cont = new BorderPane {
       style = "-fx-background-color: lightblue;"
-
+      top = new Label(msg)
       center = tv
-
       bottom = new HBox {
         margin = insetsstd
         spacing = 5
         alignment = Pos.CENTER
         content = List(
-          new Button("Select") {
-            onAction = (ae: ActionEvent) => { res="blabla"; dstage.close }
-          },
+          btSelect,
           new Button("Cancel") {
             onAction = (ae: ActionEvent) => { res=""; dstage.close }
           }
