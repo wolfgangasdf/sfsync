@@ -125,7 +125,7 @@ class MainView(filesView: FilesView) extends Tab with Logging {
 
 object Main extends JFXApp with Logging {
 
-  val VERSION = "0.2" // TODO: read from build.sbt but how?
+  val VERSION = BuildInfo.version
   val resv = getClass.getResource("/sfsync/HGVERSION.txt")
   val version = VERSION + (if (resv != null) " (" + io.Source.fromURL(resv).mkString.trim + ")" else "")
   def system = ActorSystem("sfsyncactors")

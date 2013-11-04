@@ -303,7 +303,7 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, subfold
         if (isDir && !haveread) {
           getChildren.clear()
           val fixedPath = Normalizer.normalize(path, Normalizer.Form.NFC)
-          val strippedPath: String = if (fixedPath == rootPath) "/" else fixedPath.substring(rootPath.length - 1) // -1: has trailing "/"// TODO
+          val strippedPath: String = if (fixedPath == rootPath) "/" else fixedPath.substring(rootPath.length - 1)
           val subfolderpath = strippedPath.replaceAll("^/","").replaceAll("/$","")
           val list = myConn.list(subfolderpath, server.filterRegexp, null, recursive = false, viaActor = false)
           list.foreach(vf => {

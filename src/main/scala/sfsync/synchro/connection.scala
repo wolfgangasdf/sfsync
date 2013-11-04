@@ -340,7 +340,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
   }
 
   def mkdirrec(absolutePath: String) {
-    // TODO
+    throw new NotImplementedError("mkdirrec for sftp")
   }
 }
 

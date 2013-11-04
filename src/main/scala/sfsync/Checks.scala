@@ -20,9 +20,6 @@ object Checks {
     transaction {
       // setup cachedb
       // stuff in existing & synced subfolder
-      // TODO
-      // begin with slash?
-
       val ces = new ArrayBuffer[CheckEntry]
       ces += new CheckEntry(A_ISEQUAL, new SyncEntry("/sf1/", A_UNCHECKED, mod0, s0, mod0, s0, mod0, s0, true))
       ces += new CheckEntry(A_ISEQUAL, new SyncEntry("/sf1/fileequal", A_UNCHECKED, mod0, s0, mod0, s0, mod0, s0, true))

@@ -1,8 +1,9 @@
 import sbt._
 import sbt.Keys._
-import no.vedaadata.sbtjavafx.JavaFXPlugin._
+//import no.vedaadata.sbtjavafx.JavaFXPlugin._
 import scala.Some
-import scala.Some
+import org.sbtidea.SbtIdeaPlugin._
+import sbtbuildinfo.Plugin._
 
 object BuildSettings {
   val buildOrganization = "com.sfsync"
@@ -15,9 +16,9 @@ object BuildSettings {
     version := buildVersion,
     scalaVersion := buildScalaVersion,
     scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature", "-encoding", "UTF-8"),
-    resolvers := Seq(
-      "JAnalyse Repository" at "http://www.janalyse.fr/repository/"
-    ),
+//    resolvers := Seq(
+//      "JAnalyse Repository" at "http://www.janalyse.fr/repository/"
+//    ),
     autoScalaLibrary := true,
     offline := false)
 }
@@ -28,7 +29,8 @@ object Dependencies {
 //  val scalaReflect = "org.scala-lang" % "scala-reflect" % BuildSettings.buildScalaVersion
   val akka = "com.typesafe.akka" %% "akka-actor" % "2.2.1"
   val scalafx = "org.scalafx" %% "scalafx-core" % "1.0-SNAPSHOT" // this is locally compiled
-  val sftp = "fr.janalyse" %% "janalyse-ssh" % "0.9.10" % "compile"
+//  val sftp = "fr.janalyse" %% "janalyse-ssh" % "0.9.10" % "compile" // scala version too experimental as of 201311
+  val sftp = "com.jcraft" % "jsch" % "0.1.50" //% "compile"
   val h2 = "com.h2database" % "h2" % "1.3.173"
   val squeryl = "org.squeryl" %% "squeryl" % "0.9.5-6"
 
@@ -79,11 +81,22 @@ object WMPBuild extends Build {
     unmanagedListing
   )
 
+  lazy val myBuildInfoSettings = Seq(
+    sourceGenerators in Compile <+= buildInfo,
+    buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion),
+    buildInfoPackage := "sfsync"
+  )
+
+  val IntelliJexcludeFolders = Seq(
+    ".idea", ".idea_modules", "src/main/resources/sfsync/HGVERSION.txt"
+  )
   lazy val root = Project(
     id = "sfsync",
     base = file("."),
     settings = sfsyncSettings
+      ++ buildInfoSettings ++ myBuildInfoSettings
   ).settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
+    .settings(ideaExcludeFolders := IntelliJexcludeFolders)
 
 
 //  packageJavaFxTask

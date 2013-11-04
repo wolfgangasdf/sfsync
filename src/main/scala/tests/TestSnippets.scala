@@ -69,7 +69,7 @@ object ActorTest extends App{
 //
 //}
 
-
+/*
 import fr.janalyse.ssh.SSH
 object TestJanalysessh extends App {
 
@@ -102,7 +102,7 @@ object TestJanalysessh extends App {
 //      executor.waitForEnd
   }
 }
-
+*/
 
 //object TestJsch extends App {
 //
