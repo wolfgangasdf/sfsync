@@ -88,7 +88,7 @@ object WMPBuild extends Build {
   )
 
   val IntelliJexcludeFolders = Seq(
-    ".idea", ".idea_modules", "src/main/resources/sfsync/HGVERSION.txt"
+    ".idea", ".idea_modules", "src/main/resources/sfsync/HGVERSION.txt", "target"
   )
   lazy val root = Project(
     id = "sfsync",
@@ -97,8 +97,4 @@ object WMPBuild extends Build {
       ++ buildInfoSettings ++ myBuildInfoSettings
   ).settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
     .settings(ideaExcludeFolders := IntelliJexcludeFolders)
-
-
-//  packageJavaFxTask
-
 }
