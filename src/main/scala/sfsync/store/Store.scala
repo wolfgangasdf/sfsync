@@ -263,6 +263,8 @@ class SyncEntry(var path: String, var action: Int,
       if (lSize != -1) dformat.format(new java.util.Date(lTime)) + "," + lSize else "none")
   def detailsRemote = new StringProperty(this, "detailsr",
     if (rSize != -1) dformat.format(new java.util.Date(rTime)) + "," + rSize else "none")
+  def detailsCache = new StringProperty(this, "detailsc",
+    if (cSize != -1) dformat.format(new java.util.Date(cTime)) + "," + cSize else "none")
   def isDir = path.endsWith("/")
   def isEqual = {
     if (isDir) {
@@ -315,6 +317,14 @@ class SyncEntry(var path: String, var action: Int,
     this
   }
   override def toString = {s"[path=$path action=$action lTime=$lTime lSize=$lSize rTime=$rTime rSize=$rSize cTime=$cTime cSize=$cSize rel=$relevant"}
+  def toStringNice = {
+    s"""
+     |Path: $path
+     |Local : ${detailsLocal.value}
+     |Remote: ${detailsRemote.value}
+     |Cache : ${detailsCache.value}
+    """.stripMargin
+  }
 }
 
 object MySchema extends Schema {

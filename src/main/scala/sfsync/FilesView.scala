@@ -9,7 +9,7 @@ import scalafx.beans.property.StringProperty
 
 import javafx.{util => jfxu}
 import javafx.beans.{value => jfxbv}
-import javafx.scene. {control => jfxsc}
+import javafx.scene.{control => jfxsc}
 
 import sfsync.synchro._
 import sfsync.synchro.Actions._
@@ -77,6 +77,22 @@ class FilesView() extends Tab with Logging {
   }
   colPath.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[SyncEntry, String], jfxbv.ObservableValue[String]] {
     def call(param: jfxsc.TableColumn.CellDataFeatures[SyncEntry, String]) = StringProperty(param.getValue.path)
+  })
+  colPath.setCellFactory(new Callback[jfxsc.TableColumn[SyncEntry, String],jfxsc.TableCell[SyncEntry, String]] {
+    def call(param: jfxsc.TableColumn[SyncEntry, String]): jfxsc.TableCell[SyncEntry, String] = {
+      val x = new jfxsc.cell.TextFieldTableCell[SyncEntry, String]() {
+        override def updateItem(f: String, empty: Boolean) {
+          super.updateItem(f, empty)
+          if (!empty) {
+            val se = getTableView.getItems.get(getTableRow.getIndex)
+            val tooltip = new jfxsc.Tooltip(se.toStringNice)
+            tooltip.setStyle("-fx-font-family: \"Courier New\";")
+            setTooltip(tooltip)
+          }
+        }
+      }
+      x
+    }
   })
   val colStatus = new TableColumn[SyncEntry, String]("Status") {
     prefWidth=50
