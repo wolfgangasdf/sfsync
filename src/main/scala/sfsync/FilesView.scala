@@ -19,6 +19,12 @@ import Helpers._
 
 import javafx.util.Callback
 import scala.language.{implicitConversions, reflectiveCalls, postfixOps}
+import scalafx.scene.shape.Circle
+import java.nio.file.{Path, Files}
+
+import diffmatchpatch.diff_match_patch
+import java.nio.charset.StandardCharsets
+import java.nio.ByteBuffer
 
 object CF {
   val amap = Map(
@@ -167,6 +173,38 @@ class FilesView() extends Tab with Logging {
     }
   }
 
+  def readFileToString(fn: Path) = {
+    val enc = Files.readAllBytes(fn)
+    StandardCharsets.UTF_8.decode(ByteBuffer.wrap(enc)).toString
+  }
+  val btDiff = new Button("Quick diff") {
+    onAction = (ae: ActionEvent) => {
+      if (profile != null) if (profile.profileInitialized) {
+        val se = tv.selectionModel.get().getSelectedItem
+        if (se != null) {
+          if (se.lSize + se.rSize < 100000) {
+            val lf = Files.createTempFile("sfsync-localfile", ".tmp")
+            val rf = Files.createTempFile("sfsync-remotefile", ".tmp")
+            profile.local.getfile(se.path, se.lTime, lf.toString)
+            profile.remote.getfile(se.path, se.rTime, rf.toString)
+            val lfc = readFileToString(lf)
+            val rfc = readFileToString(rf)
+            val diff = new diff_match_patch {
+              Diff_Timeout = 0
+            }
+            debug("lfc:\n" + lfc)
+            debug("rfc:\n" + rfc)
+            val d = diff.diff_main(lfc, rfc)
+            val res = diff.diff_prettyHtml(d)
+            debug("html msg:\n" + res)
+            Main.Dialog.showMessage("red=xxx blue=xxx", res)
+          }
+        }
+      }
+      debug("SE: " + tv.selectionModel.get().getSelectedItem)
+    }
+  }
+
   def createActionButton(lab: String, action: Int): Button = {
     new Button(lab) {
       onAction = (ae: ActionEvent) => {
@@ -251,7 +289,9 @@ class FilesView() extends Tab with Logging {
     }
   }
 
-  var bv = new HBox { content = List(cFilter,btRmLocal, btUseLocal, btMerge, btSkip, btRmBoth, btUseRemote, btRmRemote, btDebugInfo) }
+  var bv = new HBox { content = List(cFilter,btRmLocal, btUseLocal, btMerge,
+    btSkip, btRmBoth, btUseRemote, btRmRemote, btDebugInfo, btDiff)
+  }
 
   def getFilter = {
     cFilter.getValue match {

@@ -39,16 +39,19 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
     }
     Files.copy(Paths.get(localBasePath + "/" + cp), Paths.get(remoteBasePath + "/" + cp), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES)
   }
-  def getfile(from: String, mtime: Long) {
+  def getfile(from: String, mtime: Long, to: String) {
     val (cp, isdir) = checkIsDir(from)
     if (isdir) { // ensure that target path exists
-    val abspath = localBasePath + "/" + cp
-      if (!Files.exists(Paths.get(abspath).getParent)) {
-        debug(s"creating folder $cp")
-        mkdirrec(Paths.get(abspath).getParent.toString)
-      }
+      Files.createDirectories(Paths.get(to)) // simply create parents if necessary, avoids separate check
+    } else {
+      Files.copy(Paths.get(remoteBasePath + "/" + cp), Paths.get(to), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES)
     }
-    Files.copy(Paths.get(remoteBasePath + "/" + cp), Paths.get(localBasePath + "/" + cp), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES)
+    Files.setLastModifiedTime(Paths.get(to), FileTime.fromMillis(mtime))
+  }
+  def getfile(from: String, mtime: Long) {
+    val (cp, _) = checkIsDir(from)
+    val lp = localBasePath + "/" + cp
+    getfile(from, mtime, lp)
   }
 
   // include the subfolder but root "/" is not allowed!
@@ -84,7 +87,7 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
   }
 
   def mkdirrec(absolutePath: String) = {
-    Files.createDirectories(Paths.get(absolutePath))
+    Files.createDirectories(Paths.get(absolutePath)) // TODO
   }
 }
 
@@ -174,17 +177,20 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
       sftp.put(localBasePath + "/" + cp, rp)
     sftp.setMtime(rp, (mtime/1000).toInt)
   }
-  def getfile(from: String, mtime: Long) {
+  def getfile(from: String, mtime: Long, to: String) {
     val (cp, isdir) = checkIsDir(from)
-    val lp = localBasePath + "/" + cp
     if (isdir) {
-      Files.createDirectories(Paths.get(lp)) // simply create parents if necessary, avoids separate check
+      Files.createDirectories(Paths.get(to)) // simply create parents if necessary, avoids separate check
     } else {
-      sftp.get(remoteBasePath + "/" + cp, lp)
+      sftp.get(remoteBasePath + "/" + cp, to)
     }
-    Files.setLastModifiedTime(Paths.get(lp), FileTime.fromMillis(mtime))
+    Files.setLastModifiedTime(Paths.get(to), FileTime.fromMillis(mtime))
   }
-
+  def getfile(from: String, mtime: Long) {
+    val (cp, _) = checkIsDir(from)
+    val lp = localBasePath + "/" + cp
+    getfile(from, mtime, lp)
+  }
   def sftpexists(sp: String): SftpATTRS = {
     var resls: SftpATTRS = null
     try {
@@ -350,6 +356,7 @@ abstract class GeneralConnection(isLocal: Boolean) extends Logging {
   var remoteBasePath: String = ""
   var filterregex: Regex = new Regex(""".*""")
   @volatile var stopRequested = false
+  def getfile(from: String, mtime: Long, to: String)
   def getfile(from: String, mtime: Long)
   def putfile(from: String, mtime: Long)
   def mkdirrec(absolutePath: String)

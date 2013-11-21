@@ -26,6 +26,7 @@ import scalafx.geometry.Pos
 import java.nio.charset.Charset
 import scalafx.beans.property.StringProperty
 import java.util.concurrent.FutureTask
+import scalafx.scene.web.WebView
 
 object Helpers {
 
@@ -355,7 +356,7 @@ object Main extends JFXApp with Logging {
       width = 500
       height = 300
     }
-    private def showIt(mtype: Int, msg: String) : String  = {
+    private def showIt(mtype: Int, msg: String, htmlmsg: String = "") : String  = {
       var res = "-1"
       val cont = new BorderPane {
         style = "-fx-background-color: lightblue;"
@@ -373,8 +374,16 @@ object Main extends JFXApp with Logging {
           fitToHeight = true
         }
 
+        var sp2 = new ScrollPane {
+          content = new WebView {
+            engine.loadContent(htmlmsg)
+          }
+          fitToWidth = true
+          fitToHeight = true
+        }
+
         mtype match {
-          case 1 | 2 => { center = sp }
+          case 1 | 2 => { if (htmlmsg != "") {top = sp ; center = sp2} else center = sp }
           case 3 => { top = sp ; center = tf }
         }
 
@@ -416,13 +425,13 @@ object Main extends JFXApp with Logging {
       res
     }
 
-    def showMessage(msg: String) : Boolean = {
-      val res = showIt(1, msg)
+    def showMessage(msg: String, htmlmsg: String = "") : Boolean = {
+      val res = showIt(1, msg, htmlmsg)
       res == "1"
     }
 
-    def showYesNo(msg: String) : Boolean = {
-      val res = showIt(2, msg)
+    def showYesNo(msg: String, htmlmsg: String = "") : Boolean = {
+      val res = showIt(2, msg, htmlmsg)
       res == "1"
     }
     def showInputString(msg: String) : String = {

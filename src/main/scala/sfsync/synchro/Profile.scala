@@ -133,6 +133,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
   var remote: GeneralConnection = null
   var syncLog = ""
   var UIUpdateInterval = 2.5
+  var profileInitialized = false
 
   @volatile var threadLocal: Thread = null
   @volatile var threadRemote: Thread = null
@@ -168,6 +169,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     runUIwait { Main.Status.status.value = "ready" }
     remote.localBasePath = server.localFolder.value
     remote.remoteBasePath = protocol.protocolbasefolder
+    profileInitialized = true
   }
 
 
