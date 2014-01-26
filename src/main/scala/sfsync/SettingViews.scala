@@ -23,6 +23,7 @@ import scalafx.geometry.Pos
 import javafx.{event => jfxe}
 import javafx.scene.{control => jfxsc}
 import java.text.Normalizer
+import scalafx.collections.ObservableBuffer
 
 object SVHelpers extends Logging {
   def getDroppedFile(file: java.io.File) = {
@@ -265,11 +266,15 @@ class ProtocolView(val server: Server) extends BorderPane {
   left = lvp
 }
 
-class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, subfolder: SubFolder, localremote: Boolean) extends Logging {
+class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localremote: Boolean) extends Logging {
 
-  val profile = new Profile(view, server, protocol, subfolder)
+  val ADDTOFOLDERSMODE = 1
+  val SELECTMODE = 2
+  val profile = new Profile(view, server, protocol, null)
   debug("init profile...")
   profile.init()
+  var folders: ObservableBuffer[String] = null
+
   debug("init profile done")
 
   val myConn = if (localremote) profile.local else profile.remote
@@ -283,8 +288,13 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, subfold
     height = 500
   }
 
-  def showDirChooser(msg: String) : String = {
-    val res = showIt(1, msg)
+  def showAddToFolders(msg: String, foldersObsBuffer: ObservableBuffer[String]) {
+    folders = foldersObsBuffer
+    showIt(ADDTOFOLDERSMODE, msg)
+  }
+
+  def showSelect(msg: String) : String = {
+    val res = showIt(SELECTMODE, msg)
     res
   }
 
@@ -319,6 +329,15 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, subfold
   private def showIt(mtype: Int, msg: String) : String  = {
     var res = ""
     var tv: TreeView[String] = null
+    val btAddToFolders = new Button("Add selected") {
+      disable = true
+      onAction = (ae: ActionEvent) => {
+        val si = tv.selectionModel.get().selectedItems.head.asInstanceOf[FilePathTreeItem]
+        res=si.path.replaceAll("^/","").replaceAll("/$","")
+        folders.add(res)
+        print("")
+      }
+    }
     val btSelect = new Button("Select") {
       disable = true
       onAction = (ae: ActionEvent) => {
@@ -337,7 +356,7 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, subfold
             debug("si=" + si)
             if (si.isDir) goodselection = true
           }
-          btSelect.disable = !goodselection
+          btAddToFolders.disable = !goodselection
         }
       )
     }
@@ -350,8 +369,11 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, subfold
         spacing = 5
         alignment = Pos.CENTER
         content = List(
-          btSelect,
-          new Button("Cancel") {
+          mtype match {
+            case ADDTOFOLDERSMODE => btAddToFolders
+            case SELECTMODE => btSelect
+          },
+          new Button("Close") {
             onAction = (ae: ActionEvent) => { res=""; dstage.close }
           }
         )
@@ -441,23 +463,14 @@ class SubFolderView(val server: Server) extends BorderPane {
       content = List(
         new Button("Add (local)") {
           onAction = (ae: ActionEvent) => {
-//            val res = fcSubfolder(server.localFolder, lvs.selectionModel.get().getSelectedItem)
-            val dc = new MyFileChooser(Main.filesView, Main.settingsView.serverView.server, Main.settingsView.protocolView.protocol, null, true)
-            val res = dc.showDirChooser("Select local folder:")
-            if (res != "") {
-              subfolder.subfolders.add(res)
-            }
-            unit()
+            val dc = new MyFileChooser(Main.filesView, Main.settingsView.serverView.server, Main.settingsView.protocolView.protocol, true)
+            dc.showAddToFolders("Select local folder:", subfolder.subfolders)
           }
         },
         new Button("Add (remote)") {
           onAction = (ae: ActionEvent) => {
-            val dc = new MyFileChooser(Main.filesView, Main.settingsView.serverView.server, Main.settingsView.protocolView.protocol, null, false)
-            val res = dc.showDirChooser("Select remote folder:")
-            if (res != "") {
-              subfolder.subfolders.add(res)
-            }
-            unit()
+            val dc = new MyFileChooser(Main.filesView, Main.settingsView.serverView.server, Main.settingsView.protocolView.protocol, false)
+            dc.showAddToFolders("Select remote folder:", subfolder.subfolders)
           }
         },
         new Button("Add <Allfiles> Subset") {
@@ -472,7 +485,7 @@ class SubFolderView(val server: Server) extends BorderPane {
         },
         new Button("Delete") {
           onAction = (ae: ActionEvent) => {
-            lvs.getItems.removeAll(lvs.selectionModel.get().getSelectedItems)
+            lvs.getItems.remove(lvs.selectionModel.get().getSelectedItem) // multi selection disabled
             unit()
           }
         }

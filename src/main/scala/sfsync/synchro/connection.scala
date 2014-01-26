@@ -284,7 +284,10 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
 
     def promptPassphrase(message: String): Boolean = { debug("prompt pwd") ; true }
 
-    def showMessage(message: String) { runUIwait(Dialog.showMessage(message)) }
+    def showMessage(message: String) {
+      debug("SSH message: " + message)
+      //runUIwait(Dialog.showMessage(message))
+    }
   }
 
   class MyJschLogger extends jsch.Logger {
