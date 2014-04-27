@@ -2,7 +2,7 @@ import sbt._
 import sbt.Keys._
 //import no.vedaadata.sbtjavafx.JavaFXPlugin._
 import scala.Some
-import org.sbtidea.SbtIdeaPlugin._
+//import org.sbtidea.SbtIdeaPlugin._
 import sbtbuildinfo.Plugin._
 
 object BuildSettings {
@@ -87,14 +87,14 @@ object WMPBuild extends Build {
     buildInfoPackage := "sfsync"
   )
 
-  val IntelliJexcludeFolders = Seq(
-    ".idea", ".idea_modules", "src/main/resources/sfsync/HGVERSION.txt", "target"
-  )
+//  val IntelliJexcludeFolders = Seq(
+//    ".idea", ".idea_modules", "src/main/resources/sfsync/HGVERSION.txt", "target"
+//  )
   lazy val root = Project(
     id = "sfsync",
     base = file("."),
     settings = sfsyncSettings
       ++ buildInfoSettings ++ myBuildInfoSettings
   ).settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
-    .settings(ideaExcludeFolders := IntelliJexcludeFolders)
+//    .settings(ideaExcludeFolders := IntelliJexcludeFolders)
 }
