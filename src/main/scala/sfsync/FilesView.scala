@@ -193,10 +193,12 @@ class FilesView() extends Tab with Logging {
             }
             debug("lfc:\n" + lfc)
             debug("rfc:\n" + rfc)
-            val d = diff.diff_main(lfc, rfc)
+            val (d, msg) = if (se.action == A_USELOCAL)
+              (diff.diff_main(rfc, lfc), "Changes remote -> local:")
+            else (diff.diff_main(lfc, rfc), "Changes local -> remote:")
+            diff.diff_cleanupSemantic(d)
             val res = diff.diff_prettyHtml(d)
-            debug("html msg:\n" + res)
-            Main.Dialog.showMessage("red=xxx blue=xxx", res)
+            Main.Dialog.showMessage(msg, res)
           }
         }
       }

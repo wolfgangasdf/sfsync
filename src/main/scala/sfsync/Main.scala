@@ -356,23 +356,23 @@ object Main extends JFXApp with Logging {
     }
     private def showIt(mtype: Int, msg: String, htmlmsg: String = "") : String  = {
       var res = "-1"
-      val cont = new BorderPane {
+      val cont = new VBox {
         style = "-fx-background-color: lightblue;"
         var tf = new TextField {
           text = ""
           onAction = (ae: ActionEvent) => { res = text.value; dstage.close() }
         }
-        var ta = new TextArea {
-          text = msg
-          editable = false
-        }
-        var sp = new ScrollPane {
-          content = ta
+        var sp = new ScrollPane { // text message
+          content = new TextArea {
+            text = msg
+            editable = false
+          }
           fitToWidth = true
           fitToHeight = true
+          if (htmlmsg != "") prefHeight = 15
         }
 
-        var sp2 = new ScrollPane {
+        var sp2 = new ScrollPane { // optional html message
           content = new WebView {
             engine.loadContent(htmlmsg)
           }
@@ -380,12 +380,15 @@ object Main extends JFXApp with Logging {
           fitToHeight = true
         }
 
+        content.add(sp)
         mtype match {
-          case 1 | 2 => if (htmlmsg != "") {top = sp ; center = sp2} else center = sp
-          case 3 => top = sp; center = tf
+          case 1 | 2 => if (htmlmsg != "") content.add(sp2)
+          case 3 => content.add(tf)
         }
 
-        bottom = new HBox {
+        import scalafx.scene.layout.HBox._ // implicit conversion must be imported??!
+        content += new HBox {
+          prefHeight = 25
           margin = insetsstd
           spacing = 5
           alignment = Pos.CENTER
@@ -418,7 +421,7 @@ object Main extends JFXApp with Logging {
       }
       cont.prefWidth <== dstage.scene.width
       cont.prefHeight <== dstage.scene.height
-
+      cont.autosize()
       dstage.showAndWait()
       res
     }
