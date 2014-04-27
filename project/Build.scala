@@ -28,7 +28,7 @@ object Dependencies {
   val scala = "org.scala-lang" % "scala-library" % BuildSettings.buildScalaVersion % "provided"
 //  val scalaReflect = "org.scala-lang" % "scala-reflect" % BuildSettings.buildScalaVersion
   val akka = "com.typesafe.akka" %% "akka-actor" % "2.2.1"
-  val scalafx = "org.scalafx" %% "scalafx-core" % "1.0-SNAPSHOT" // this is locally compiled
+  val scalafx = "org.scalafx" %% "scalafx" % "1.0.0-R8"
 //  val sftp = "fr.janalyse" %% "janalyse-ssh" % "0.9.10" % "compile" // scala version too experimental as of 201311
   val sftp = "com.jcraft" % "jsch" % "0.1.50" //% "compile"
   val h2 = "com.h2database" % "h2" % "1.3.173"
@@ -59,7 +59,7 @@ object WMPBuild extends Build {
 //    Some(j)
 //  }
 
-  val javaHome = Some("/Library/Java/JavaVirtualMachines/jdk1.7.0_45.jdk/Contents/Home") // TODO use above if environm var read
+  val javaHome = Some("/Library/Java/JavaVirtualMachines/jdk1.7.0_55.jdk/Contents/Home") // TODO use above if environm var read
 
   lazy val unmanagedListing = unmanagedJars in Compile += Attributed.blank(file(javaHome.get + "/jre/lib/jfxrt.jar"))
 

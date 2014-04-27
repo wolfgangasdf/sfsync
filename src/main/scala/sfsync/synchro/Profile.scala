@@ -60,31 +60,25 @@ object CompareStuff extends Logging {
     val swse = new StopWatch
     // q contains all entries to be checked
     val q = MySchema.files.where(se => (se.relevant === true) and (se.action === A_UNCHECKED))
-    //println("**** all relevant:") ; q.map(se => println(se))
-    // iterate over all folders not in cache and check if it has parent folder that has been synced before in current set
+    // update hasCachedParent for all folders not in cache and check if it has parent folder that has been synced before in current set
     val qfsnocache = q.where(se => se.path.like("%/") and se.cSize === -1)
-    //println("**** all dirs without cache:") ; qfsnocache.map(se => println(se))
     MySchema.files.update(qfsnocache.map(se => {
-      //println("check if there is synced parent in current set of: " + se.path)
       var tmpf = se.path
-      var haveCacheParentDir = false
+      var haveCachedParentDir = false
       var doit = true
-      while (!haveCacheParentDir && doit) {
+      while (!haveCachedParentDir && doit) {
         tmpf = getParentFolder(tmpf)
         if (tmpf != "/") {
-          //println(s"  checking parent $tmpf")
           val pq = q.where(se => se.path === tmpf)
           if (pq.size == 1) {
-            if (pq.head.cSize != -1) haveCacheParentDir = true
+            if (pq.head.cSize != -1) haveCachedParentDir = true
           } else {
             doit = false // parent not in relevant set in DB
           }
         } else doit = false
       }
-      // compare...
-      se.hasCachedParent = haveCacheParentDir
-      se.iniAction2(!haveCacheParentDir)
-      //println(s"  havecachedparent: $haveCacheParentDir => action: " + CF.amap(se.action))
+      se.hasCachedParent = haveCachedParentDir
+      se.iniAction2(newcache = !haveCachedParentDir) // compare
       se
     }))
     debug("TTT a took = " + swse.getTimeRestart)
@@ -104,7 +98,7 @@ object CompareStuff extends Logging {
     MySchema.files.update(qfiles.map(se => {
       //println("   file: " + se.path)
       if (se.cSize == -1) { // only get parent folder for unknown files, faster!
-      val parent = getParentFolder(se.path)
+        val parent = getParentFolder(se.path)
         if (!MySchema.files.where(sex => sex.path === parent).head.hasCachedParent) {
           se.iniAction2(newcache = true) // test
           //print("  [c]")
@@ -120,6 +114,21 @@ object CompareStuff extends Logging {
       se
     }))
     debug("TTT c took = " + swse.getTimeRestart)
+
+    // iterate over all folders that will be deleted: check that other side is not modified below
+    val delfolds = MySchema.files.where(se => (se.relevant === true) and
+      se.path.like("%/") and ( se.action === A_RMLOCAL or se.action === A_RMREMOTE ) )
+    delfolds.foreach(sef => {
+      val subthings = MySchema.files.where(se => (se.relevant === true) and se.path.like(sef.path + "%") and se.action <> A_RMBOTH)
+      if (subthings.size > 0) { // fishy, mark all children and parent '?'
+        sef.action = A_UNKNOWN
+        val subthings2 = MySchema.files.where(se => (se.relevant === true) and se.path.like(sef.path + "%"))
+        MySchema.files.update(subthings2.map(se => {
+          se.action = A_UNKNOWN
+          se
+        }))
+      }
+    })
 
     // return true if changes
     !MySchema.files.where(se => (se.relevant === true) and (se.action <> A_ISEQUAL)).isEmpty
@@ -283,7 +292,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       Main.Status.remote.value = rfiles.toString
       Main.Status.status.value = "Compare files..."
     }
-    // init with best guess
+    // compare entries
     info("*********************** compare sync entries")
     val haveChanges = using(receiveSession) {
       CompareStuff.compareSyncEntries()

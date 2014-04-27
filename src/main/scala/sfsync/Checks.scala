@@ -85,6 +85,15 @@ object Checks {
       ces += new CheckEntry(A_UNKNOWN, new SyncEntry("/sf7ca/filessizeloccache", A_UNCHECKED, mod0, s1, mod0, s0, mod0, s0, true))
       ces += new CheckEntry(A_UNKNOWN, new SyncEntry("/sf7ca/filessizeremcache", A_UNCHECKED, mod0, s0, mod0, s1, mod0, s0, true))
 
+      // cached, then delete local dir, but added/changed files remote: must all be ?
+      ces += new CheckEntry(A_UNKNOWN, new SyncEntry("/sf8/", A_UNCHECKED, -1, -1, mod0, s0, mod0, s0, true))
+      ces += new CheckEntry(A_UNKNOWN, new SyncEntry("/sf8/filedelloc", A_UNCHECKED, -1, -1, mod0, s0, mod0, s0, true))
+      ces += new CheckEntry(A_UNKNOWN, new SyncEntry("/sf8/fileaddrem", A_UNCHECKED, -1, -1, mod0, s0, -1, -1, true))
+      ces += new CheckEntry(A_UNKNOWN, new SyncEntry("/sf8a/", A_UNCHECKED, -1, -1, mod0, s0, mod0, s0, true))
+      ces += new CheckEntry(A_UNKNOWN, new SyncEntry("/sf8a/filedelloc", A_UNCHECKED, -1, -1, mod0, s0, mod0, s0, true))
+      ces += new CheckEntry(A_UNKNOWN, new SyncEntry("/sf8a/filemodrem", A_UNCHECKED, mod0, s0, mod1, s1, mod0, s0, true))
+
+
       // insert stuff
       ces.foreach(ce => MySchema.files.insert(ce.se))
 
