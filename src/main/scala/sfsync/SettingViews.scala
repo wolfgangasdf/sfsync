@@ -360,6 +360,7 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
         }
       )
     }
+    rootNode.expanded = true
     val cont = new BorderPane {
       style = "-fx-background-color: lightblue;"
       top = new Label(msg)

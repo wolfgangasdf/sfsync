@@ -125,7 +125,6 @@ class MainView(filesView: FilesView) extends Tab with Logging {
 }
 
 object Main extends JFXApp with Logging {
-
   val VERSION = BuildInfo.version
   val resv = getClass.getResource("/sfsync/HGVERSION.txt")
   val version = VERSION + (if (resv != null) " (" + io.Source.fromURL(resv).mkString.trim + ")" else "")
@@ -334,13 +333,12 @@ object Main extends JFXApp with Logging {
           profile.init()
           profile.compare()
         } catch {
-          case e: Exception => {
+          case e: Exception =>
             runUIwait(Main.Dialog.showMessage("Exception: " + e + "\n" + e.getMessage))
             e.printStackTrace()
             runUI {
               doCleanup()
             }
-          }
         }
       }
     } else {
@@ -362,7 +360,7 @@ object Main extends JFXApp with Logging {
         style = "-fx-background-color: lightblue;"
         var tf = new TextField {
           text = ""
-          onAction = (ae: ActionEvent) => { res = text.value; dstage.close }
+          onAction = (ae: ActionEvent) => { res = text.value; dstage.close() }
         }
         var ta = new TextArea {
           text = msg
@@ -383,8 +381,8 @@ object Main extends JFXApp with Logging {
         }
 
         mtype match {
-          case 1 | 2 => { if (htmlmsg != "") {top = sp ; center = sp2} else center = sp }
-          case 3 => { top = sp ; center = tf }
+          case 1 | 2 => if (htmlmsg != "") {top = sp ; center = sp2} else center = sp
+          case 3 => top = sp; center = tf
         }
 
         bottom = new HBox {
@@ -394,22 +392,22 @@ object Main extends JFXApp with Logging {
           content = mtype match {
             case 1 => List(
               new Button("Ok") {
-                onAction = (ae: ActionEvent) => { res="1"; dstage.close }
+                onAction = (ae: ActionEvent) => { res="1"; dstage.close() }
               })
             case 2 => List(
               new Button("Yes") {
-                onAction = (ae: ActionEvent) => { res="1"; dstage.close }
+                onAction = (ae: ActionEvent) => { res="1"; dstage.close() }
               },
               new Button("No") {
-                onAction = (ae: ActionEvent) => { res="0"; dstage.close }
+                onAction = (ae: ActionEvent) => { res="0"; dstage.close() }
               }
             )
             case 3 => List(
               new Button("Ok") {
-                onAction = (ae: ActionEvent) => { res=tf.text.value; dstage.close }
+                onAction = (ae: ActionEvent) => { res=tf.text.value; dstage.close() }
               },
               new Button("Cancel") {
-                onAction = (ae: ActionEvent) => { res=""; dstage.close }
+                onAction = (ae: ActionEvent) => { res=""; dstage.close() }
               }
             )
           }
@@ -421,7 +419,7 @@ object Main extends JFXApp with Logging {
       cont.prefWidth <== dstage.scene.width
       cont.prefHeight <== dstage.scene.height
 
-      dstage.showAndWait
+      dstage.showAndWait()
       res
     }
 

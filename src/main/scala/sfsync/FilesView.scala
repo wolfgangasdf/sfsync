@@ -19,7 +19,6 @@ import Helpers._
 
 import javafx.util.Callback
 import scala.language.{implicitConversions, reflectiveCalls, postfixOps}
-import scalafx.scene.shape.Circle
 import java.nio.file.{Path, Files}
 
 import diffmatchpatch.diff_match_patch
