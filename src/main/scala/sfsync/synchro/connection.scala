@@ -24,7 +24,7 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
   def deletefile(what: String, mtime: Long) {
     val (cp, _) = checkIsDir(what)
     Files.delete(Paths.get(remoteBasePath + "/" + cp))
-    // TODO add same thing as for sftp
+    // TODO add same thing as for sftp if not empty
 //    debug("deleted " + remoteBasePath + what.path)
   }
   def putfile(from: String, mtime: Long) {

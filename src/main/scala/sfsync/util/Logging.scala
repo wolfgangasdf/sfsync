@@ -33,20 +33,18 @@ object LoggerBase {
         val rKeyval =  "\\s*(\\S*)\\s*=\\s*(\\S*)\\s*".r
         val rKeyval(k,v) = s1
         k match {
-          case "levels" => {
+          case "levels" =>
             if (v.contains("debug")) logDebug = true
             if (v.contains("info")) logInfo = true
             if (v.contains("warn")) logWarning = true
             if (v.contains("error")) logError = true
-          }
-          case "outputs" => {
+          case "outputs" =>
             v.split(",").foreach(outp => {
               println("log outp=" + outp)
               if (outp == "console")
                 logConsole = true
               else logFile = outp
             })
-          }
         }
       }
     })

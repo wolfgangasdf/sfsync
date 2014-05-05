@@ -173,7 +173,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     remote = uri.protocol match {
       case "sftp" => new SftpConnection(false,uri)
       case "file" => new LocalConnection(false)
-      case _ => { throw new RuntimeException("wrong protocol: " + uri.protocol) }
+      case _ => throw new RuntimeException("wrong protocol: " + uri.protocol)
     }
     runUIwait { Main.Status.status.value = "ready" }
     remote.localBasePath = server.localFolder.value
@@ -224,8 +224,8 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       var finished = 2*subfolder.subfolders.length // cowntdown for lists
       debug("receiveList in thread " + Thread.currentThread().getId)
       become {
-        case addFile(vf, islocal) => {
-//          debug("  received " + vf)
+        case addFile(vf, islocal) =>
+          //          debug("  received " + vf)
           if (swUI.getTime > UIUpdateInterval) {
             runUIwait { // give UI time
               Main.Status.status.value = "Find files... " + vf.path
@@ -257,13 +257,11 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
               //debug("updated   " + se)
             }
           }
-        }
-        case 'done => {
+        case 'done =>
           finished -= 1
           if (finished == 0) {
             debug("receiveList: remotelistfinished!")
           }
-        }
         case 'replyWhenDone => if (finished==0) {
           sender ! 'done
           debug("exit actor receiveList")
@@ -326,16 +324,16 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       for (state <- List(1,2)) { // delete and add dirs must be done in reverse order!
         debug("syncing state = " + state)
         val q = state match {
-          case 1 => { // delete
-          from (MySchema.files) (se => where((se.relevant === true) and (se.action in List(A_RMBOTH,A_RMLOCAL,A_RMREMOTE)))
-            select se
-            orderBy(se.path desc) // this allows deletion of dirs!
-          )}
-          case _ => { // put/get and others
+          case 1 => // delete
+            from (MySchema.files) (se => where((se.relevant === true) and (se.action in List(A_RMBOTH,A_RMLOCAL,A_RMREMOTE)))
+              select se
+              orderBy(se.path desc) // this allows deletion of dirs!
+            )
+          case _ => // put/get and others
             from (MySchema.files) (se => where(se.relevant === true)
               select se
               orderBy(se.path asc) // this allows deletion of dirs!
-            )}
+            )
         }
         MySchema.files.update(q.map(se => {
           iii += 1
@@ -355,21 +353,20 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
             // debug("syncing  " + se)
             se.action match {
               case A_MERGE => throw new Exception("merge not implemented yet!")
-              case A_RMLOCAL|A_RMBOTH => { local.deletefile(se.path,se.lTime) ; se.delete = true; se.relevant = false }
-              case A_RMREMOTE|A_RMBOTH => { remote.deletefile(se.path, se.rTime) ; se.delete = true; se.relevant = false }
-              case A_USELOCAL => { remote.putfile(se.path, se.lTime) ; se.rTime=se.lTime; se.rSize=se.lTime; se.cSize = se.lSize; se.cTime = se.lTime; se.relevant = false }
-              case A_USEREMOTE => { remote.getfile(se.path, se.rTime) ; se.lTime=se.rTime; se.lSize=se.rTime; se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false }
-              case A_ISEQUAL => { se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false }
-              case A_SKIP => { se.relevant = false }
-              case A_CACHEONLY => { se.delete = true }
-              case _ => { }
+              case A_RMLOCAL|A_RMBOTH => local.deletefile(se.path,se.lTime); se.delete = true; se.relevant = false
+              case A_RMREMOTE|A_RMBOTH => remote.deletefile(se.path, se.rTime); se.delete = true; se.relevant = false
+              case A_USELOCAL => remote.putfile(se.path, se.lTime); se.rTime=se.lTime; se.rSize=se.lTime; se.cSize = se.lSize; se.cTime = se.lTime; se.relevant = false
+              case A_USEREMOTE => remote.getfile(se.path, se.rTime); se.lTime=se.rTime; se.lSize=se.rTime; se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false
+              case A_ISEQUAL => se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false
+              case A_SKIP => se.relevant = false
+              case A_CACHEONLY => se.delete = true
+              case _ =>
             }
           } catch {
-            case e: Exception => {
+            case e: Exception =>
               error("sync exception:", e)
               se.action = A_SYNCERROR
               syncLog += (e + "\n")
-            }
           }
           se
         })) // update loop

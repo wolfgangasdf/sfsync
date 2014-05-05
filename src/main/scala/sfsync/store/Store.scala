@@ -191,38 +191,34 @@ object Store extends Logging {
       lines.foreach(lll => {
         val sett = splitsetting(lll.toString)
         sett(0) match {
-          case "sfsyncsettingsversion" => {
+          case "sfsyncsettingsversion" =>
             if (!sett(1).equals("1")) sys.error("wrong settings version")
             config = new Config()
-          }
-          case "width" => { config.width.value = sett(1).toInt }
-          case "height" => { config.height.value = sett(1).toInt }
-          case "dividerpositions" => { config.dividerPositions ++= sett(1).split("#").map(x => x.toDouble)}
-          case "servercurr" => { config.currentServer.value = sett(1).toInt }
+          case "width" => config.width.value = sett(1).toInt
+          case "height" => config.height.value = sett(1).toInt
+          case "dividerpositions" => config.dividerPositions ++= sett(1).split("#").map(x => x.toDouble)
+          case "servercurr" => config.currentServer.value = sett(1).toInt
           case "currentFilter" => config.currentFilter.value = sett(1).toInt
-          case "server" => {
+          case "server" =>
             lastserver = new Server { name = sett(1) }
             config.servers += lastserver
-          }
-          case "localfolder" => { lastserver.localFolder.value = sett(1) }
-          case "filterregexp" => { lastserver.filterRegexp.value = sett(1) }
-          case "id" => { lastserver.id.value = sett(1) }
-          case "protocolcurr" => { lastserver.currentProtocol.value = sett(1).toInt }
-          case "protocol" => {
+          case "localfolder" => lastserver.localFolder.value = sett(1)
+          case "filterregexp" => lastserver.filterRegexp.value = sett(1)
+          case "id" => lastserver.id.value = sett(1)
+          case "protocolcurr" => lastserver.currentProtocol.value = sett(1).toInt
+          case "protocol" =>
             lastprotocol = new Protocol { name = sett(1) }
             lastserver.protocols += lastprotocol
-          }
-          case "protocoluri" => {lastprotocol.protocoluri.value = sett(1)}
-          case "protocolbasefolder" => {lastprotocol.protocolbasefolder.value = sett(1)}
-          case "protocolexbefore" => {lastprotocol.executeBefore.value = sett(1)}
-          case "protocolexafter" => {lastprotocol.executeAfter.value = sett(1)}
-          case "subfoldercurr" => { lastserver.currentSubFolder.value = sett(1).toInt }
-          case "subfolder" => {
+          case "protocoluri" => lastprotocol.protocoluri.value = sett(1)
+          case "protocolbasefolder" => lastprotocol.protocolbasefolder.value = sett(1)
+          case "protocolexbefore" => lastprotocol.executeBefore.value = sett(1)
+          case "protocolexafter" => lastprotocol.executeAfter.value = sett(1)
+          case "subfoldercurr" => lastserver.currentSubFolder.value = sett(1).toInt
+          case "subfolder" =>
             lastsubfolder = new SubFolder { name = sett(1) }
             lastserver.subfolders += lastsubfolder
-          }
-          case "subfolderfolder" => {lastsubfolder.subfolders.add(sett(1))}
-          case _ => {warn("unknown tag in config file: <" + sett(0) + ">")}
+          case "subfolderfolder" => lastsubfolder.subfolders.add(sett(1))
+          case _ => warn("unknown tag in config file: <" + sett(0) + ">")
         }
       })
     }
@@ -430,8 +426,7 @@ object CacheDB extends Logging {
         } catch { case e: Exception => warn("se.size: ignored exception:" + e) }
         sizeCache
       }
-      def toArray[T](a: Array[T]): Array[T] = null
-
+      def toArray[T](a: Array[T]): Array[T] = null // TODO: ?
     }
   }
 

@@ -102,9 +102,6 @@ object Checks {
 
       CompareStuff.compareSyncEntries()
 
-//      println("**** result:")
-//      MySchema.files.foreach(se => println(se.toString))
-
       // check if ok
       println("**** checks:")
       var fail = false
