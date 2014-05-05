@@ -313,6 +313,8 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
   def synchronize() {
     debug("synchronize() in thread " + Thread.currentThread().getId)
     runUIwait { Main.Status.status.value = "Synchronize..." }
+    var progress: Main.Progress = null
+    runUIwait { progress = new Main.Progress() }
     val sw = new StopWatch
     val swd = new StopWatch
     var iii = 0
@@ -339,11 +341,29 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
           if (se.action == A_USELOCAL) { if (se.lSize>10000) showit = true }
           if (se.action == A_USEREMOTE) { if (se.rSize>10000) showit = true }
           if (swd.getTime > UIUpdateInterval || showit) {
-            syncSession.connection.commit() // TODO it does not seem to work
-            runUIwait { // give UI time
+            // syncSession.connection.commit() // TODO it does not seem to work... I cannot sync in update...
+            // as long as squeryl doesn't know that I am the only write-session! how to do this?
+            // view.updateSyncEntries() // this doesn't get the updates db...
+            runUIwait { // update status
               Main.Status.status.value = "Synchronize(" + iii + "): " + se.path
-              // TODO doesn't work syncSession = CacheDB.syncSession(syncSession)
-              view.updateSyncEntries()
+              progress.updateText("Synchronize(" + iii + "): " + se.path) // TODO make fancier
+              if (progress.abortclicked) { // abort synchro!
+                progress.close()
+                if (syncLog != "") {
+                  Dialog.showMessage("Errors during synchronization\n(mind that excluded files are not shown):\n" + syncLog)
+                } else {
+                  Dialog.showMessage("Synchronization aborted!")
+                }
+                view.updateSyncEntries()
+                view.enableActions = false
+                Main.Status.status.value = "Aborted synchronize"
+                Main.Status.local.value = ""
+                Main.Status.remote.value = ""
+              }
+            }
+            if (progress.abortclicked) {
+              stop(false)
+              return
             }
             swd.restart()
           }
@@ -377,6 +397,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     sw.printTime("TTTTTTTTT synchronized in ")
     var switchBackToSettings = true
     runUIwait {
+      progress.close()
       if (syncLog != "") {
         switchBackToSettings = false
         Dialog.showMessage("Errors during synchronization\n(mind that excluded files are not shown):\n" + syncLog)
@@ -387,7 +408,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       Main.Status.local.value = ""
       Main.Status.remote.value = ""
     }
-    stop()
+    stop(switchBackToSettings)
   }
   def stop(switchBackToSettings: Boolean = true) {
     debug("stopping profile...")
@@ -405,9 +426,9 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     }
     runUI {
       if (switchBackToSettings) Main.tabpane.selectionModel.get().select(0)
-      debug("profile stopped!")
       Main.doCleanup()
     }
+    debug("profile stopped!")
   }
 
 

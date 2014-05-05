@@ -333,11 +333,6 @@ object MySchema extends Schema {
 }
 
 object CacheDB extends Logging {
-  def syncSession(session: Session): Session = {
-    session.close
-    getSession
-  }
-
 
   val sessionFactory = SessionFactory
   var connected = false

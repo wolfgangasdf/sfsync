@@ -316,8 +316,6 @@ object Main extends JFXApp with Logging {
     }
   }
 
-  var threadCompare: Thread = null
-
   def runCompare() = {
     doCleanup()
     val sane = settingsView.serverView.server != null && settingsView.serverView.server.localFolder.value != "" &&
@@ -328,7 +326,6 @@ object Main extends JFXApp with Logging {
       filesView.profile = profile
       tabpane.selectionModel().select(filesView)
       future { // this is key, do in new thread!
-        threadCompare = Thread.currentThread()
         try {
           profile.init()
           profile.compare()
@@ -346,6 +343,48 @@ object Main extends JFXApp with Logging {
     }
     sane
   }
+
+  // TODO make really modal!
+  class Progress() {
+    var abortclicked = false
+    val dstage = new Stage(jfxs.StageStyle.UTILITY) {
+      initOwner(Main.stage)
+      initModality(jfxs.Modality.APPLICATION_MODAL)
+      width = 500
+      height = 300
+    }
+    val ta = new TextArea {
+      text = "xxx"
+      editable = false
+    }
+    val cont = new VBox {
+      style = "-fx-background-color: lightblue;"
+      var sp = new ScrollPane {
+        content = ta
+        fitToWidth = true
+        fitToHeight = true
+      }
+      content.add(sp)
+      import Button._
+      content.add(new Button("Abort") {
+        onAction = (ae: ActionEvent) => { abortclicked = true; }
+      })
+    }
+    dstage.scene = new Scene {
+      content = cont
+    }
+    cont.prefWidth <== dstage.scene.width
+    cont.prefHeight <== dstage.scene.height
+    cont.autosize()
+    dstage.show()
+
+    def updateText(s: String) = {
+      ta.text = s
+    }
+
+    def close() = { dstage.close() }
+  }
+
 
   object Dialog {
     val dstage = new Stage(jfxs.StageStyle.UTILITY) {
