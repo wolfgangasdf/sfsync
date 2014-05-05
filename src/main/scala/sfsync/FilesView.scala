@@ -7,8 +7,6 @@ import scalafx.Includes._
 import scalafx.event.ActionEvent
 import scalafx.beans.property.StringProperty
 
-import javafx.{util => jfxu}
-import javafx.beans.{value => jfxbv}
 import javafx.scene.{control => jfxsc}
 
 import sfsync.synchro._
@@ -24,6 +22,7 @@ import java.nio.file.{Path, Files}
 import diffmatchpatch.diff_match_patch
 import java.nio.charset.StandardCharsets
 import java.nio.ByteBuffer
+import scalafx.scene.control.cell.TextFieldTableCell
 
 object CF {
   val amap = Map(
@@ -71,43 +70,40 @@ class FilesView() extends Tab with Logging {
   var profile: Profile = null
   private var syncEnabled = false
 
-//  val colSelected = new TableColumn[SyncEntry, String]("Sel") {
-//    /*cellValueFactory = _.value.firstName// DOESNT WORK do below*/
-//  }
-//  colSelected.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[SyncEntry, String], jfxbv.ObservableValue[String]] {
-//    def call(param: jfxsc.TableColumn.CellDataFeatures[SyncEntry, String]) = StringProperty(if (param.getValue.selected) "x" else "")
-//  })
   val colPath = new TableColumn[SyncEntry, String]("Path") {
-    /*cellValueFactory = _.value.firstName// DOESNT WORK do below*/
-  }
-  colPath.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[SyncEntry, String], jfxbv.ObservableValue[String]] {
-    def call(param: jfxsc.TableColumn.CellDataFeatures[SyncEntry, String]) = StringProperty(param.getValue.path)
-  })
-  colPath.setCellFactory(new Callback[jfxsc.TableColumn[SyncEntry, String],jfxsc.TableCell[SyncEntry, String]] {
-    def call(param: jfxsc.TableColumn[SyncEntry, String]): jfxsc.TableCell[SyncEntry, String] = {
-      val x = new jfxsc.cell.TextFieldTableCell[SyncEntry, String]() {
-        override def updateItem(f: String, empty: Boolean) {
-          super.updateItem(f, empty)
-          if (!empty) {
-            val se = getTableView.getItems.get(getTableRow.getIndex)
-            val tooltip = new jfxsc.Tooltip(se.toStringNice)
-            tooltip.setStyle("-fx-font-family: \"Courier New\";")
-            setTooltip(tooltip)
+    cellValueFactory = (xx) => { StringProperty(xx.value.path) }
+    cellFactory = (xx) => { // tooltip
+    val x = new TextFieldTableCell[SyncEntry, String] {
+        // must set tooltip only after cell created! can't override updateItem, do it here...
+        onMouseEntered = (event: scalafx.scene.input.MouseEvent) => {
+          if (tooltip.value == null) {
+            val se = xx.tableView().getItems.get(tableRow.value.getIndex)
+            if (se != null) { // mouseentered also on empty cells!
+              tooltip = new Tooltip {
+                text = se.toStringNice
+                style = "-fx-font-family: \"Courier New\";"
+              }
+            }
           }
         }
       }
       x
     }
-  })
+  }
+
   val colStatus = new TableColumn[SyncEntry, String]("Status") {
     prefWidth=50
-    /*cellValueFactory = _.value.firstName// DOESNT WORK do below*/
+    cellValueFactory = (xx) => { StringProperty(xx.value.status) }
+// doesn't work, updateItem not called...
+//    cellFactory = (xx) => { // tooltip
+//      val x = new TextFieldTableCell[SyncEntry, String] {
+//        override def updateItem(f: String, empty: Boolean) {
+//          debug("HUHUHUHUHUHUHUHUH")
+//        }
+//      }
+//      x
+//    }
   }
-  colStatus.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[SyncEntry, String], jfxbv.ObservableValue[String]] {
-    def call(param: jfxsc.TableColumn.CellDataFeatures[SyncEntry, String]) = {
-      if (param.getValue != null) param.getValue.status else StringProperty("null")
-    }
-  })
   colStatus.setCellFactory(new Callback[jfxsc.TableColumn[SyncEntry, String],jfxsc.TableCell[SyncEntry, String]] {
     def call(param: jfxsc.TableColumn[SyncEntry, String]): jfxsc.TableCell[SyncEntry, String] = {
       val x = new jfxsc.cell.TextFieldTableCell[SyncEntry, String]() {
@@ -121,25 +117,21 @@ class FilesView() extends Tab with Logging {
       x
     }
   })
-  val colDetailsLocal = new TableColumn[SyncEntry, String]("Local") {prefWidth=200/*cellValueFactory = _.value.firstName// DOESNT WORK do below*/ }
-  colDetailsLocal.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[SyncEntry, String], jfxbv.ObservableValue[String]] {
-    def call(param: jfxsc.TableColumn.CellDataFeatures[SyncEntry, String]) = {
-      if (param.getValue != null) param.getValue.detailsLocal else StringProperty("null")
-    }
-  })
-  val colDetailsRemote = new TableColumn[SyncEntry, String]("Remote") {prefWidth=200/*cellValueFactory = _.value.firstName// DOESNT WORK do below*/ }
-  colDetailsRemote.setCellValueFactory(new jfxu.Callback[jfxsc.TableColumn.CellDataFeatures[SyncEntry, String], jfxbv.ObservableValue[String]] {
-    def call(param: jfxsc.TableColumn.CellDataFeatures[SyncEntry, String]) = {
-      if (param.getValue != null) param.getValue.detailsRemote else StringProperty("null")
-    }
-  })
+  val colDetailsLocal = new TableColumn[SyncEntry, String]("Local") {
+    prefWidth=200
+    cellValueFactory = (xx) => { StringProperty(xx.value.detailsLocal) }
+  }
+  val colDetailsRemote = new TableColumn[SyncEntry, String]("Remote") {
+    prefWidth=200
+    cellValueFactory = (xx) => { StringProperty(xx.value.detailsRemote) }
+  }
 
   var tv = new TableView[SyncEntry](CacheDB.syncEntries) { // only string-listview is properly updated!
     // columns ++= List(col1) // doesn't work
     delegate.getColumns.addAll(
       colDetailsLocal.delegate, colStatus.delegate, colDetailsRemote.delegate, colPath.delegate
     )
-    selectionModel.get().selectedItems.onChange(
+    selectionModel().selectedItems.onChange(
       (ob, _) => {
         if (ob.size > 0) {
           debug("selitemsonchange: ob.size=" + ob.size)
@@ -168,7 +160,7 @@ class FilesView() extends Tab with Logging {
 
   val btDebugInfo = new Button("Debug info") {
     onAction = (ae: ActionEvent) => {
-      debug("SE: " + tv.selectionModel.get().getSelectedItem)
+      debug("SE: " + tv.selectionModel().getSelectedItem)
     }
   }
 
@@ -179,7 +171,7 @@ class FilesView() extends Tab with Logging {
   val btDiff = new Button("Quick diff") {
     onAction = (ae: ActionEvent) => {
       if (profile != null) if (profile.profileInitialized) {
-        val se = tv.selectionModel.get().getSelectedItem
+        val se = tv.selectionModel().getSelectedItem
         if (se != null) {
           if (se.lSize + se.rSize < 100000) {
             val lf = Files.createTempFile("sfsync-localfile", ".tmp")
@@ -202,19 +194,19 @@ class FilesView() extends Tab with Logging {
           }
         }
       }
-      debug("SE: " + tv.selectionModel.get().getSelectedItem)
+      debug("SE: " + tv.selectionModel().getSelectedItem)
     }
   }
 
   def createActionButton(lab: String, action: Int): Button = {
     new Button(lab) {
       onAction = (ae: ActionEvent) => {
-        for (idx <- tv.selectionModel.get().getSelectedItems) {
+        for (idx <- tv.selectionModel().getSelectedItems) {
           idx.action = action
           CacheDB.updateSE(idx, clearCache = false)
         }
         // advance
-        tv.selectionModel.get().clearAndSelect(tv.selectionModel.get().getSelectedIndices.max+1)
+        tv.selectionModel().clearAndSelect(tv.selectionModel().getSelectedIndices.max+1)
 
         updateSyncEntries()
         updateSyncButton()
@@ -253,7 +245,7 @@ class FilesView() extends Tab with Logging {
       var allowAction = true
       var legal = true // all have same file exist status
       var existCheck: (Boolean, Boolean) = null // (alllocalexists, allremoteexists)
-      for (se <- tv.selectionModel.get().getSelectedItems) {
+      for (se <- tv.selectionModel().getSelectedItems) {
         if (existCheck == null)
           existCheck = (se.lSize != -1, se.rSize != -1)
         else
@@ -283,9 +275,9 @@ class FilesView() extends Tab with Logging {
   }
   filterList.addAll (F.all,F.changes,F.problems)
   val cFilter = new ComboBox(filterList) {
-    selectionModel.get().select(Store.config.currentFilter)
+    selectionModel().select(Store.config.currentFilter)
     onAction = (ae: ActionEvent) => {
-      Store.config.currentFilter.value = selectionModel.get().getSelectedIndex
+      Store.config.currentFilter.value = selectionModel().getSelectedIndex
       updateSyncEntries()
     }
   }
@@ -309,7 +301,7 @@ class FilesView() extends Tab with Logging {
     content = List(tv,bv)
   }
 
-  tv.selectionModel.get().setSelectionMode(javafx.scene.control.SelectionMode.MULTIPLE)
+  tv.selectionModel().setSelectionMode(javafx.scene.control.SelectionMode.MULTIPLE)
   colPath.prefWidth <== (vb.width - colStatus.prefWidth-1 - colDetailsLocal.prefWidth - colDetailsRemote.prefWidth)
   tv.prefHeight <== (vb.height - bv.height)
   bv.prefWidth <== vb.width

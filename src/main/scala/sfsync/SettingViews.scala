@@ -49,8 +49,8 @@ class MyListView[T <: ListableThing](
   var lvs = new control.ListView[T]() {
     editable = true
     items = obsBuffer
-    selectionModel.get().clearSelection()
-    selectionModel.get().select(currIdx)
+    selectionModel().clearSelection()
+    selectionModel().select(currIdx)
   }
   lvs.cellFactory = TextFieldListCell.forListView(new StringConverter[T] {
     def fromString(string: String): T = {
@@ -85,20 +85,20 @@ class MyListView[T <: ListableThing](
             val newi = factory()
             obsBuffer += newi
             sortit()
-            lvs.selectionModel.get().clearSelection()
-            lvs.selectionModel.get().select(newi)
+            lvs.selectionModel().clearSelection()
+            lvs.selectionModel().select(newi)
             onChange()
             unit()
           }
         },
         new Button("delete") {
           onAction = (ae: ActionEvent) => {
-            val idx = lvs.selectionModel.get().getSelectedIndex
+            val idx = lvs.selectionModel().getSelectedIndex
             if (idx >= 0) {
               if (beforeDelete(obsBuffer(idx))) {
                 obsBuffer.remove(idx)
-                lvs.selectionModel.get().clearSelection()
-                lvs.selectionModel.get().select(0)
+                lvs.selectionModel().clearSelection()
+                lvs.selectionModel().select(0)
                 onChange()
               }
             }
@@ -130,13 +130,13 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
           val f = SVHelpers.getDroppedFile(event.dragboard.getFiles.head)
           text = toJavaPathSeparator(f.getPath)
         }
-        event.consume
+        event.consume()
       }
       onDragOver = (event: input.DragEvent) => {
         if (event.dragboard.hasFiles) {
           event.acceptTransferModes(scalafx.scene.input.TransferMode.COPY)
         } else {
-          event.consume
+          event.consume()
         }
       }
     }
@@ -332,7 +332,7 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
     val btAddToFolders = new Button("Add selected") {
       disable = true
       onAction = (ae: ActionEvent) => {
-        val si = tv.selectionModel.get().selectedItems.head.asInstanceOf[FilePathTreeItem]
+        val si = tv.selectionModel().selectedItems.head.asInstanceOf[FilePathTreeItem]
         res=si.path.replaceAll("^/","").replaceAll("/$","")
         folders.add(res)
         print("")
@@ -341,18 +341,18 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
     val btSelect = new Button("Select") {
       disable = true
       onAction = (ae: ActionEvent) => {
-        val si = tv.selectionModel.get().selectedItems.head.asInstanceOf[FilePathTreeItem]
+        val si = tv.selectionModel().selectedItems.head.asInstanceOf[FilePathTreeItem]
         res=si.path.replaceAll("^/","").replaceAll("/$","")
-        dstage.close
+        dstage.close()
       }
     }
     tv = new TreeView[String](rootNode) {
       editable = false
-      selectionModel.get().selectedItems.onChange(
+      selectionModel().selectedItems.onChange(
         (ob, _) => {
           var goodselection = false
           if (ob.size == 1) {
-            val si = selectionModel.get().selectedItems.head.asInstanceOf[FilePathTreeItem]
+            val si = selectionModel().selectedItems.head.asInstanceOf[FilePathTreeItem]
             debug("si=" + si)
             if (si.isDir) goodselection = true
           }
@@ -375,7 +375,7 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
             case SELECTMODE => btSelect
           },
           new Button("Close") {
-            onAction = (ae: ActionEvent) => { res=""; dstage.close }
+            onAction = (ae: ActionEvent) => { res=""; dstage.close() }
           }
         )
       }
@@ -386,7 +386,7 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
     cont.prefWidth <== dstage.scene.width
     cont.prefHeight <== dstage.scene.height
 
-    dstage.showAndWait
+    dstage.showAndWait()
     res
   }
 
@@ -449,13 +449,13 @@ class SubFolderView(val server: Server) extends BorderPane {
           val sd = PathToSubdir(f)
           if (sd != "") subfolder.subfolders.add(sd)
         }
-        event.consume
+        event.consume()
       }
       onDragOver = (event: input.DragEvent) => {
         if (event.dragboard.hasFiles) {
           event.acceptTransferModes(scalafx.scene.input.TransferMode.COPY)
         } else {
-          event.consume
+          event.consume()
         }
       }
     }
@@ -486,7 +486,7 @@ class SubFolderView(val server: Server) extends BorderPane {
         },
         new Button("Delete") {
           onAction = (ae: ActionEvent) => {
-            lvs.getItems.remove(lvs.selectionModel.get().getSelectedItem) // multi selection disabled
+            lvs.getItems.remove(lvs.selectionModel().getSelectedItem) // multi selection disabled
             unit()
           }
         }
