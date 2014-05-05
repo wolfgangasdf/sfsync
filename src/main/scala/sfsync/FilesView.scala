@@ -94,7 +94,7 @@ class FilesView() extends Tab with Logging {
   val colStatus = new TableColumn[SyncEntry, String]("Status") {
     prefWidth=50
     cellValueFactory = (xx) => { StringProperty(xx.value.status) }
-// doesn't work, updateItem not called...
+// TODO doesn't work, updateItem not called...
 //    cellFactory = (xx) => { // tooltip
 //      val x = new TextFieldTableCell[SyncEntry, String] {
 //        override def updateItem(f: String, empty: Boolean) {
@@ -145,10 +145,10 @@ class FilesView() extends Tab with Logging {
     tv.setItems(x)
   }
 
-  def updateSyncEntries() {
+  def updateSyncEntries() { // TODO doesn't work if session that modified db not closed...
     debug("updateSyncEntries in thread " + Thread.currentThread().getId)
     CacheDB.invalidateCache()
-    CacheDB.updateSyncEntries(Option(true), getFilter)
+    CacheDB.initializeSyncEntries(Option(true), getFilter)
 
 
     setListItems(CacheDB.syncEntries)

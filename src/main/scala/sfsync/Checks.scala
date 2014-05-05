@@ -16,7 +16,7 @@ object Checks {
     class CheckEntry(val expectedAction: Int, val se: SyncEntry)
 
     val dbexists = CacheDB.connectDB("checks")
-    if (dbexists) CacheDB.clearCache()
+    if (dbexists) CacheDB.clearDB()
     transaction {
       // setup cachedb
       // stuff in existing & synced subfolder
@@ -92,6 +92,8 @@ object Checks {
       ces += new CheckEntry(A_UNKNOWN, new SyncEntry("/sf8a/", A_UNCHECKED, -1, -1, mod0, s0, mod0, s0, true))
       ces += new CheckEntry(A_UNKNOWN, new SyncEntry("/sf8a/filedelloc", A_UNCHECKED, -1, -1, mod0, s0, mod0, s0, true))
       ces += new CheckEntry(A_UNKNOWN, new SyncEntry("/sf8a/filemodrem", A_UNCHECKED, mod0, s0, mod1, s1, mod0, s0, true))
+      ces += new CheckEntry(A_UNKNOWN, new SyncEntry("/sf8c/", A_UNCHECKED, -1, -1, mod0, s0, mod0, s0, true))
+      ces += new CheckEntry(A_UNKNOWN, new SyncEntry("/sf8c/filemodrem", A_UNCHECKED, -1, -1, mod1, s1, mod0, s0, true))
 
 
       // insert stuff

@@ -201,7 +201,7 @@ abstract class ServerView(val config: Config) extends BorderPane with Logging {
       () => fcLocalDir(server.localFolder), "/localdir","/.*[^/]",
       canDropFile = true
     ) { tf.text <==> server.localFolder }
-    var bClearCache = new Button("Clear cache") { onAction = (ae: ActionEvent) => { CacheDB.clearCache() } }
+    var bClearCache = new Button("Clear cache") { onAction = (ae: ActionEvent) => { CacheDB.clearDB() } }
     val clist = List(tfLocalFolder,tfFilter,tfID,bClearCache)
     tfLocalFolder.prefWidth <== this.prefWidth
     tfFilter.prefWidth <== this.prefWidth
@@ -213,7 +213,7 @@ abstract class ServerView(val config: Config) extends BorderPane with Logging {
   var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer, () => serverChanged()) {
     override def beforeDelete(what: Server) = {
       if (Dialog.showYesNo("Really delete server " + what)) {
-        CacheDB.clearCache()
+        CacheDB.clearDB()
         true
       } else false
     }

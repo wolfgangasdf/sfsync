@@ -19,13 +19,121 @@ class cachedFile(path: String, modTime: Long, size: Long) {
 
 import sfsync.Helpers._
 
+class MyURI(var protocol: String, var username: String, var password: String, var host: String, var port: String) {
+  val regexinet = new Regex("""(\S+)://(\S+)@(\S+):(\S+)""")
+  def this() = this("","","","","")
+  def parseString(s: String): Boolean = {
+    s match {
+      case "file:///" => { protocol = "file" ; true }
+      case regexinet(prot1, userinfo, host1, port1) => {
+        protocol = prot1
+        host = host1
+        port = port1
+        val uis = userinfo.split(":")
+        uis.length match {
+          case 1 => { username = uis(0); password = "" }
+          case 2 => { username = uis(0); password = uis(1) }
+        }
+        true
+      }
+      case _ => { false }
+    }
+  }
+  def toURIString = {
+    protocol + "://" + username + ":" + password + "@" + host + ":" + port
+  }
+  override def toString = {
+    s"$protocol,$username,$host,$port"
+  }
+}
+object MyURI {
+  def apply(s: String) = {
+    val u = new MyURI()
+    if (!u.parseString(s))
+      throw new RuntimeException("URI in wrong format: " + s)
+    u
+  }
+}
+
+// path below baspath with a leading "/"
+// if ends on "/", is dir!
+class VirtualFile(var path: String, var modTime: Long, var size: Long) extends Ordered[VirtualFile] {
+  var tagged = false // for cachelist: tagged if local/remote existing, does not need to be added "cacheonly"
+
+  def this() = this("",0,0)
+  //  def getPathString = if (path == "") "<root>" else path
+  def fileName : String = if (path == "/") "/" else path.split("/").last
+  override def toString: String = "["+path+"]:"+modTime+","+size
+
+  def isDir = { path.endsWith("/") }
+
+  override def equals(that: Any): Boolean = {
+    that.isInstanceOf[VirtualFile] && (this.hashCode() == that.asInstanceOf[VirtualFile].hashCode())
+  }
+  override def hashCode = {
+    path.hashCode + modTime.hashCode + size.hashCode
+  }
+
+  def compare(that: VirtualFile): Int = path.compare(that.path)
+}
+
+abstract class GeneralConnection(isLocal: Boolean) extends Logging {
+  var localBasePath: String = ""
+  var remoteBasePath: String = ""
+  var filterregex: Regex = new Regex(""".*""")
+  @volatile var stopRequested = false
+  def getfile(from: String, mtime: Long, to: String)
+  def getfile(from: String, mtime: Long)
+  def putfile(from: String, mtime: Long)
+  def mkdirrec(absolutePath: String)
+  def deletefile(what: String, mtime: Long)
+  def list(where: String, filterregexp: String, receiver: ActorRef, recursive: Boolean, viaActor: Boolean): ArrayBuffer[VirtualFile]
+  def finish() {
+    stopRequested = true
+  }
+
+  // return dir (most likely NOT absolute path but subfolder!) without trailing /
+  def checkIsDir(path: String) = {
+    val isdir = path.endsWith("/")
+    val resp = if (isdir) path.substring(0, path.length-1) else path
+    (resp, isdir)
+  }
+}
+
 class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
 
   def deletefile(what: String, mtime: Long) {
     val (cp, _) = checkIsDir(what)
-    Files.delete(Paths.get(remoteBasePath + "/" + cp))
+    try {
+      Files.delete(Paths.get(remoteBasePath + "/" + cp))
+    } catch {
+      case ee : Throwable => {
+        debug("grrrrr" + ee)
+      }
+    }
     // TODO add same thing as for sftp if not empty
 //    debug("deleted " + remoteBasePath + what.path)
+/*
+              val xx = sftp.ls(remoteBasePath + "/" + cp)
+          if (xx.length > 0) {
+            val tmp = new ListBuffer[ChannelSftp#LsEntry]
+            for (obj <- xx ) {
+              val lse = obj.asInstanceOf[ChannelSftp#LsEntry]
+              lse.getFilename match {
+                case "." | ".." => {}
+                case s => tmp += lse
+              }
+            }
+            val msg = s"Directory \n $cp \n not empty, content:\n" + tmp.map(a => a.getFilename).mkString("\n") + "\n DELETE ALL?"
+            if (runUIwait(Dialog.showYesNo(msg)) == true) {
+              tmp.map( f => sftp.rm(remoteBasePath + "/" + cp + "/" + f.getFilename) )
+              sftp.rmdir(remoteBasePath + "/" + cp)
+              return
+            }
+          }
+
+     */
+
   }
   def putfile(from: String, mtime: Long) {
     val (cp, isdir) = checkIsDir(from)
@@ -88,42 +196,6 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
 
   def mkdirrec(absolutePath: String) = {
     Files.createDirectories(Paths.get(absolutePath)) // TODO
-  }
-}
-
-class MyURI(var protocol: String, var username: String, var password: String, var host: String, var port: String) {
-  val regexinet = new Regex("""(\S+)://(\S+)@(\S+):(\S+)""")
-  def this() = this("","","","","")
-  def parseString(s: String): Boolean = {
-    s match {
-      case "file:///" => { protocol = "file" ; true }
-      case regexinet(prot1, userinfo, host1, port1) => {
-        protocol = prot1
-        host = host1
-        port = port1
-        val uis = userinfo.split(":")
-        uis.length match {
-          case 1 => { username = uis(0); password = "" }
-          case 2 => { username = uis(0); password = uis(1) }
-        }
-        true
-      }
-      case _ => { false }
-    }
-  }
-  def toURIString = {
-    protocol + "://" + username + ":" + password + "@" + host + ":" + port
-  }
-  override def toString = {
-    s"$protocol,$username,$host,$port"
-  }
-}
-object MyURI {
-  def apply(s: String) = {
-    val u = new MyURI()
-    if (!u.parseString(s))
-      throw new RuntimeException("URI in wrong format: " + s)
-    u
   }
 }
 
@@ -353,49 +425,4 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
   }
 }
 
-abstract class GeneralConnection(isLocal: Boolean) extends Logging {
-//  var conntype: ConnType.Value
-  var localBasePath: String = ""
-  var remoteBasePath: String = ""
-  var filterregex: Regex = new Regex(""".*""")
-  @volatile var stopRequested = false
-  def getfile(from: String, mtime: Long, to: String)
-  def getfile(from: String, mtime: Long)
-  def putfile(from: String, mtime: Long)
-  def mkdirrec(absolutePath: String)
-  def deletefile(what: String, mtime: Long)
-  def list(where: String, filterregexp: String, receiver: ActorRef, recursive: Boolean, viaActor: Boolean): ArrayBuffer[VirtualFile]
-  def finish() {
-    stopRequested = true
-  }
-
-  // return dir (most likely NOT absolute path but subfolder!) without trailing /
-  def checkIsDir(path: String) = {
-    val isdir = path.endsWith("/")
-    val resp = if (isdir) path.substring(0, path.length-1) else path
-    (resp, isdir)
-  }
-}
-
-// path below baspath with a leading "/"
-// if ends on "/", is dir!
-class VirtualFile(var path: String, var modTime: Long, var size: Long) extends Ordered[VirtualFile] {
-  var tagged = false // for cachelist: tagged if local/remote existing, does not need to be added "cacheonly"
-
-  def this() = this("",0,0)
-//  def getPathString = if (path == "") "<root>" else path
-  def fileName : String = if (path == "/") "/" else path.split("/").last
-  override def toString: String = "["+path+"]:"+modTime+","+size
-
-  def isDir = { path.endsWith("/") }
-
-  override def equals(that: Any): Boolean = {
-    that.isInstanceOf[VirtualFile] && (this.hashCode() == that.asInstanceOf[VirtualFile].hashCode())
-  }
-  override def hashCode = {
-    path.hashCode + modTime.hashCode + size.hashCode
-  }
-
-  def compare(that: VirtualFile): Int = path.compare(that.path)
-}
 

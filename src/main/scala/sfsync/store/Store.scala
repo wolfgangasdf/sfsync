@@ -252,7 +252,7 @@ class SyncEntry(var path: String, var action: Int,
                 var selected: Boolean = false,
                 var delete: Boolean = false
                  ) extends BaseEntity with Optimistic {
-  var hasCachedParent = false
+  var hasCachedParent = false // only used for folders!
   def status = new StringProperty(this, "status", CF.amap(action))
   def dformat = new java.text.SimpleDateFormat("dd-MM-yyyy HH:mm:ss")
   def detailsLocal = new StringProperty(this, "detailsl",
@@ -284,7 +284,7 @@ class SyncEntry(var path: String, var action: Int,
     }
   }
 
-  def iniAction2(newcache: Boolean) = {
+  def compareSetAction(newcache: Boolean) = {
     import sfsync.synchro.Actions._
     action = -9
     if (lSize == -1 && rSize == -1) { // cache only?
@@ -318,7 +318,7 @@ class SyncEntry(var path: String, var action: Int,
      |Path: $path
      |Local : ${detailsLocal.value}
      |Remote: ${detailsRemote.value}
-     |Cache : ${detailsCache.value}
+     |Cache : ${detailsCache.value} (${hasCachedParent})
     """.stripMargin
   }
 }
@@ -333,8 +333,18 @@ object MySchema extends Schema {
 }
 
 object CacheDB extends Logging {
+  def syncSession(session: Session): Session = {
+    session.close
+    getSession
+  }
 
+
+  val sessionFactory = SessionFactory
   var connected = false
+  var sizeCache: Int = -1
+  var seCache = new mutable.HashMap[Int,SyncEntry]()
+  var syncEntries: com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry] = null
+  var seSession: Session = null
 
   def getSession: Session = {
     if (connected) {
@@ -343,49 +353,44 @@ object CacheDB extends Logging {
       session
     } else null
   }
-  var sizeCache: Int = -1
-  var seCache = new mutable.HashMap[Int,SyncEntry]()
-  def invalidateCache() {
-    sizeCache = -1
-    seCache.clear()
-    if (seSession != null) {
-      seSession.close
-      seSession = null
-    }
-  }
-
-  var syncEntries: com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry] = null
-  var seSession: Session = null
   def getSESession = {
     if (connected) {
       if (seSession == null) {
-        seSession = sessionFactory.newSession
+        seSession = getSession
         debug("getSESession: new SEsession " + seSession + " in thread " + Thread.currentThread().getId)
       }
     }
     seSession
   }
-
   def updateSE(se: SyncEntry, clearCache: Boolean = true) {
     using(getSESession) {
       MySchema.files.update(se)
       if (clearCache) invalidateCache()
     }
   }
-
-  def updateSyncEntries(onlyRelevant: Option[Boolean], filterActions: List[Int] = ALLACTIONS) {
+  def closeSEsession() {
     if (seSession != null) {
       seSession.close
       seSession = null
     }
+  }
+  def invalidateCache() {
+    sizeCache = -1
+    seCache.clear()
+    closeSEsession()
+  }
+
+  // implement caching DB provider
+  def initializeSyncEntries(onlyRelevant: Option[Boolean], filterActions: List[Int] = ALLACTIONS) {
+    closeSEsession()
     syncEntries =  new com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry]() {
       def get(p1: Int): SyncEntry = {
         try {
           if (!seCache.contains(p1)) {
-            if (seCache.size > 5000) seCache.clear()
+            if (seCache.size > 5000) seCache.clear() // TODO increase massively?
             debug("get p1=" + p1)
             using(getSESession) {
-              var startindex = p1 - 10 // cache for scrolling etc
+              var startindex = p1 - 10 // cache for scrolling etc // TODO more?
               if (startindex < 0 ) startindex = 0
               val res =
                 from(MySchema.files) (se =>
@@ -426,11 +431,13 @@ object CacheDB extends Logging {
         } catch { case e: Exception => warn("se.size: ignored exception:" + e) }
         sizeCache
       }
-      def toArray[T](a: Array[T]): Array[T] = null // TODO: ?
+// TODO: needed?
+//      override def toArray[T](a: Array[T]): Array[T] = { // disabled...
+//        throw new UnsupportedOperationException("internal error toarray")
+//        null
+//      }
     }
   }
-
-  val sessionFactory = SessionFactory
 
   def cleanup() {
     if (seSession != null) {
@@ -468,11 +475,11 @@ object CacheDB extends Logging {
         MySchema.printDdl
       }
     }
-    updateSyncEntries(onlyRelevant = Option(false))
+    initializeSyncEntries(onlyRelevant = Option(false))
     dbexists
   }
 
-  def clearCache() {
+  def clearDB() {
     transaction {
       MySchema.drop // now drop database to make updates easier!
       MySchema.create

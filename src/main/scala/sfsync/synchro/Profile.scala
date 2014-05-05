@@ -78,7 +78,7 @@ object CompareStuff extends Logging {
         } else doit = false
       }
       se.hasCachedParent = haveCachedParentDir
-      se.iniAction2(newcache = !haveCachedParentDir) // compare
+      se.compareSetAction(newcache = !haveCachedParentDir) // compare
       se
     }))
     debug("TTT a took = " + swse.getTimeRestart)
@@ -87,7 +87,7 @@ object CompareStuff extends Logging {
     //println("**** all dirs with cache:") ; qfscache.map(se => println(se))
     MySchema.files.update(qfscache.map(se => {
       se.hasCachedParent = true
-      se.iniAction2(newcache = false)
+      se.compareSetAction(newcache = false)
       se
     }))
     debug("TTT b took = " + swse.getTimeRestart)
@@ -100,14 +100,14 @@ object CompareStuff extends Logging {
       if (se.cSize == -1) { // only get parent folder for unknown files, faster!
         val parent = getParentFolder(se.path)
         if (!MySchema.files.where(sex => sex.path === parent).head.hasCachedParent) {
-          se.iniAction2(newcache = true) // test
+          se.compareSetAction(newcache = true) // test
           //print("  [c]")
         } else {
-          se.iniAction2(newcache = false)
+          se.compareSetAction(newcache = false)
           //print("  [b]")
         }
       } else {
-        se.iniAction2(newcache = false)
+        se.compareSetAction(newcache = false)
         //print("  [a]")
       }
       //println(" ==> " + CF.amap(se.action))
@@ -119,7 +119,8 @@ object CompareStuff extends Logging {
     val delfolds = MySchema.files.where(se => (se.relevant === true) and
       se.path.like("%/") and ( se.action === A_RMLOCAL or se.action === A_RMREMOTE ) )
     delfolds.foreach(sef => {
-      val subthings = MySchema.files.where(se => (se.relevant === true) and se.path.like(sef.path + "%") and se.action <> A_RMBOTH)
+      // all folders below that have different action than folder sef
+      val subthings = MySchema.files.where(se => (se.relevant === true) and se.path.like(sef.path + "%") and se.action <> sef.action)
       if (subthings.size > 0) { // fishy, mark all children and parent '?'
         sef.action = A_UNKNOWN
         val subthings2 = MySchema.files.where(se => (se.relevant === true) and se.path.like(sef.path + "%"))
@@ -246,15 +247,11 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
               val senew = new SyncEntry(vf.path, A_UNCHECKED, if (islocal) vf.modTime else 0, if (islocal) vf.size else -1,
                 if (!islocal) vf.modTime else 0, if (!islocal) vf.size else -1,0,-1,true)
               MySchema.files.insert(senew)
-              //debug("added new " + senew)
-            } else {
+            } else { // update db entry
               val se = q.single
               if (islocal) { se.lTime = vf.modTime ; se.lSize = vf.size }
               else         { se.rTime = vf.modTime ; se.rSize = vf.size }
-              // optimization if entry not modified and in cache: not really needed... 3 secs gain for 20k files
-//              if (se.lSize != -1 && se.rSize != -1 && se.cSize != -1) se = se.iniAction2(false)
               MySchema.files.update(se)
-              //debug("updated   " + se)
             }
           }
         case 'done =>
@@ -345,6 +342,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
             syncSession.connection.commit() // TODO it does not seem to work
             runUIwait { // give UI time
               Main.Status.status.value = "Synchronize(" + iii + "): " + se.path
+              // TODO doesn't work syncSession = CacheDB.syncSession(syncSession)
               view.updateSyncEntries()
             }
             swd.restart()
@@ -358,9 +356,9 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
               case A_USELOCAL => remote.putfile(se.path, se.lTime); se.rTime=se.lTime; se.rSize=se.lTime; se.cSize = se.lSize; se.cTime = se.lTime; se.relevant = false
               case A_USEREMOTE => remote.getfile(se.path, se.rTime); se.lTime=se.rTime; se.lSize=se.rTime; se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false
               case A_ISEQUAL => se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false
-              case A_SKIP => se.relevant = false
+              case A_SKIP =>
               case A_CACHEONLY => se.delete = true
-              case _ =>
+              case _ => throw new UnsupportedOperationException("unknown action")
             }
           } catch {
             case e: Exception =>
@@ -370,9 +368,9 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
           }
           se
         })) // update loop
+        // update cache: remove removed/cacheonly files
         MySchema.files.deleteWhere(se => se.delete === true)
       } // for state
-      // update cache: remove removed files
     } // using(syncsession)
     syncSession.close
 
