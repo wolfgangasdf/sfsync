@@ -400,7 +400,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
   var password = uri.password
   if (password != "") {
     if (password.startsWith("##")) { // decode password
-      password = Tools.crypto.decrypt(password.substring(2), "bvfxsdfk")
+      password = Tools.crypto.decrypt(password.substring(2))
     }
   }
   var session = jSch.getSession(uri.username, uri.host, uri.port.toInt)

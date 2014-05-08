@@ -245,7 +245,7 @@ class ProtocolView(val server: Server) extends BorderPane {
           if (!uri.password.startsWith("##")) {
             info("encrypt password...")
             val crypto = new JavaCryptoEncryption("DES")
-            uri.password = "##" + crypto.encrypt(uri.password, "bvfxsdfk")
+            uri.password = "##" + crypto.encrypt(uri.password)
             tf.text.value = uri.toURIString
           }
         }

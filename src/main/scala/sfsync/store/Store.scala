@@ -65,16 +65,16 @@ class JavaCryptoEncryption(algorithmName: String) {
   import javax.crypto.Cipher
   val b64enc = new sun.misc.BASE64Encoder()
   val b64dec = new sun.misc.BASE64Decoder()
-  def encrypt(bytes: String, secret: String): String = {
-    val secretKey = new SecretKeySpec(secret.getBytes("UTF-8"), algorithmName)
+  def encrypt(bytes: String): String = {
+    val secretKey = new SecretKeySpec(Store.config.cryptoSecret.getBytes("UTF-8"), algorithmName)
     val encipher = Cipher.getInstance(algorithmName + "/ECB/PKCS5Padding")
     encipher.init(Cipher.ENCRYPT_MODE, secretKey)
     val res = encipher.doFinal(bytes.getBytes("UTF-8"))
     b64enc.encode(res).replaceAll("/", "-")
   }
 
-  def decrypt(bytes: String, secret: String): String = {
-    val secretKey = new SecretKeySpec(secret.getBytes("UTF-8"), algorithmName)
+  def decrypt(bytes: String): String = {
+    val secretKey = new SecretKeySpec(Store.config.cryptoSecret.getBytes("UTF-8"), algorithmName)
     val encipher = Cipher.getInstance(algorithmName + "/ECB/PKCS5Padding")
     encipher.init(Cipher.DECRYPT_MODE, secretKey)
     val bytes2 = bytes.replaceAll("-","/")
@@ -92,6 +92,7 @@ class Config {
   var width: IntegerProperty = 800
   var height: IntegerProperty = 600
   var dividerPositions = new ArrayBuffer[Double]
+  var cryptoSecret = ""
 }
 
 class ListableThing extends Ordered[ListableThing] {
@@ -154,6 +155,7 @@ object Store extends Logging {
     saveString("dividerpositions", config.dividerPositions.mkString("#"))
     saveVal("servercurr", config.currentServer)
     saveVal("currentFilter", config.currentFilter)
+    saveString("cryptoSecret", config.cryptoSecret)
     for (server <- config.servers) {
       saveVal("server", server.name)
       saveVal("localfolder", server.localFolder)
@@ -199,6 +201,7 @@ object Store extends Logging {
           case "dividerpositions" => config.dividerPositions ++= sett(1).split("#").map(x => x.toDouble)
           case "servercurr" => config.currentServer.value = sett(1).toInt
           case "currentFilter" => config.currentFilter.value = sett(1).toInt
+          case "cryptoSecret" => config.cryptoSecret = sett(1)
           case "server" =>
             lastserver = new Server { name = sett(1) }
             config.servers += lastserver
@@ -221,6 +224,10 @@ object Store extends Logging {
           case _ => warn("unknown tag in config file: <" + sett(0) + ">")
         }
       })
+    }
+    if (config.cryptoSecret == "") { // make sure we have a secret...
+      val random = new scala.util.Random(new java.security.SecureRandom())
+      config.cryptoSecret = random.alphanumeric.take(10).mkString
     }
   }
 
