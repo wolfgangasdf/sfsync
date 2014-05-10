@@ -215,7 +215,13 @@ object Main extends JFXApp with Logging {
           Main.doStop()
         }
       },
-    lbInfo
+      new Button("test") {
+        onAction = (ae: ActionEvent) => {
+          val progress = new Progress()
+          progress.updateText("aaaadfjklsdfjsldjgldfjgldkfjgldsjfg sdlfkgj sdlfgj sdlfgj lsdfj glskdfj glkdsjf glsdj fglksd")
+        }
+      },
+      lbInfo
 //      new Button("testX") {
 //        onAction = (ae: ActionEvent) => {
 //          unit()
@@ -352,10 +358,12 @@ object Main extends JFXApp with Logging {
       initModality(jfxs.Modality.APPLICATION_MODAL)
       width = 500
       height = 300
+      initStyle(StageStyle.UNDECORATED)
     }
     val ta = new TextArea {
       text = "xxx"
       editable = false
+      wrapText = true
     }
     val cont = new VBox {
       style = "-fx-background-color: lightblue;"
@@ -363,6 +371,8 @@ object Main extends JFXApp with Logging {
         content = ta
         fitToWidth = true
         fitToHeight = true
+        hbarPolicy = ScrollPane.ScrollBarPolicy.NEVER
+        vgrow = Priority.ALWAYS
       }
       content.add(sp)
       import Button._
@@ -392,6 +402,7 @@ object Main extends JFXApp with Logging {
       initModality(jfxs.Modality.APPLICATION_MODAL)
       width = 500
       height = 300
+      initStyle(StageStyle.UNDECORATED)
     }
     private def showIt(mtype: Int, msg: String, htmlmsg: String = "") : String  = {
       var res = "-1"

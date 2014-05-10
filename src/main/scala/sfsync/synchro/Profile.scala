@@ -317,10 +317,10 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     runUIwait { progress = new Main.Progress() }
     val sw = new StopWatch
     val swd = new StopWatch
-    var iii = 0
     val syncSession = CacheDB.getSession
     using(syncSession) {
       for (state <- List(1,2)) { // delete and add dirs must be done in reverse order!
+        var iii = 0
         debug("syncing state = " + state)
         val q = state match {
           case 1 => // delete
@@ -334,19 +334,21 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
               orderBy(se.path asc) // this allows deletion of dirs!
             )
         }
+        val tosync = q.size // TODO this contains also equals...
         MySchema.files.update(q.map(se => {
           iii += 1
 
           var showit = false
-          if (se.action == A_USELOCAL) { if (se.lSize>10000) showit = true }
-          if (se.action == A_USEREMOTE) { if (se.rSize>10000) showit = true }
+          val relevantSize = if (se.action == A_USELOCAL) se.lSize else if (se.action == A_USEREMOTE) se.rSize else 0
+          if (relevantSize > 10000) showit = true
+
           if (swd.getTime > UIUpdateInterval || showit) {
             // syncSession.connection.commit() // TODO it does not seem to work... I cannot sync in update...
             // as long as squeryl doesn't know that I am the only write-session! how to do this?
             // view.updateSyncEntries() // this doesn't get the updates db...
             runUIwait { // update status
-              Main.Status.status.value = "Synchronize(" + iii + "): " + se.path
-              progress.updateText("Synchronize(" + iii + "): " + se.path) // TODO make fancier
+              Main.Status.status.value = s"Synchronize($iii/$tosync): ${se.path}"
+              progress.updateText(s"Synchronize($iii/$tosync):\n  Path: ${se.path}\n  Size: " + relevantSize)
               if (progress.abortclicked) { // abort synchro!
                 progress.close()
                 if (syncLog != "") {
@@ -362,13 +364,12 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
               }
             }
             if (progress.abortclicked) {
-              stop(false)
+              stop(switchBackToSettings = false)
               return
             }
             swd.restart()
           }
           try {
-            // debug("syncing  " + se)
             se.action match {
               case A_MERGE => throw new Exception("merge not implemented yet!")
               case A_RMLOCAL|A_RMBOTH => local.deletefile(se.path,se.lTime); se.delete = true; se.relevant = false
@@ -384,7 +385,8 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
             case e: Exception =>
               error("sync exception:", e)
               se.action = A_SYNCERROR
-              syncLog += (e + "\n")
+              se.delete = false
+              syncLog += (e + "[" + se.path + "]" + "\n")
           }
           se
         })) // update loop

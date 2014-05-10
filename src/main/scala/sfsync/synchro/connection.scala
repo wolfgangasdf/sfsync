@@ -58,6 +58,7 @@ object MyURI {
 // path below baspath with a leading "/"
 // if ends on "/", is dir!
 class VirtualFile(var path: String, var modTime: Long, var size: Long) extends Ordered[VirtualFile] {
+  // modtime in milliseconds since xxx
   var tagged = false // for cachelist: tagged if local/remote existing, does not need to be added "cacheonly"
 
   def this() = this("",0,0)

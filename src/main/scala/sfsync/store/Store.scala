@@ -260,6 +260,8 @@ class SyncEntry(var path: String, var action: Int,
                 var delete: Boolean = false
                  ) extends BaseEntity with Optimistic {
   var hasCachedParent = false // only used for folders!
+  def sameTime(t1: Long, t2: Long) = Math.abs(t1 - t2) < 2000 // in milliseconds
+
   def status = new StringProperty(this, "status", CF.amap(action))
   def dformat = new java.text.SimpleDateFormat("dd-MM-yyyy HH:mm:ss")
   def detailsLocal = new StringProperty(this, "detailsl",
@@ -273,21 +275,21 @@ class SyncEntry(var path: String, var action: Int,
     if (isDir) {
       if (lSize != -1 && rSize != -1) true else false
     } else {
-      if (lSize != -1 && lSize == rSize && lTime == rTime) true else false
+      if (lSize != -1 && lSize == rSize && sameTime(lTime, rTime)) true else false
     }
   }
   def isLeqC = {
     if (isDir) {
       if (lSize != -1 && cSize != -1) true else false
     } else {
-      if (lSize != -1 && lSize == cSize && lTime == cTime) true else false
+      if (lSize != -1 && lSize == cSize && sameTime(lTime, cTime)) true else false
     }
   }
   def isReqC = {
     if (isDir) {
       if (rSize != -1 && cSize != -1) true else false
     } else {
-      if (rSize != -1 && rSize == cSize && rTime == cTime) true else false
+      if (rSize != -1 && rSize == cSize && sameTime(rTime, cTime)) true else false
     }
   }
 

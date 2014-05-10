@@ -8,9 +8,9 @@ import scala.collection.mutable.ArrayBuffer
 
 object Checks {
   def CheckComparedFile() {
-    val mod0: Long = 1234
-    val mod1: Long = 1235
-    val mod2: Long = 1236
+    val mod0: Long = 12340000
+    val mod1: Long = 12350000
+    val mod2: Long = 12360000
     val s0: Long = 1000
     val s1: Long = 1001
     class CheckEntry(val expectedAction: Int, val se: SyncEntry)
