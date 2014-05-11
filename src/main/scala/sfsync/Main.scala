@@ -205,14 +205,13 @@ object Main extends JFXApp with Logging {
     content = List(
       btCompare,
       btSync,
-      new Button("Save settings") {
-        onAction = (ae: ActionEvent) => {
-          Store.save()
-        }
-      },
       new Button("test") {
         onAction = (ae: ActionEvent) => {
-          val progress = new Progress("test", { debug("abort pressed!") })
+          val progress = new Progress("test") {
+            onAbortClicked = () => {
+              close()
+            }
+          }
           progress.update(0.3,"aaaadfjklsdfjsldjgldfjgldkfjgldsjfg sdlfkgj sdlfgj sdlfgj lsdfj glskdfj glkdsjf glsdj fglksd")
         }
       },
@@ -316,21 +315,23 @@ object Main extends JFXApp with Logging {
     sane
   }
 
-  class Progress(iniText: String, onAbortClicked: => Unit ) {
+  class Progress(iniText: String) {
+    var onAbortClicked = () => {}
     val dstage = new Stage(jfxs.StageStyle.UTILITY) {
       initOwner(Main.stage)
       initModality(jfxs.Modality.APPLICATION_MODAL)
+      onCloseRequest = (ae: WindowEvent) => { ae.consume() } // workaround to disable close
       width = 500
       height = 300
-      initStyle(StageStyle.UNDECORATED)
     }
     val ta = new TextArea {
       text = iniText
       editable = false
       wrapText = true
     }
-    val pb1 = new ProgressBar { progress = 0 }
-    val pb2 = new ProgressBar { progress = 0 }
+    val pb1 = new ProgressBar { prefHeight = 20 ; tooltip = new Tooltip { text = "Overall" } }
+    val pb2 = new ProgressBar { prefHeight = 20 ; tooltip = new Tooltip { text = "File" } }
+    val bAbort = new Button("Abort") { prefHeight = 30 ; onAction = (ae: ActionEvent) => { onAbortClicked() } }
     val cont = new VBox {
       style = "-fx-background-color: lightblue;"
       var sp = new ScrollPane {
@@ -340,16 +341,7 @@ object Main extends JFXApp with Logging {
         hbarPolicy = ScrollPane.ScrollBarPolicy.NEVER
         vgrow = Priority.ALWAYS
       }
-      content.add(sp)
-      import Button._
-      content.add(new Button("Abort") {
-        onAction = (ae: ActionEvent) => {
-          onAbortClicked
-        }
-        fillWidth = true
-      })
-      content.add(pb1)
-      content.add(pb2)
+      content ++= List(sp, bAbort, pb1, pb2)
     }
     dstage.scene = new Scene {
       content = cont
@@ -358,6 +350,7 @@ object Main extends JFXApp with Logging {
     cont.prefHeight <== dstage.scene.height
     pb1.prefWidth <== dstage.scene.width
     pb2.prefWidth <== dstage.scene.width
+    bAbort.prefWidth <== dstage.scene.width
     cont.autosize()
     dstage.show()
 
@@ -369,7 +362,7 @@ object Main extends JFXApp with Logging {
       pb2.progress = progressValue
     }
 
-    def close() = { dstage.close() }
+    def close() { dstage.close() }
   }
 
 
@@ -377,9 +370,9 @@ object Main extends JFXApp with Logging {
     val dstage = new Stage(jfxs.StageStyle.UTILITY) {
       initOwner(Main.stage)
       initModality(jfxs.Modality.APPLICATION_MODAL)
+      onCloseRequest = (ae: WindowEvent) => { ae.consume() } // workaround to disable close
       width = 500
       height = 300
-      initStyle(StageStyle.UNDECORATED)
     }
     private def showIt(mtype: Int, msg: String, htmlmsg: String = "") : String  = {
       var res = "-1"

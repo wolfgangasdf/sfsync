@@ -190,7 +190,11 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
   def compare() {
     debug("compare() in thread " + Thread.currentThread().getId)
 
-    val progress = runUIwait { new Main.Progress("Find files...", { abortProfile() } ) }.asInstanceOf[Main.Progress]
+    val progress = runUIwait { new Main.Progress("Find files...") {
+      onAbortClicked = () => {
+        abortProfile()
+      }
+    }}.asInstanceOf[Main.Progress]
 
     // reset
     runUIwait { view.enableActions = true }
@@ -223,13 +227,13 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     }
     debug("  resetting table took " + sw.getTimeRestart)
     runUIwait { view.updateSyncEntries() }
-    var receiveSession: Session = null
     // the receive actor
     var lfiles = 0
     var rfiles = 0
     val swUI = new StopWatch // for UI update
 
     receiveActor = actor(Main.system, name = "receive")(new Act {
+      var receiveActorSession: Session = null
       var finished = 2*subfolder.subfolders.length // cowntdown for lists
       debug("receiveList in thread " + Thread.currentThread().getId)
       become {
@@ -246,11 +250,11 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
             swUI.restart()
           }
           if (islocal) lfiles += 1 else rfiles += 1
-          if (receiveSession==null) {
-            receiveSession = CacheDB.getSession
-            debug("created receivesession " + receiveSession + " in Thread " + Thread.currentThread().getId)
+          if (receiveActorSession==null) {
+            receiveActorSession = CacheDB.getSession
+            debug("created receivesession " + receiveActorSession + " in Thread " + Thread.currentThread().getId)
           }
-          using (receiveSession) {
+          using (receiveActorSession) {
             val q = MySchema.files.where(se => se.path === vf.path)
             if (q.size == 0) { // new entry
               val senew = new SyncEntry(vf.path, A_UNCHECKED, if (islocal) vf.modTime else 0, if (islocal) vf.size else -1,
@@ -315,6 +319,8 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     // compare entries
     sw.restart()
     info("*********************** compare sync entries")
+    val receiveSession = CacheDB.getSession
+    debug("created receivesession " + receiveSession + " in Thread " + Thread.currentThread().getId)
     val haveChanges = using(receiveSession) {
       CompareStuff.compareSyncEntries()
     }
@@ -342,7 +348,11 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     debug("synchronize() in thread " + Thread.currentThread().getId)
     runUIwait { Main.Status.status.value = "Synchronize..." }
 
-    val progress = runUIwait { new Main.Progress( "Synchronize...", { abortProfile() } ) }.asInstanceOf[Main.Progress]
+    val progress = runUIwait { new Main.Progress( "Synchronize...") {
+      onAbortClicked = () => {
+        abortProfile()
+      }
+    }}.asInstanceOf[Main.Progress]
     remote.onProgress = (progressVal: Double) => {
       runUIwait( {
         progress.updateProgressBar2(progressVal)
@@ -386,7 +396,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
               runUIwait {
                 // update status
                 Main.Status.status.value = s"Synchronize($iii/$tosync): ${se.path}"
-                progress.update(iii/tosync, s"Synchronize($iii/$tosync):\n  Path: ${se.path}\n  Size: " + relevantSize)
+                progress.update(iii.toDouble/tosync, s"Synchronize($iii/$tosync):\n  Path: ${se.path}\n  Size: " + relevantSize)
               }
               swUIupdate.restart()
             } // update status
