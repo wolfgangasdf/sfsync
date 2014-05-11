@@ -2,29 +2,30 @@ package sfsync.util
 
 // all in seconds!
 class StopWatch {
-  private var startNanos = System.nanoTime
   var deltaSecs: Double = 0
-  def stop() { // fast stopping
-    deltaSecs = (System.nanoTime - startNanos)/1e9
-  }
+  private var startNanos = System.nanoTime
   def getTime = (System.nanoTime - startNanos)/1e9
   def getTimeRestart = {
     val x = getTime
     restart()
     x
   }
-  def timeIt = { // a little overhead... 0.13s
+  def stopGetTimeString = { // a little overhead... 0.13s
     if (deltaSecs == 0) stop()
     "%g s" format deltaSecs
   }
-  def printTime(msg: String) = {
-    println(msg + timeIt)
+  def stopPrintTime(msg: String) = {
+    println(msg + stopGetTimeString)
   }
   def printLapTime(msg: String) = {
     println(msg + getTime)
   }
   def restart() {
+    deltaSecs = 0
     startNanos = System.nanoTime
+  }
+  def stop() { // fast stopping
+    deltaSecs = (System.nanoTime - startNanos)/1e9
   }
 }
 

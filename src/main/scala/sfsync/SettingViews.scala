@@ -237,7 +237,7 @@ class ProtocolView(val server: Server) extends BorderPane {
     }
   }
   class ProtocolDetailView extends VBox with Logging {
-    var tfBaseFolder = new MyTextField("Base folder: ", null, "/remotebasedir", "/.*[^/]", canDropFile = true) { tf.text <==> protocol.protocolbasefolder }
+    var tfBaseFolder = new MyTextField("Base folder: ", null, "/remotebasedir", "/.*", canDropFile = true) { tf.text <==> protocol.protocolbasefolder }
     var tfURI = new MyTextField("Protocol URI: ", null, "file:/// or sftp://user@host:port", "(file:///)|(sftp://\\S+@\\S+:\\S+)") {
       tf.onAction = (ae: ActionEvent) => {
         val uri = new MyURI()

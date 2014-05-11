@@ -65,6 +65,10 @@ class JavaCryptoEncryption(algorithmName: String) {
   import javax.crypto.Cipher
   val b64enc = new sun.misc.BASE64Encoder()
   val b64dec = new sun.misc.BASE64Decoder()
+  def getNewSecret = {
+    val random = new scala.util.Random(new java.security.SecureRandom())
+    random.alphanumeric.take(8).mkString
+  }
   def encrypt(bytes: String): String = {
     val secretKey = new SecretKeySpec(Store.config.cryptoSecret.getBytes("UTF-8"), algorithmName)
     val encipher = Cipher.getInstance(algorithmName + "/ECB/PKCS5Padding")
@@ -225,10 +229,7 @@ object Store extends Logging {
         }
       })
     }
-    if (config.cryptoSecret == "") { // make sure we have a secret...
-      val random = new scala.util.Random(new java.security.SecureRandom())
-      config.cryptoSecret = random.alphanumeric.take(10).mkString
-    }
+    if (config.cryptoSecret == "") config.cryptoSecret = Tools.crypto.getNewSecret // make sure we have a secret...
   }
 
   def dumpConfig() {
@@ -327,7 +328,7 @@ class SyncEntry(var path: String, var action: Int,
      |Path: $path
      |Local : ${detailsLocal.value}
      |Remote: ${detailsRemote.value}
-     |Cache : ${detailsCache.value} (${hasCachedParent})
+     |Cache : ${detailsCache.value} ($hasCachedParent)
     """.stripMargin
   }
 }
@@ -391,7 +392,7 @@ object CacheDB extends Logging {
       def get(p1: Int): SyncEntry = {
         try {
           if (!seCache.contains(p1)) {
-            if (seCache.size > 5000) seCache.clear() // TODO increase massively?
+            if (seCache.size > 5000) seCache.clear() // TODO increase?
             debug("get p1=" + p1)
             using(getSESession) {
               var startindex = p1 - 10 // cache for scrolling etc // TODO more?
@@ -435,11 +436,6 @@ object CacheDB extends Logging {
         } catch { case e: Exception => warn("se.size: ignored exception:" + e) }
         sizeCache
       }
-// TODO: needed?
-//      override def toArray[T](a: Array[T]): Array[T] = { // disabled...
-//        throw new UnsupportedOperationException("internal error toarray")
-//        null
-//      }
     }
   }
 

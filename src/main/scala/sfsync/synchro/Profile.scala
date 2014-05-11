@@ -136,7 +136,6 @@ object CompareStuff extends Logging {
   }
 
 }
-
 class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: SubFolder) extends Logging {
   var cache: ListBuffer[VirtualFile] = null
   var local: GeneralConnection = null
@@ -145,9 +144,15 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
   var UIUpdateInterval = 2.5
   var profileInitialized = false
 
-  @volatile var threadLocal: Thread = null
-  @volatile var threadRemote: Thread = null
+  /* how to abort? set 3 vars to true:
+  local.stopRequested and remote.stopRequested: running transfers are aborted and partial files deleted
+  stopProfileRequested: check at end of each loop, throw ProfileAbortedException if so. take care of cleanup in finally{}!
+   */
+  @volatile var stopProfileRequested = false
+
   var receiveActor: ActorRef = null
+
+  class ProfileAbortedException(message: String = null, cause: Throwable = null) extends RuntimeException(message, cause)
 
   def init() {
     view.updateSyncButton(allow = false)
@@ -167,9 +172,8 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     local = new LocalConnection(true) {
       remoteBasePath = server.localFolder.value
     }
-    debug("puri = " + protocol.protocoluri.value)
     val uri = MyURI(protocol.protocoluri.value)
-    debug("proto = " + uri.protocol)
+    debug(s"puri = ${protocol.protocoluri.value}  proto = ${uri.protocol}")
     runUIwait { Main.Status.status.value = "ini remote connection..." }
     remote = uri.protocol match {
       case "sftp" => new SftpConnection(false,uri)
@@ -185,6 +189,9 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
 
   def compare() {
     debug("compare() in thread " + Thread.currentThread().getId)
+
+    val progress = runUIwait { new Main.Progress( { abortProfile() } ) }.asInstanceOf[Main.Progress]
+
     // reset
     runUIwait { view.enableActions = true }
     // reset table
@@ -221,6 +228,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     var lfiles = 0
     var rfiles = 0
     val swUI = new StopWatch // for UI update
+
     receiveActor = actor(Main.system, name = "receive")(new Act {
       var finished = 2*subfolder.subfolders.length // cowntdown for lists
       debug("receiveList in thread " + Thread.currentThread().getId)
@@ -229,6 +237,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
           //          debug("  received " + vf)
           if (swUI.getTime > UIUpdateInterval) {
             runUIwait { // give UI time
+              progress.updateText(s"Find files... parsing:\n${vf.path}")
               Main.Status.status.value = "Find files... " + vf.path
               Main.Status.local.value = lfiles.toString
               Main.Status.remote.value = rfiles.toString
@@ -270,16 +279,32 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     info("*********************** start find files local and remote...")
     runUIwait { Main.Status.status.value = "Find files..." }
     future {
-      threadLocal = Thread.currentThread()
       subfolder.subfolders.map(local.list(_, server.filterRegexp, receiveActor, recursive = true, viaActor = true))
     }
     future {
-      threadRemote = Thread.currentThread()
       subfolder.subfolders.map(remote.list(_, server.filterRegexp, receiveActor, recursive = true, viaActor = true))
     }
     implicit val timeout = Timeout(36500 days)
     info("*********************** wait until all received...")
-    while (Await.result(receiveActor ? 'replyWhenDone, Duration.Inf) != 'done) { Thread.sleep(100) }
+    var waitMore = true
+    while (waitMore) {
+      if (stopProfileRequested) waitMore = false else {
+        waitMore = Await.result(receiveActor ? 'replyWhenDone, Duration.Inf) != 'done
+      }
+      Thread.sleep(100)
+    }
+
+    if (stopProfileRequested) {
+      debug("stopProfileRequested !! cleanup...")
+      runUIwait {
+        progress.close()
+        Main.Status.status.value = "Compare files interrupted!"
+        Main.Status.local.value = ""
+        Main.Status.remote.value = ""
+      }
+      cleanupProfile(switchBackToSettings = true)
+      return
+    }
 
     info("*********************** list finished")
     runUIwait {
@@ -288,6 +313,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       Main.Status.status.value = "Compare files..."
     }
     // compare entries
+    sw.restart()
     info("*********************** compare sync entries")
     val haveChanges = using(receiveSession) {
       CompareStuff.compareSyncEntries()
@@ -306,116 +332,126 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       }
       !haveChanges && canSync
     }
-    debug("  comparing etc took " + sw.getTimeRestart)
-    if (runSync == true) synchronize()
+    debug("  comparing etc took " + sw.getTime)
+    runUIwait { progress.close() }
+
+    if (runSync == true) synchronize() // if no changes found, run synchronize from here to update cache db!
   }
 
   def synchronize() {
     debug("synchronize() in thread " + Thread.currentThread().getId)
     runUIwait { Main.Status.status.value = "Synchronize..." }
-    var progress: Main.Progress = null
-    runUIwait { progress = new Main.Progress() }
+
+    val progress = runUIwait { new Main.Progress( { abortProfile() } ) }.asInstanceOf[Main.Progress]
+
     val sw = new StopWatch
-    val swd = new StopWatch
+    val swUIupdate = new StopWatch
     val syncSession = CacheDB.getSession
-    using(syncSession) {
-      for (state <- List(1,2)) { // delete and add dirs must be done in reverse order!
-        var iii = 0
-        debug("syncing state = " + state)
-        val q = state match {
-          case 1 => // delete
-            from (MySchema.files) (se => where((se.relevant === true) and (se.action in List(A_RMBOTH,A_RMLOCAL,A_RMREMOTE)))
-              select se
-              orderBy(se.path desc) // this allows deletion of dirs!
-            )
-          case _ => // put/get and others
-            from (MySchema.files) (se => where(se.relevant === true)
-              select se
-              orderBy(se.path asc) // this allows deletion of dirs!
-            )
-        }
-        val tosync = q.size // TODO this contains also equals...
-        MySchema.files.update(q.map(se => {
-          iii += 1
 
-          var showit = false
-          val relevantSize = if (se.action == A_USELOCAL) se.lSize else if (se.action == A_USEREMOTE) se.rSize else 0
-          if (relevantSize > 10000) showit = true
+    try {
+      using(syncSession) {
+        for (state <- List(1, 2)) {
+          // delete and add dirs must be done in reverse order!
+          var iii = 0
+          debug("syncing state = " + state)
+          val q = state match {
+            case 1 => // delete
+              from(MySchema.files)(se => where((se.relevant === true) and (se.action in List(A_RMBOTH, A_RMLOCAL, A_RMREMOTE)))
+                select se
+                orderBy (se.path desc) // this allows deletion of dirs!
+              )
+            case _ => // put/get and others
+              from(MySchema.files)(se => where(se.relevant === true)
+                select se
+                orderBy (se.path asc) // this allows deletion of dirs!
+              )
+          }
+          val tosync = q.size
+          MySchema.files.update(q.map(se => {
+            iii += 1
 
-          if (swd.getTime > UIUpdateInterval || showit) {
-            // syncSession.connection.commit() // TODO it does not seem to work... I cannot sync in update...
-            // as long as squeryl doesn't know that I am the only write-session! how to do this?
-            // view.updateSyncEntries() // this doesn't get the updates db...
-            runUIwait { // update status
-              Main.Status.status.value = s"Synchronize($iii/$tosync): ${se.path}"
-              progress.updateText(s"Synchronize($iii/$tosync):\n  Path: ${se.path}\n  Size: " + relevantSize)
-              if (progress.abortclicked) { // abort synchro!
-                progress.close()
-                if (syncLog != "") {
-                  Dialog.showMessage("Errors during synchronization\n(mind that excluded files are not shown):\n" + syncLog)
-                } else {
-                  Dialog.showMessage("Synchronization aborted!")
-                }
-                view.updateSyncEntries()
-                view.enableActions = false
-                Main.Status.status.value = "Aborted synchronize"
-                Main.Status.local.value = ""
-                Main.Status.remote.value = ""
+            var showit = false
+            val relevantSize = if (se.action == A_USELOCAL) se.lSize else if (se.action == A_USEREMOTE) se.rSize else 0
+            if (relevantSize > 10000) showit = true
+
+            if (swUIupdate.getTime > UIUpdateInterval || showit) {
+              // syncSession.connection.commit() // I cannot sync in update...
+              // as long as squeryl doesn't know that I am the only write-session! how to do this?
+              // view.updateSyncEntries() // this doesn't get the updates db...
+              runUIwait {
+                // update status
+                Main.Status.status.value = s"Synchronize($iii/$tosync): ${se.path}"
+                progress.updateText(s"Synchronize($iii/$tosync):\n  Path: ${se.path}\n  Size: " + relevantSize)
               }
+              swUIupdate.restart()
+            } // update status
+            try {
+              se.action match {
+                case A_MERGE => throw new Exception("merge not implemented yet!")
+                case A_RMLOCAL | A_RMBOTH => local.deletefile(se.path, se.lTime); se.delete = true; se.relevant = false
+                case A_RMREMOTE | A_RMBOTH => remote.deletefile(se.path, se.rTime); se.delete = true; se.relevant = false
+                case A_USELOCAL => remote.putfile(se.path, se.lTime); se.rTime = se.lTime; se.rSize = se.lTime; se.cSize = se.lSize; se.cTime = se.lTime; se.relevant = false
+                case A_USEREMOTE => remote.getfile(se.path, se.rTime); se.lTime = se.rTime; se.lSize = se.rTime; se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false
+                case A_ISEQUAL => se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false
+                case A_SKIP =>
+                case A_CACHEONLY => se.delete = true
+                case _ => throw new UnsupportedOperationException("unknown action")
+              }
+            } catch {
+              case e: Exception =>
+                error("sync exception:", e)
+                se.action = A_SYNCERROR
+                se.delete = false
+                syncLog += (e + "[" + se.path + "]" + "\n")
             }
-            if (progress.abortclicked) {
-              stop(switchBackToSettings = false)
-              return
-            }
-            swd.restart()
-          }
-          try {
-            se.action match {
-              case A_MERGE => throw new Exception("merge not implemented yet!")
-              case A_RMLOCAL|A_RMBOTH => local.deletefile(se.path,se.lTime); se.delete = true; se.relevant = false
-              case A_RMREMOTE|A_RMBOTH => remote.deletefile(se.path, se.rTime); se.delete = true; se.relevant = false
-              case A_USELOCAL => remote.putfile(se.path, se.lTime); se.rTime=se.lTime; se.rSize=se.lTime; se.cSize = se.lSize; se.cTime = se.lTime; se.relevant = false
-              case A_USEREMOTE => remote.getfile(se.path, se.rTime); se.lTime=se.rTime; se.lSize=se.rTime; se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false
-              case A_ISEQUAL => se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false
-              case A_SKIP =>
-              case A_CACHEONLY => se.delete = true
-              case _ => throw new UnsupportedOperationException("unknown action")
-            }
-          } catch {
-            case e: Exception =>
-              error("sync exception:", e)
-              se.action = A_SYNCERROR
-              se.delete = false
-              syncLog += (e + "[" + se.path + "]" + "\n")
-          }
-          se
-        })) // update loop
-        // update cache: remove removed/cacheonly files
-        MySchema.files.deleteWhere(se => se.delete === true)
-      } // for state
-    } // using(syncsession)
-    syncSession.close
-
-    sw.printTime("TTTTTTTTT synchronized in ")
-    var switchBackToSettings = true
-    runUIwait {
-      progress.close()
-      if (syncLog != "") {
-        switchBackToSettings = false
-        Dialog.showMessage("Errors during synchronization\n(mind that excluded files are not shown):\n" + syncLog)
+            if (stopProfileRequested) throw new ProfileAbortedException("stopreq")
+            se
+          })) // update loop
+          // update cache: remove removed/cacheonly files
+          MySchema.files.deleteWhere(se => se.delete === true)
+        } // for state
+      }// using(syncsession)
+    } catch {
+      case abex: ProfileAbortedException  =>
+        debug("ProfileAbortedException!!! " + abex)
+    } finally {
+      syncSession.close
+      sw.stopPrintTime("TTTTTTTTT synchronized in ")
+      var switchBackToSettings = true
+      runUIwait {
+        progress.close()
+        var sbar = "Finished synchronize"
+        if (syncLog != "") {
+          switchBackToSettings = false
+          Dialog.showMessage("Errors during synchronization\n(mind that excluded files are not shown):\n" + syncLog)
+          sbar = "Synchronization error"
+        }
+        view.updateSyncEntries()
+        view.enableActions = false
+        Main.Status.status.value = sbar
+        Main.Status.local.value = ""
+        Main.Status.remote.value = ""
       }
-      view.updateSyncEntries()
-      view.enableActions = false
-      Main.Status.status.value = "Finished synchronize"
-      Main.Status.local.value = ""
-      Main.Status.remote.value = ""
+      cleanupProfile(switchBackToSettings)
     }
-    stop(switchBackToSettings)
   }
-  def stop(switchBackToSettings: Boolean = true) {
-    debug("stopping profile...")
-    if (remote != null) remote.finish()
-    if (local != null) local.finish()
+
+
+  // initiate stopping of profile actions and cleanup.
+  def abortProfile() {
+    debug("abortProfile!")
+    local.stopRequested = true
+    remote.stopRequested = true
+    stopProfileRequested = true
+  }
+
+  // cleanup (transfers must be stopped before)
+  def cleanupProfile(switchBackToSettings: Boolean = true) {
+    debug("cleanup profile...")
+    if (remote != null) remote.cleanUp()
+    if (local != null) local.cleanUp()
+    remote = null
+    local = null
     if (receiveActor != null) Main.system.stop(receiveActor)
 
     // execute after protocol

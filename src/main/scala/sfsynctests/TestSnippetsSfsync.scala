@@ -29,7 +29,7 @@ object TestListRecSpeed1java extends App {
   }
   val sw1 = new StopWatch
   val nf = listrec("/Unencrypted_Data/tempnospotlight/teststorelargelocal","",null)
-  println("loaded local list1 (" + nf + ") in " + sw1.timeIt )
+  println("loaded local list1 (" + nf + ") in " + sw1.stopGetTimeString )
 }
 
 object TestListRecSpeed2 extends App {
@@ -42,7 +42,7 @@ object TestListRecSpeed2 extends App {
   val sw1 = new StopWatch
   listrec()
   sw1.stop()
-  println("loaded local list1 in " + sw1.timeIt )
+  println("loaded local list1 in " + sw1.stopGetTimeString )
 }
 
 object TestFindSpeed extends App {

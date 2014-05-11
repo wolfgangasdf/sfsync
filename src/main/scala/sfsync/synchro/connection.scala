@@ -7,7 +7,7 @@ import scala.Predef._
 import scala.collection.JavaConversions._
 import akka.actor.ActorRef
 import com.jcraft.jsch
-import com.jcraft.jsch.{SftpATTRS, SftpException, ChannelSftp}
+import com.jcraft.jsch.{SftpProgressMonitor, SftpATTRS, SftpException, ChannelSftp}
 import sfsync.store.Tools
 import java.text.Normalizer
 import java.nio.file._
@@ -24,19 +24,18 @@ class MyURI(var protocol: String, var username: String, var password: String, va
   def this() = this("","","","","")
   def parseString(s: String): Boolean = {
     s match {
-      case "file:///" => { protocol = "file" ; true }
-      case regexinet(prot1, userinfo, host1, port1) => {
+      case "file:///" => protocol = "file"; true
+      case regexinet(prot1, userinfo, host1, port1) =>
         protocol = prot1
         host = host1
         port = port1
         val uis = userinfo.split(":")
         uis.length match {
-          case 1 => { username = uis(0); password = "" }
-          case 2 => { username = uis(0); password = uis(1) }
+          case 1 => username = uis(0); password = ""
+          case 2 => username = uis(0); password = uis(1)
         }
         true
-      }
-      case _ => { false }
+      case _ => false
     }
   }
   def toURIString = {
@@ -89,9 +88,6 @@ abstract class GeneralConnection(isLocal: Boolean) extends Logging {
   def mkdirrec(absolutePath: String)
   def deletefile(what: String, mtime: Long)
   def list(where: String, filterregexp: String, receiver: ActorRef, recursive: Boolean, viaActor: Boolean): ArrayBuffer[VirtualFile]
-  def finish() {
-    stopRequested = true
-  }
 
   // return dir (most likely NOT absolute path but subfolder!) without trailing /
   def checkIsDir(path: String) = {
@@ -99,6 +95,7 @@ abstract class GeneralConnection(isLocal: Boolean) extends Logging {
     val resp = if (isdir) path.substring(0, path.length-1) else path
     (resp, isdir)
   }
+  def cleanUp() = {}
 }
 
 class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
@@ -108,9 +105,8 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
     try {
       Files.delete(Paths.get(remoteBasePath + "/" + cp))
     } catch {
-      case ee : Throwable => {
+      case ee : Throwable =>
         debug("grrrrr" + ee)
-      }
     }
     // TODO add same thing as for sftp if not empty
 //    debug("deleted " + remoteBasePath + what.path)
@@ -196,26 +192,45 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
   }
 
   def mkdirrec(absolutePath: String) = {
-    Files.createDirectories(Paths.get(absolutePath)) // TODO
+    Files.createDirectories(Paths.get(absolutePath))
   }
 }
 
 
 class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection(isLocal) {
+
+  class MySftpProgressMonitor extends SftpProgressMonitor {
+    var bytesTransferred: Long = 0
+    var bytesTotal: Long = 0
+
+    def init(op: Int, src: String, dest: String, max: Long) {
+      bytesTransferred = 0
+      bytesTotal = max
+      debug("MySftpProgressMonitor start: "+op+" "+src+" -> "+dest+" total: "+max)
+    }
+
+    def count(bytes: Long): Boolean = {
+      bytesTransferred += bytes
+      debug(s"  ($bytesTransferred/$bytesTotal) isConnected=${sftp.isConnected} isClosed=${sftp.isClosed}")
+      // abort transfer if requested
+      !stopRequested
+    }
+    def end() = debug("MySftpProgressMonitor finished")
+  }
   def deletefile(what: String, mtime: Long) {
     val (cp, isdir) = checkIsDir(what)
     if (isdir) {
       try {
         sftp.rmdir(remoteBasePath + "/" + cp)
       } catch {
-        case sftpe: SftpException => { // unfortunately only "Failure" ; checking for content would be slow
+        case sftpe: SftpException => // unfortunately only "Failure" ; checking for content would be slow
           val xx = sftp.ls(remoteBasePath + "/" + cp)
           if (xx.length > 0) {
             val tmp = new ListBuffer[ChannelSftp#LsEntry]
             for (obj <- xx ) {
               val lse = obj.asInstanceOf[ChannelSftp#LsEntry]
               lse.getFilename match {
-                case "." | ".." => {}
+                case "." | ".." =>
                 case s => tmp += lse
               }
             }
@@ -227,7 +242,6 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
             }
           }
           throw sftpe
-        }
       }
     } else {
       sftp.rm(remoteBasePath + "/" + cp)
@@ -246,18 +260,29 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
       }
       checkit(rp)
       sftp.mkdir(rp)
-    } else
-      sftp.put(localBasePath + "/" + cp, rp)
-    sftp.setMtime(rp, (mtime/1000).toInt)
+      sftp.setMtime(rp, (mtime/1000).toInt)
+    } else {
+      sftp.put(localBasePath + "/" + cp, rp, progress)
+      if (progress.bytesTotal != progress.bytesTransferred) { // interrupted!
+        sftp.rm(rp) // delete partially transferred files
+      } else {
+        sftp.setMtime(rp, (mtime/1000).toInt)
+      }
+    }
   }
   def getfile(from: String, mtime: Long, to: String) {
     val (cp, isdir) = checkIsDir(from)
     if (isdir) {
       Files.createDirectories(Paths.get(to)) // simply create parents if necessary, avoids separate check
+      Files.setLastModifiedTime(Paths.get(to), FileTime.fromMillis(mtime))
     } else {
-      sftp.get(remoteBasePath + "/" + cp, to)
+      sftp.get(remoteBasePath + "/" + cp, to, progress)
+      if (progress.bytesTotal != progress.bytesTransferred) { // interrupted!
+        Files.delete(Paths.get(to)) // delete partially transferred files
+      } else {
+        Files.setLastModifiedTime(Paths.get(to), FileTime.fromMillis(mtime))
+      }
     }
-    Files.setLastModifiedTime(Paths.get(to), FileTime.fromMillis(mtime))
   }
   def getfile(from: String, mtime: Long) {
     val (cp, _) = checkIsDir(from)
@@ -275,18 +300,6 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
     debug("sftpexists return: " + resls)
     resls
   }
-//def sftpexists(sp: String): ChannelSftp#LsEntry = {
-//  debug("sftpexists sp=" + sp)
-//  val xx = sftp.ls(Paths.get(sp).getParent.toString)
-//  for (obj <- xx) {
-//    val sftplse = obj.asInstanceOf[ChannelSftp#LsEntry]
-//    if (sftplse.getFilename == Paths.get(sp).getFileName.toString) {
-//      debug(s"ZZZZZZZ fn=${sftplse.getFilename} ln=${sftplse.getLongname}")
-//      return sftplse
-//    }
-//  }
-//  null
-//}
 
   def list(subfolder: String, filterregexp: String, receiver: ActorRef, recursive: Boolean, viaActor: Boolean) = {
     debug(s"listrecsftp(rbp=$remoteBasePath sf=$subfolder rec=$recursive) in thread ${Thread.currentThread().getId}")
@@ -382,6 +395,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
   jsch.JSch.setLogger(new MyJschLogger)
 
   var jSch = new jsch.JSch
+  var progress = new MySftpProgressMonitor
 
   var prvkeypath = ""
   var knownhostspath = ""
@@ -415,8 +429,8 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
     throw new Exception("sftp not connected!")
   }
 
-  override def finish() {
-    super.finish()
+  override def cleanUp() {
+    super.cleanUp()
     if (sftp.isConnected) sftp.disconnect()
     if (session.isConnected) session.disconnect()
   }

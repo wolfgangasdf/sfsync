@@ -210,40 +210,13 @@ object Main extends JFXApp with Logging {
           Store.save()
         }
       },
-      new Button("Stop") {
-        onAction = (ae: ActionEvent) => {
-          Main.doStop()
-        }
-      },
       new Button("test") {
         onAction = (ae: ActionEvent) => {
-          val progress = new Progress()
+          val progress = new Progress({ debug("abort pressed!") })
           progress.updateText("aaaadfjklsdfjsldjgldfjgldkfjgldsjfg sdlfkgj sdlfgj sdlfgj lsdfj glskdfj glkdsjf glsdj fglksd")
         }
       },
       lbInfo
-//      new Button("testX") {
-//        onAction = (ae: ActionEvent) => {
-//          unit()
-//        }
-//      }
-//      new Button("test") {
-//        onAction = (ae: ActionEvent) => {
-//          unit()
-//        }
-//      },
-//      new Button("test info entry") {
-//        onAction = (ae: ActionEvent) => {
-//          val se = filesView.tv.selectionModel.get().getSelectedItem
-//          println("se = " + se)
-//          unit()
-//        }
-//      },
-//      new Button("test: updatelistview") {
-//        onAction = (ae: ActionEvent) => {
-//          filesView.updateSyncEntries()
-//        }
-//      }
     )
   }
 
@@ -306,13 +279,6 @@ object Main extends JFXApp with Logging {
     sys.exit(0)
   }
 
-  def doStop() {
-    if (profile != null) {
-      profile.stop()
-    }
-    doCleanup()
-  }
-
   def doCleanup() {
     lbInfo.text.set("")
     btCompare.setDisable(false)
@@ -350,9 +316,7 @@ object Main extends JFXApp with Logging {
     sane
   }
 
-  // TODO make really modal!
-  class Progress() {
-    var abortclicked = false
+  class Progress(onAbortClicked: => Unit ) {
     val dstage = new Stage(jfxs.StageStyle.UTILITY) {
       initOwner(Main.stage)
       initModality(jfxs.Modality.APPLICATION_MODAL)
@@ -377,7 +341,9 @@ object Main extends JFXApp with Logging {
       content.add(sp)
       import Button._
       content.add(new Button("Abort") {
-        onAction = (ae: ActionEvent) => { abortclicked = true; }
+        onAction = (ae: ActionEvent) => {
+          onAbortClicked
+        }
       })
     }
     dstage.scene = new Scene {
