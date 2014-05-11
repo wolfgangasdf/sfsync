@@ -102,35 +102,19 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
 
   def deletefile(what: String, mtime: Long) {
     val (cp, _) = checkIsDir(what)
+    val fp = Paths.get(remoteBasePath + "/" + cp)
     try {
-      Files.delete(Paths.get(remoteBasePath + "/" + cp))
+      Files.delete(fp)
     } catch {
-      case ee : Throwable =>
-        debug("grrrrr" + ee)
+      case ee: java.nio.file.DirectoryNotEmptyException =>
+        val dir = Files.newDirectoryStream(fp).toList
+        val msg = s"Directory \n $cp \n not empty, DELETE ALL? Content:\n" + dir.map(a => a.toFile.getName).mkString("\n")
+        if (runUIwait(Dialog.showYesNo(msg)) == true) {
+          dir.map( f => Files.delete(f) )
+          Files.delete(fp)
+          return
+        }
     }
-    // TODO add same thing as for sftp if not empty
-//    debug("deleted " + remoteBasePath + what.path)
-/*
-              val xx = sftp.ls(remoteBasePath + "/" + cp)
-          if (xx.length > 0) {
-            val tmp = new ListBuffer[ChannelSftp#LsEntry]
-            for (obj <- xx ) {
-              val lse = obj.asInstanceOf[ChannelSftp#LsEntry]
-              lse.getFilename match {
-                case "." | ".." => {}
-                case s => tmp += lse
-              }
-            }
-            val msg = s"Directory \n $cp \n not empty, content:\n" + tmp.map(a => a.getFilename).mkString("\n") + "\n DELETE ALL?"
-            if (runUIwait(Dialog.showYesNo(msg)) == true) {
-              tmp.map( f => sftp.rm(remoteBasePath + "/" + cp + "/" + f.getFilename) )
-              sftp.rmdir(remoteBasePath + "/" + cp)
-              return
-            }
-          }
-
-     */
-
   }
   def putfile(from: String, mtime: Long) {
     val (cp, isdir) = checkIsDir(from)
@@ -174,11 +158,10 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
       val vf = new VirtualFile(strippedPath, Files.getLastModifiedTime(cc).toMillis, Files.size(cc))
       if ( !vf.fileName.matches(filterregexp)) {
         if (stopRequested) return
-//        debug("sending " + vf)
         if (viaActor) receiver ! addFile(vf, isLocal) else reslist += vf
         if (Files.isDirectory(cc) && goDeeper ) {
           val dir = Files.newDirectoryStream(cc)
-          for (cc <- dir) parseContent(cc, goDeeper = recursive)
+          for (cc1 <- dir) parseContent(cc1, goDeeper = recursive)
           dir.close()
         }
       }
@@ -234,7 +217,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
                 case s => tmp += lse
               }
             }
-            val msg = s"Directory \n $cp \n not empty, content:\n" + tmp.map(a => a.getFilename).mkString("\n") + "\n DELETE ALL?"
+            val msg = s"Directory \n $cp \n not empty, DELETE ALL? Content:\n" + tmp.map(a => a.getFilename).mkString("\n")
             if (runUIwait(Dialog.showYesNo(msg)) == true) {
               tmp.map( f => sftp.rm(remoteBasePath + "/" + cp + "/" + f.getFilename) )
               sftp.rmdir(remoteBasePath + "/" + cp)

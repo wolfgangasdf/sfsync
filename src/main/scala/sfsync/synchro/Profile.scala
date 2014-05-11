@@ -190,7 +190,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
   def compare() {
     debug("compare() in thread " + Thread.currentThread().getId)
 
-    val progress = runUIwait { new Main.Progress( { abortProfile() } ) }.asInstanceOf[Main.Progress]
+    val progress = runUIwait { new Main.Progress("Find files...", { abortProfile() } ) }.asInstanceOf[Main.Progress]
 
     // reset
     runUIwait { view.enableActions = true }
@@ -342,7 +342,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     debug("synchronize() in thread " + Thread.currentThread().getId)
     runUIwait { Main.Status.status.value = "Synchronize..." }
 
-    val progress = runUIwait { new Main.Progress( { abortProfile() } ) }.asInstanceOf[Main.Progress]
+    val progress = runUIwait { new Main.Progress( "Synchronize...", { abortProfile() } ) }.asInstanceOf[Main.Progress]
 
     val sw = new StopWatch
     val swUIupdate = new StopWatch
@@ -395,7 +395,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
                 case A_ISEQUAL => se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false
                 case A_SKIP =>
                 case A_CACHEONLY => se.delete = true
-                case _ => throw new UnsupportedOperationException("unknown action")
+                case aa => throw new UnsupportedOperationException("unknown action: " + aa)
               }
             } catch {
               case e: Exception =>
@@ -414,6 +414,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     } catch {
       case abex: ProfileAbortedException  =>
         debug("ProfileAbortedException!!! " + abex)
+      case ex: Exception => error("Unexpected other exception:" + ex)
     } finally {
       syncSession.close
       sw.stopPrintTime("TTTTTTTTT synchronized in ")

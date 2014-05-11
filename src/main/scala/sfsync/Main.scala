@@ -212,7 +212,7 @@ object Main extends JFXApp with Logging {
       },
       new Button("test") {
         onAction = (ae: ActionEvent) => {
-          val progress = new Progress({ debug("abort pressed!") })
+          val progress = new Progress("test", { debug("abort pressed!") })
           progress.updateText("aaaadfjklsdfjsldjgldfjgldkfjgldsjfg sdlfkgj sdlfgj sdlfgj lsdfj glskdfj glkdsjf glsdj fglksd")
         }
       },
@@ -316,7 +316,7 @@ object Main extends JFXApp with Logging {
     sane
   }
 
-  class Progress(onAbortClicked: => Unit ) {
+  class Progress(iniText: String, onAbortClicked: => Unit ) {
     val dstage = new Stage(jfxs.StageStyle.UTILITY) {
       initOwner(Main.stage)
       initModality(jfxs.Modality.APPLICATION_MODAL)
@@ -325,7 +325,7 @@ object Main extends JFXApp with Logging {
       initStyle(StageStyle.UNDECORATED)
     }
     val ta = new TextArea {
-      text = "xxx"
+      text = iniText
       editable = false
       wrapText = true
     }
