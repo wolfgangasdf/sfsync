@@ -213,7 +213,7 @@ object Main extends JFXApp with Logging {
       new Button("test") {
         onAction = (ae: ActionEvent) => {
           val progress = new Progress("test", { debug("abort pressed!") })
-          progress.updateText("aaaadfjklsdfjsldjgldfjgldkfjgldsjfg sdlfkgj sdlfgj sdlfgj lsdfj glskdfj glkdsjf glsdj fglksd")
+          progress.update(0.3,"aaaadfjklsdfjsldjgldfjgldkfjgldsjfg sdlfkgj sdlfgj sdlfgj lsdfj glskdfj glkdsjf glsdj fglksd")
         }
       },
       lbInfo
@@ -329,6 +329,8 @@ object Main extends JFXApp with Logging {
       editable = false
       wrapText = true
     }
+    val pb1 = new ProgressBar { progress = 0 }
+    val pb2 = new ProgressBar { progress = 0 }
     val cont = new VBox {
       style = "-fx-background-color: lightblue;"
       var sp = new ScrollPane {
@@ -344,18 +346,27 @@ object Main extends JFXApp with Logging {
         onAction = (ae: ActionEvent) => {
           onAbortClicked
         }
+        fillWidth = true
       })
+      content.add(pb1)
+      content.add(pb2)
     }
     dstage.scene = new Scene {
       content = cont
     }
     cont.prefWidth <== dstage.scene.width
     cont.prefHeight <== dstage.scene.height
+    pb1.prefWidth <== dstage.scene.width
+    pb2.prefWidth <== dstage.scene.width
     cont.autosize()
     dstage.show()
 
-    def updateText(s: String) = {
+    def update(progressValue: Double, s: String) {
       ta.text = s
+      pb1.progress = progressValue
+    }
+    def updateProgressBar2(progressValue: Double) {
+      pb2.progress = progressValue
     }
 
     def close() = { dstage.close() }

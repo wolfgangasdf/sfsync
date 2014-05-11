@@ -237,7 +237,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
           //          debug("  received " + vf)
           if (swUI.getTime > UIUpdateInterval) {
             runUIwait { // give UI time
-              progress.updateText(s"Find files... parsing:\n${vf.path}")
+              progress.update(0.0, s"Find files... parsing:\n${vf.path}")
               Main.Status.status.value = "Find files... " + vf.path
               Main.Status.local.value = lfiles.toString
               Main.Status.remote.value = rfiles.toString
@@ -343,6 +343,11 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     runUIwait { Main.Status.status.value = "Synchronize..." }
 
     val progress = runUIwait { new Main.Progress( "Synchronize...", { abortProfile() } ) }.asInstanceOf[Main.Progress]
+    remote.onProgress = (progressVal: Double) => {
+      runUIwait( {
+        progress.updateProgressBar2(progressVal)
+      })
+    }
 
     val sw = new StopWatch
     val swUIupdate = new StopWatch
@@ -381,7 +386,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
               runUIwait {
                 // update status
                 Main.Status.status.value = s"Synchronize($iii/$tosync): ${se.path}"
-                progress.updateText(s"Synchronize($iii/$tosync):\n  Path: ${se.path}\n  Size: " + relevantSize)
+                progress.update(iii/tosync, s"Synchronize($iii/$tosync):\n  Path: ${se.path}\n  Size: " + relevantSize)
               }
               swUIupdate.restart()
             } // update status

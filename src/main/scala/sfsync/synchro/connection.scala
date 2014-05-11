@@ -89,6 +89,8 @@ abstract class GeneralConnection(isLocal: Boolean) extends Logging {
   def deletefile(what: String, mtime: Long)
   def list(where: String, filterregexp: String, receiver: ActorRef, recursive: Boolean, viaActor: Boolean): ArrayBuffer[VirtualFile]
 
+  var onProgress = (progressVal: Double) => {}
+
   // return dir (most likely NOT absolute path but subfolder!) without trailing /
   def checkIsDir(path: String) = {
     val isdir = path.endsWith("/")
@@ -189,14 +191,12 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
     def init(op: Int, src: String, dest: String, max: Long) {
       bytesTransferred = 0
       bytesTotal = max
-      debug("MySftpProgressMonitor start: "+op+" "+src+" -> "+dest+" total: "+max)
     }
 
     def count(bytes: Long): Boolean = {
       bytesTransferred += bytes
-      debug(s"  ($bytesTransferred/$bytesTotal) isConnected=${sftp.isConnected} isClosed=${sftp.isClosed}")
-      // abort transfer if requested
-      !stopRequested
+      onProgress(bytesTransferred.toDouble/bytesTotal)
+      !stopRequested // abort transfer if requested
     }
     def end() = debug("MySftpProgressMonitor finished")
   }
@@ -245,8 +245,8 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
       sftp.mkdir(rp)
       sftp.setMtime(rp, (mtime/1000).toInt)
     } else {
-      sftp.put(localBasePath + "/" + cp, rp, progress)
-      if (progress.bytesTotal != progress.bytesTransferred) { // interrupted!
+      sftp.put(localBasePath + "/" + cp, rp, progressSftp)
+      if (progressSftp.bytesTotal != progressSftp.bytesTransferred) { // interrupted!
         sftp.rm(rp) // delete partially transferred files
       } else {
         sftp.setMtime(rp, (mtime/1000).toInt)
@@ -259,8 +259,8 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
       Files.createDirectories(Paths.get(to)) // simply create parents if necessary, avoids separate check
       Files.setLastModifiedTime(Paths.get(to), FileTime.fromMillis(mtime))
     } else {
-      sftp.get(remoteBasePath + "/" + cp, to, progress)
-      if (progress.bytesTotal != progress.bytesTransferred) { // interrupted!
+      sftp.get(remoteBasePath + "/" + cp, to, progressSftp)
+      if (progressSftp.bytesTotal != progressSftp.bytesTransferred) { // interrupted!
         Files.delete(Paths.get(to)) // delete partially transferred files
       } else {
         Files.setLastModifiedTime(Paths.get(to), FileTime.fromMillis(mtime))
@@ -378,7 +378,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
   jsch.JSch.setLogger(new MyJschLogger)
 
   var jSch = new jsch.JSch
-  var progress = new MySftpProgressMonitor
+  var progressSftp = new MySftpProgressMonitor
 
   var prvkeypath = ""
   var knownhostspath = ""
