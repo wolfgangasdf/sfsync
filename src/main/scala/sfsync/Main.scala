@@ -141,140 +141,155 @@ object Main extends JFXApp with Logging {
   // logging but allow override by file
   LoggerBase.configure(overrideConfigFile = false, logdebug = false, loginfo = false, logwarning = true, logerror = true, logconsole = true, "")
 
-  // run checks
-  Checks.CheckComparedFile()
-  // startup
-  info("sfsync version = " + version)
-  info("java.version = " + System.getProperty("java.version"))
-  info("scala version = " + scala.util.Properties.versionString)
-  info("javafx.runtime.version = " + System.getProperty("javafx.runtime.version"))
-  info("LC_CTYPE = " + System.getenv("LC_CTYPE"))
-  info("(isMac,isLinux,isWin) = " + List(isMac,isLinux,isWin).mkString(","))
-  info("settings path = " + DBSettings.settpath)
-  if (isMac) {
-    if (System.getenv("LC_CTYPE") == null) {
-      warn("!!!!!!!!!!! set LC_CTYPE variable for correct foreign character handling!")
-    }
-  }
-
-//  import scala.collection.JavaConversions._
-//  System.getProperties.foreach( p => println("prop " + p.getKey + " : " + p.getValue) )
-
-  // init
-
-  val menu = new Menu("SFSync") {
-    items.add(new MenuItem("About")) // TODO
-    items.add(new MenuItem("Quit")) // TODO
-  }
-  val menuBar = new MenuBar {
-    useSystemMenuBar = true
-    minWidth = 100
-    menus.add(menu)
-  }
-
   var cw: FilesView = null
 
   var tmpse: SyncEntry = null
 
+  var lbInfo: Label = null
+
   var btCompare: Button = null // to prevent suspicious forward reference in btSync
-  val btSync: Button = new Button("Synchronize") {
-    onAction = (ae: ActionEvent) => {
-      runUI {
-        btCompare.setDisable(true)
-        btSync.setDisable(true)
-      }
-      future {
-        profile.synchronize()
-      }
-      unit()
-    }
-  }
-  btCompare = new Button("Compare") {
-    onAction = (ae: ActionEvent) => {
-      runUI {
-        btSync.setDisable(true)
-        btCompare.setDisable(true)
-      }
-      if (!Main.runCompare()) {
-        btCompare.setDisable(false)
-      }
-    }
-  }
-  btSync.setDisable(true)
 
-  val lbInfo = new Label()
+  var statusBar: ToolBar = null
 
-  val toolBar = new ToolBar {
-    content = List(
-      btCompare,
-      btSync,
-      new Button("test") {
+  var statusLabel: Label = null
+
+  var btSync: Button = null
+
+  var tabpane: TabPane  = null
+
+  initit()
+
+  def initit() {
+    // run checks
+    Checks.CheckComparedFile()
+    // startup
+    info("sfsync version = " + version)
+    info("java.version = " + System.getProperty("java.version"))
+    info("scala version = " + scala.util.Properties.versionString)
+    info("javafx.runtime.version = " + System.getProperty("javafx.runtime.version"))
+    info("LC_CTYPE = " + System.getenv("LC_CTYPE"))
+    info("(isMac,isLinux,isWin) = " + List(isMac, isLinux, isWin).mkString(","))
+    info("settings path = " + DBSettings.settpath)
+    if (isMac) {
+      if (System.getenv("LC_CTYPE") == null) {
+        warn("!!!!!!!!!!! set LC_CTYPE variable for correct foreign character handling!")
+      }
+    }
+
+    //  import scala.collection.JavaConversions._
+    //  System.getProperties.foreach( p => println("prop " + p.getKey + " : " + p.getValue) )
+
+    // init
+
+    val menu = new Menu("SFSync") {
+      items.add(new MenuItem("About")) // TODO
+      items.add(new MenuItem("Quit")) // TODO
+    }
+    val menuBar = new MenuBar {
+      useSystemMenuBar = true
+      minWidth = 100
+      menus.add(menu)
+    }
+
+    btSync = new Button("Synchronize") {
         onAction = (ae: ActionEvent) => {
-          val progress = new Progress("test") {
-            onAbortClicked = () => {
-              close()
-            }
+          runUI {
+            btCompare.setDisable(true)
+            btSync.setDisable(true)
           }
-          progress.update(0.3,"aaaadfjklsdfjsldjgldfjgldkfjgldsjfg sdlfkgj sdlfgj sdlfgj lsdfj glskdfj glkdsjf glsdj fglksd")
+          future {
+            profile.synchronize()
+          }
+          unit()
         }
-      },
-      lbInfo
-    )
-  }
+      }
+    btCompare = new Button("Compare") {
+      onAction = (ae: ActionEvent) => {
+        runUI {
+          btSync.setDisable(true)
+          btCompare.setDisable(true)
+        }
+        if (!Main.runCompare()) {
+          btCompare.setDisable(false)
+        }
+      }
+    }
+    btSync.setDisable(true)
 
+    lbInfo = new Label()
+
+    val toolBar = new ToolBar {
+      content = List(
+        btCompare,
+        btSync,
+        new Button("test") {
+          onAction = (ae: ActionEvent) => {
+            val progress = new Progress("test") {
+              onAbortClicked = () => {
+                close()
+              }
+            }
+            progress.update(0.3, "aaaadfjklsdfjsldjgldfjgldkfjgldsjfg sdlfkgj sdlfgj sdlfgj lsdfj glskdfj glkdsjf glsdj fglksd")
+          }
+        },
+        lbInfo
+      )
+    }
+    statusBar = new ToolBar {
+      statusLabel = new Label() { text = "Sfsync Version " + Main.version }
+      content = List(statusLabel)
+    }
+
+    tabpane = new TabPane {
+    }
+
+    var maincontent = new VBox {
+      if (isMac) content += menuBar
+      content ++= List(toolBar,tabpane,statusBar)
+    }
+
+
+    filesView = new FilesView
+    settingsView = new MainView(filesView)
+
+    stage = new JFXApp.PrimaryStage {
+      title = "SFSync"
+      width = Store.config.width.toDouble
+      height = Store.config.height.toDouble
+      scene = new Scene {
+        content = maincontent
+      }
+    }
+
+    maincontent.prefHeight <== stage.height
+    maincontent.prefWidth <== stage.width
+    tabpane.prefHeight <== stage.height - toolBar.height - statusBar.height - 21
+    tabpane.tabs = List(settingsView, filesView)
+    statusBar.prefWidth <== stage.width
+
+    if (Store.config.currentServer.value > -1) {
+      settingsView.serverView.serverChanged()
+    }
+
+    // ini after UI shown
+    runUI({
+      debug("dp=" + Store.config.dividerPositions.toString)
+      if (Store.config.dividerPositions.length > 0)
+        settingsView.sp.setDividerPositions(Store.config.dividerPositions: _*)
+      else
+        settingsView.sp.setDividerPositions(0.3,0.6)
+    })
+  }
   object Status {
     var status: StringProperty = StringProperty("?")
     var local = StringProperty("?")
     var remote = StringProperty("?")
     List(status,local,remote).map(x => x.onChange(
-      statusBar.lab.text = "Local:" + local.value + "  Remote: " + remote.value + "  | " + status.value
+      statusLabel.text = "Local:" + local.value + "  Remote: " + remote.value + "  | " + status.value
     ))
   }
 
-  val statusBar = new ToolBar {
-    var lab = new Label() { text = "Sfsync Version " + Main.version }
-    content = List(lab)
-  }
 
-  val tabpane = new TabPane {
-  }
-
-  var maincontent = new VBox {
-    if (isMac) content += menuBar
-    content ++= List(toolBar,tabpane,statusBar)
-  }
-
-
-  filesView = new FilesView
-  settingsView = new MainView(filesView)
-
-  stage = new JFXApp.PrimaryStage {
-    title = "SFSync"
-    width = Store.config.width.toDouble
-    height = Store.config.height.toDouble
-    scene = new Scene {
-      content = maincontent
-    }
-  }
-
-  maincontent.prefHeight <== stage.height
-  maincontent.prefWidth <== stage.width
-  tabpane.prefHeight <== stage.height - toolBar.height - statusBar.height - 21
-  tabpane.tabs = List(settingsView, filesView)
-  statusBar.prefWidth <== stage.width
-
-  if (Store.config.currentServer.value > -1) {
-    settingsView.serverView.serverChanged()
-  }
-
-  // ini after UI shown
-  runUI({
-    debug("dp=" + Store.config.dividerPositions.toString)
-    if (Store.config.dividerPositions.length > 0)
-      settingsView.sp.setDividerPositions(Store.config.dividerPositions: _*)
-    else
-      settingsView.sp.setDividerPositions(0.3,0.6)
-  })
 
   override def stopApp() {
     info("*************** stop app")
