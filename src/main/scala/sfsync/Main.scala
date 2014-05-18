@@ -1,5 +1,10 @@
 package sfsync
 
+import sfsync.util.{LoggerBase, Logging}
+import sfsync.store._
+import sfsync.synchro._
+import sfsync.Helpers._
+
 import scalafx.application.JFXApp
 import scalafx.Includes._
 import scalafx.scene._
@@ -7,32 +12,29 @@ import scalafx.stage._
 import scalafx.scene.layout._
 import scalafx.scene.control._
 import scalafx.event.ActionEvent
-import scala.language.reflectiveCalls
-
-import javafx.geometry. {Orientation=>jgo}
-
-import util.{LoggerBase, Logging}
+import scalafx.geometry.Pos
+import scalafx.scene.web.WebView
+import scalafx.beans.property.StringProperty
 import scala._
-import collection.mutable.ArrayBuffer
-import store._
-import javafx.{stage => jfxs}
-import synchro._
-import Helpers._
-import akka.actor._
+import scala.language.reflectiveCalls
 import scala.concurrent.future
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.implicitConversions
-import scalafx.geometry.Pos
+import akka.actor._
+import scala.collection.mutable.ArrayBuffer
+
+import javafx.geometry. {Orientation=>jgo}
+import javafx.{stage => jfxs}
 import java.nio.charset.Charset
-import scalafx.beans.property.StringProperty
 import java.util.concurrent.FutureTask
-import scalafx.scene.web.WebView
 
 object Helpers {
 
   val filecharset = Charset.forName("UTF-8")
 
   val insetsstd = scalafx.geometry.Insets(5)
+
+  val directoryFilter = if (isWin) ".:/.*" else "/.*"
 
   def toJavaPathSeparator(in: String) = {
     if (isWin) in.replaceAll("""\\""", "/")
@@ -134,6 +136,8 @@ object Main extends JFXApp with Logging {
   var filesView: FilesView = null
   var profile: Profile = null
 
+  debug("path sep=" + System.getProperty("file.separator"))
+
   // logging but allow override by file
   LoggerBase.configure(overrideConfigFile = false, logdebug = false, loginfo = false, logwarning = true, logerror = true, logconsole = true, "")
 
@@ -158,11 +162,10 @@ object Main extends JFXApp with Logging {
 
   // init
 
-  val menu = new Menu("File") {
-    items.add(new MenuItem("Open"))
-    items.add(new MenuItem("Close"))
+  val menu = new Menu("SFSync") {
+    items.add(new MenuItem("About")) // TODO
+    items.add(new MenuItem("Quit")) // TODO
   }
-
   val menuBar = new MenuBar {
     useSystemMenuBar = true
     minWidth = 100
@@ -237,7 +240,8 @@ object Main extends JFXApp with Logging {
   }
 
   var maincontent = new VBox {
-    content = List(menuBar,toolBar,tabpane,statusBar)
+    if (isMac) content += menuBar
+    content ++= List(toolBar,tabpane,statusBar)
   }
 
 
@@ -255,7 +259,7 @@ object Main extends JFXApp with Logging {
 
   maincontent.prefHeight <== stage.height
   maincontent.prefWidth <== stage.width
-  tabpane.prefHeight <== stage.height - menuBar.height - toolBar.height - statusBar.height - 21
+  tabpane.prefHeight <== stage.height - toolBar.height - statusBar.height - 21
   tabpane.tabs = List(settingsView, filesView)
   statusBar.prefWidth <== stage.width
 
@@ -265,7 +269,11 @@ object Main extends JFXApp with Logging {
 
   // ini after UI shown
   runUI({
-    settingsView.sp.setDividerPositions(Store.config.dividerPositions: _*)
+    debug("dp=" + Store.config.dividerPositions.toString)
+    if (Store.config.dividerPositions.length > 0)
+      settingsView.sp.setDividerPositions(Store.config.dividerPositions: _*)
+    else
+      settingsView.sp.setDividerPositions(0.3,0.6)
   })
 
   override def stopApp() {

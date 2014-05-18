@@ -1,28 +1,27 @@
 package sfsync
 
+import sfsync.synchro._
+import sfsync.synchro.Actions._
+import sfsync.store.{CacheDB, SyncEntry, Store}
+import sfsync.util.Logging
+import sfsync.Helpers._
+
+import scala.language.{implicitConversions, reflectiveCalls, postfixOps}
 import scalafx.scene.layout._
 import scalafx.scene.control._
 import scalafx. {collections => sfxc}
 import scalafx.Includes._
 import scalafx.event.ActionEvent
 import scalafx.beans.property.StringProperty
+import scalafx.scene.control.cell.TextFieldTableCell
 
+import javafx.{util => jfxu}
 import javafx.scene.{control => jfxsc}
 
-import sfsync.synchro._
-import sfsync.synchro.Actions._
-import store.{CacheDB, SyncEntry, Store}
-import util.Logging
-import Helpers._
-
-import javafx.util.Callback
-import scala.language.{implicitConversions, reflectiveCalls, postfixOps}
-import java.nio.file.{Path, Files}
-
 import diffmatchpatch.diff_match_patch
+import java.nio.file.{Path, Files}
 import java.nio.charset.StandardCharsets
 import java.nio.ByteBuffer
-import scalafx.scene.control.cell.TextFieldTableCell
 
 object CF {
   val amap = Map(
@@ -104,7 +103,7 @@ class FilesView() extends Tab with Logging {
 //      x
 //    }
   }
-  colStatus.setCellFactory(new Callback[jfxsc.TableColumn[SyncEntry, String],jfxsc.TableCell[SyncEntry, String]] {
+  colStatus.setCellFactory(new jfxu.Callback[jfxsc.TableColumn[SyncEntry, String],jfxsc.TableCell[SyncEntry, String]] {
     def call(param: jfxsc.TableColumn[SyncEntry, String]): jfxsc.TableCell[SyncEntry, String] = {
       val x = new jfxsc.cell.TextFieldTableCell[SyncEntry, String]() {
         override def updateItem(f: String, empty: Boolean) {
@@ -145,7 +144,7 @@ class FilesView() extends Tab with Logging {
     tv.setItems(x)
   }
 
-  def updateSyncEntries() { // TODO doesn't work if session that modified db not closed...
+  def updateSyncEntries() { // doesn't work if session that modified did not commit...
     debug("updateSyncEntries in thread " + Thread.currentThread().getId)
     CacheDB.invalidateCache()
     CacheDB.initializeSyncEntries(Option(true), getFilter)

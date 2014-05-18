@@ -1,10 +1,12 @@
 package sfsync
 
-import synchro.Actions._
-import synchro.CompareStuff
+import sfsync.synchro.Actions._
+import sfsync.synchro.CompareStuff
 import sfsync.store.{SyncEntry, MySchema, CacheDB}
-import org.squeryl.PrimitiveTypeMode._
+
 import scala.collection.mutable.ArrayBuffer
+
+import org.squeryl.PrimitiveTypeMode._
 
 object Checks {
   def CheckComparedFile() {

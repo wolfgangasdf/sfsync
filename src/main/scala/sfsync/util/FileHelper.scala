@@ -1,7 +1,8 @@
 package sfsync.util
 
-import java.io._
 import scala.language.implicitConversions
+
+import java.io._
 
 class FileHelper(file : File) {
   def write(text : String) : Unit = {

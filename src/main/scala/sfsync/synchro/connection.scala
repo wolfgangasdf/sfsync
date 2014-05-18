@@ -1,18 +1,20 @@
 package sfsync.synchro
 
 import sfsync.Main.Dialog
+import sfsync.store.Tools
+import sfsync.util.Logging
+
 import scala.util.matching.Regex
 import scala.collection.mutable._
 import scala.Predef._
 import scala.collection.JavaConversions._
 import akka.actor.ActorRef
+
 import com.jcraft.jsch
 import com.jcraft.jsch.{SftpProgressMonitor, SftpATTRS, SftpException, ChannelSftp}
-import sfsync.store.Tools
 import java.text.Normalizer
 import java.nio.file._
-import attribute.FileTime
-import sfsync.util.Logging
+import java.nio.file.attribute.FileTime
 
 class cachedFile(path: String, modTime: Long, size: Long) {
 }
@@ -61,7 +63,6 @@ class VirtualFile(var path: String, var modTime: Long, var size: Long) extends O
   var tagged = false // for cachelist: tagged if local/remote existing, does not need to be added "cacheonly"
 
   def this() = this("",0,0)
-  //  def getPathString = if (path == "") "<root>" else path
   def fileName : String = if (path == "/") "/" else path.split("/").last
   override def toString: String = "["+path+"]:"+modTime+","+size
 
@@ -154,7 +155,8 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
       // on mac 10.8 with oracle java 7, filenames are encoded with strange 'decomposed unicode'. grr
       // this is in addition to the bug that LC_CTYPE is not set. grrr
       // don't use cc.getPath directly!!
-      val fixedPath = Normalizer.normalize(cc.toString, Normalizer.Form.NFC)
+      val javaPath = toJavaPathSeparator(cc.toString)
+      val fixedPath = Normalizer.normalize(javaPath, Normalizer.Form.NFC)
       var strippedPath: String = if (fixedPath == remoteBasePath) "/" else fixedPath.substring(remoteBasePath.length)
       if (Files.isDirectory(cc) && strippedPath != "/") strippedPath += "/"
       val vf = new VirtualFile(strippedPath, Files.getLastModifiedTime(cc).toMillis, Files.size(cc))

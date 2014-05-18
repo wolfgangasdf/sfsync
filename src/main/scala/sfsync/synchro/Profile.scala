@@ -2,31 +2,27 @@ package sfsync.synchro
 
 /*
 this runs not in ui thread, so use runUI and runUIwait!
-for 20000 local files (testlocalmany):
-rev 99227ee (before new compare algo):
-reset: 1s, then 0.8s
-timings: 16s, 13s (view all) or 12s (only changes)
  */
 
-import scala.collection.mutable.ListBuffer
-import Actions._
+import sfsync.synchro.Actions._
 import sfsync.store._
+import sfsync.Main.Dialog
 import sfsync.{Main, FilesView}
 import sfsync.Helpers._
 import sfsync.util.{Logging, StopWatch}
-import akka.actor.ActorDSL._
-import akka.pattern.ask
-import akka.util.Timeout
+
+import scala.collection.mutable.ListBuffer
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.{reflectiveCalls, postfixOps}
 import scala.concurrent.ExecutionContext.Implicits.global
-import org.squeryl.Session
-import org.squeryl.PrimitiveTypeMode._
-import sfsync.Main.Dialog
+import akka.actor.ActorDSL._
+import akka.pattern.ask
+import akka.util.Timeout
 import akka.actor.ActorRef
 
-//import sfsync.synchro.addFile
+import org.squeryl.Session
+import org.squeryl.PrimitiveTypeMode._
 
 class TransferProtocol (
   var uri: String,

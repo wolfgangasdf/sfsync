@@ -1,34 +1,36 @@
 package sfsync
 
 import sfsync.util._
+import sfsync.store._
+import sfsync.Helpers._
+import sfsync.Main.Dialog
+import sfsync.synchro.{Profile, MyURI}
+
+import scala._
 import scala.collection.JavaConversions._
 import scalafx.Includes._
 import scalafx.scene._
 import scalafx.stage._
 import scalafx.scene.layout._
 import scalafx.scene.control._
-import cell.TextFieldListCell
-import scalafx. {collections => sfxc}
+import scalafx.scene.control.cell.TextFieldListCell
+import scalafx.{collections => sfxc}
 import scalafx.event.ActionEvent
-import sfsync.store._
-import sfsync.Helpers._
-import scala._
-import sfsync.Main.Dialog
 import scalafx.beans.property.StringProperty
-import sfsync.synchro.{Profile, MyURI}
-import java.net.URLDecoder
 import scalafx.util.StringConverter
-import javafx.{stage => jfxs}
 import scalafx.geometry.Pos
+import scalafx.collections.ObservableBuffer
+
+import java.net.URLDecoder
+import java.text.Normalizer
 import javafx.{event => jfxe}
 import javafx.scene.{control => jfxsc}
-import java.text.Normalizer
-import scalafx.collections.ObservableBuffer
+import javafx.{stage => jfxs}
 
 object SVHelpers extends Logging {
   def getDroppedFile(file: java.io.File) = {
     // bug in javafx: filename is url-encoded string, .exists() = false
-    val path = toJavaPathSeparator(URLDecoder.decode(file.getPath,"UTF-8"))
+    val path = URLDecoder.decode(file.getPath,"UTF-8")
     debug("getdrfile=" + path)
     new java.io.File(path)
   }
@@ -76,38 +78,37 @@ class MyListView[T <: ListableThing](
 
   def beforeDelete(what: T) = true
 
-  content = List(
-    lvs,
-    new HBox {
-      content = List(
-        new Button("add") {
-          onAction = (ae: ActionEvent) => {
-            val newi = factory()
-            obsBuffer += newi
-            sortit()
-            lvs.selectionModel().clearSelection()
-            lvs.selectionModel().select(newi)
-            onChange()
-            unit()
-          }
-        },
-        new Button("delete") {
-          onAction = (ae: ActionEvent) => {
-            val idx = lvs.selectionModel().getSelectedIndex
-            if (idx >= 0) {
-              if (beforeDelete(obsBuffer(idx))) {
-                obsBuffer.remove(idx)
-                lvs.selectionModel().clearSelection()
-                lvs.selectionModel().select(0)
-                onChange()
-              }
-            }
-            unit()
-          }
+  val buttons = new HBox {
+    content = List(
+      new Button("add") {
+        onAction = (ae: ActionEvent) => {
+          val newi = factory()
+          obsBuffer += newi
+          sortit()
+          lvs.selectionModel().clearSelection()
+          lvs.selectionModel().select(newi)
+          onChange()
+          unit()
         }
-      )
-    }
-  )
+      },
+      new Button("delete") {
+        onAction = (ae: ActionEvent) => {
+          val idx = lvs.selectionModel().getSelectedIndex
+          if (idx >= 0) {
+            if (beforeDelete(obsBuffer(idx))) {
+              obsBuffer.remove(idx)
+              lvs.selectionModel().clearSelection()
+              lvs.selectionModel().select(0)
+              onChange()
+            }
+          }
+          unit()
+        }
+      }
+    )
+  }
+
+  content = List(lvs, buttons)
 }
 
 class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: String = "", filter: String = "", canDropFile: Boolean = false) extends HBox {
@@ -134,7 +135,7 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
       }
       onDragOver = (event: input.DragEvent) => {
         if (event.dragboard.hasFiles) {
-          event.acceptTransferModes(scalafx.scene.input.TransferMode.COPY)
+          if (event.dragboard.getFiles.length == 1) event.acceptTransferModes(scalafx.scene.input.TransferMode.COPY)
         } else {
           event.consume()
         }
@@ -190,7 +191,7 @@ abstract class ServerView(val config: Config) extends BorderPane with Logging {
       fileChooser.delegate.setInitialDirectory(jf)
     }
     val res = fileChooser.showDialog(Main.stage)
-    if (res != null) prop.value = res.toString
+    if (res != null) prop.value = toJavaPathSeparator(res.toString)
   }
 
   class ServerDetailView extends VBox {
@@ -198,7 +199,9 @@ abstract class ServerView(val config: Config) extends BorderPane with Logging {
     val tfFilter = new MyTextField("Filter: ",null, "regex, e.g., (.*12)|(.*e2)") { tf.text <==> server.filterRegexp }
     val tfLocalFolder = new MyTextField(
       "Local folder: ",
-      () => fcLocalDir(server.localFolder), "/localdir","/.*[^/]",
+      () => fcLocalDir(server.localFolder),
+      toolTip = "Local base folder such as '/localdir'",
+      filter = directoryFilter,
       canDropFile = true
     ) { tf.text <==> server.localFolder }
     var bClearCache = new Button("Clear cache") { onAction = (ae: ActionEvent) => { CacheDB.clearDB() } }
@@ -237,7 +240,9 @@ class ProtocolView(val server: Server) extends BorderPane {
     }
   }
   class ProtocolDetailView extends VBox with Logging {
-    var tfBaseFolder = new MyTextField("Base folder: ", null, "/remotebasedir", "/.*", canDropFile = true) { tf.text <==> protocol.protocolbasefolder }
+    var tfBaseFolder = new MyTextField("Base folder: ", null,
+      toolTip = "Remote base directory such as '/remotebasedir'",
+      filter = directoryFilter, canDropFile = true) { tf.text <==> protocol.protocolbasefolder }
     var tfURI = new MyTextField("Protocol URI: ", null, "file:/// or sftp://user@host:port", "(file:///)|(sftp://\\S+@\\S+:\\S+)") {
       tf.onAction = (ae: ActionEvent) => {
         val uri = new MyURI()
@@ -396,6 +401,18 @@ class SubFolderView(val server: Server) extends BorderPane {
   prefHeight = 150
   var subfolder: SubFolder= null
   var lvp = new MyListView[SubFolder](() => new SubFolder,server.subfolders, server.currentSubFolder.value, () => subfolderChanged())
+  import scalafx.scene.control.Button._
+  lvp.buttons.content += new Button("Add <Allfiles> Subset") {
+    onAction = (ae: ActionEvent) => {
+      val sf = new SubFolder {
+        name = "All files"
+        subfolders += ""
+      }
+      server.subfolders += sf
+      unit()
+    }
+  }
+
   lvp.margin = insetsstd
   top = new Label() { text = "Subsets:" }
   left = lvp
@@ -419,7 +436,6 @@ class SubFolderView(val server: Server) extends BorderPane {
       if (jf.exists() && jf.canRead) {
         fileChooser.delegate.setInitialDirectory(jf)
       }
-      // TODO: make dialog modal
       val res = fileChooser.showDialog(Main.stage)
       if (res != null) {
         ressf = PathToSubdir(res)
@@ -472,16 +488,6 @@ class SubFolderView(val server: Server) extends BorderPane {
           onAction = (ae: ActionEvent) => {
             val dc = new MyFileChooser(Main.filesView, Main.settingsView.serverView.server, Main.settingsView.protocolView.protocol, false)
             dc.showAddToFolders("Select remote folder:", subfolder.subfolders)
-          }
-        },
-        new Button("Add <Allfiles> Subset") {
-          onAction = (ae: ActionEvent) => {
-            val sf = new SubFolder {
-              name = "All files"
-              subfolders += ""
-            }
-            server.subfolders += sf
-            unit()
           }
         },
         new Button("Delete") {

@@ -6,7 +6,7 @@ import org.sbtidea.SbtIdeaPlugin._
 import sbtbuildinfo.Plugin._
 
 object BuildSettings {
-  val buildOrganization = "com.sfsync"
+  val buildOrganization = "com.wolle.sfsync"
   val buildName = "SFSync"
   val buildVersion = "0.2"
   val buildScalaVersion = "2.10.2"
@@ -91,7 +91,7 @@ object WMPBuild extends Build {
     ".idea", ".idea_modules", "src/main/resources/sfsync/HGVERSION.txt", "target"
   )
   lazy val root = Project(
-    id = "sfsync",
+    id = "SFSync",
     base = file("."),
     settings = sfsyncSettings
       ++ buildInfoSettings ++ myBuildInfoSettings

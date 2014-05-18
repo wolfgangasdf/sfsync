@@ -1,22 +1,23 @@
 package sfsync.store
 
+import sfsync.store.Tools._
+import sfsync.Helpers._
+import sfsync.CF
+import sfsync.synchro.Actions._
+import sfsync.util.Logging
+
 import scalafx.{collections => sfxc}
 import scalafx.beans.property._
-import Tools._
-import sfsync.Helpers._
-import collection.mutable.ArrayBuffer
+import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
+import scala.collection.mutable
+import scala.Some
+import scala.language.{reflectiveCalls, postfixOps}
+
 import java.nio.file._
 import org.squeryl.adapters.H2Adapter
 import org.squeryl.PrimitiveTypeMode._
-import sfsync.CF
-import collection.mutable
-import scala.Some
 import org.squeryl.{Schema, Optimistic, KeyedEntity, Session, SessionFactory}
-import sfsync.synchro.Actions
-import sfsync.util.Logging
-import Actions._
-import scala.language.{reflectiveCalls, postfixOps}
 
 
 object DBSettings extends Logging {
@@ -124,7 +125,7 @@ class Server extends ListableThing {
 class Protocol extends ListableThing {
   implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
   implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
-  var protocoluri: StringProperty = ""
+  var protocoluri: StringProperty = "file:///"
   var protocolbasefolder: StringProperty = ""
   var executeBefore: StringProperty = ""
   var executeAfter: StringProperty = ""
@@ -266,11 +267,11 @@ class SyncEntry(var path: String, var action: Int,
   def status = new StringProperty(this, "status", CF.amap(action))
   def dformat = new java.text.SimpleDateFormat("dd-MM-yyyy HH:mm:ss")
   def detailsLocal = new StringProperty(this, "detailsl",
-      if (lSize != -1) dformat.format(new java.util.Date(lTime)) + "," + lSize else "none")
+      if (lSize != -1) dformat.format(new java.util.Date(lTime)) + "(" + lSize + ")" else "none")
   def detailsRemote = new StringProperty(this, "detailsr",
-    if (rSize != -1) dformat.format(new java.util.Date(rTime)) + "," + rSize else "none")
+    if (rSize != -1) dformat.format(new java.util.Date(rTime)) + "(" + rSize + ")" else "none")
   def detailsCache = new StringProperty(this, "detailsc",
-    if (cSize != -1) dformat.format(new java.util.Date(cTime)) + "," + cSize else "none")
+    if (cSize != -1) dformat.format(new java.util.Date(cTime)) + "(" + cSize + ")" else "none")
   def isDir = path.endsWith("/")
   def isEqual = {
     if (isDir) {
