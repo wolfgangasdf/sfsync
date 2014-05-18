@@ -470,3 +470,41 @@ object Main extends JFXApp with Logging {
   }
 }
 
+/* how to make this work? */
+class Splash(sstage: Stage) {
+  val maxProgress = 3
+  var progress = 0
+
+  def showProgress(text: String, increment: Int) {
+    ta.text = text
+    progress += increment
+    pb.progress = progress.toDouble/maxProgress
+  }
+
+  def close() {
+    sstage.close()
+  }
+  //  val sstage = new JFXApp.PrimaryStage {
+  //    initStyle(jfxs.StageStyle.UNDECORATED)
+  //  val sstage = new Stage(jfxs.StageStyle.UNDECORATED) {
+  //    //    initModality(jfxs.Modality.APPLICATION_MODAL)
+  //    width = 500
+  //    height = 300
+  //  }
+  val ta = new TextArea {
+    text = ""
+    editable = false
+    wrapText = true
+  }
+  val pb = new ProgressBar { prefHeight = 20 ; tooltip = new Tooltip { text = "Progress" } }
+  val cont = new VBox {
+    style = "-fx-background-color: lightblue;"
+    content ++= List(ta,pb)
+  }
+  sstage.scene = new Scene {
+    content = cont
+  }
+  cont.autosize()
+  sstage.show()
+  sstage.toFront()
+}
