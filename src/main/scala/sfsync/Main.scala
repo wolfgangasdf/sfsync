@@ -86,7 +86,7 @@ object Helpers {
 //  implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
 //  implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
 
-  // this only works for serializable objects (no javafx properties)
+  // this only works for serializable objects (no javafx properties), would be useful for copy server/proto/set!
 //  def deepCopy[A](a: A)(implicit m: reflect.Manifest[A]): A =
 //    scala.util.Marshal.load[A](scala.util.Marshal.dump(a))
 }
@@ -157,12 +157,33 @@ object Main extends JFXApp with Logging {
 
   var tabpane: TabPane  = null
 
-  initit()
+  stage = new JFXApp.PrimaryStage {
+    title = "xxx"
+    width = 800
+    height = 600
+  }
 
-  def initit() {
-    // run checks
+  stage.show()
+  val splash = new Splash
+
+//  threadinfo("Main")
+
+  // I need to return from this so that splash can be updated. initialize in other thread, use runUI{} if needed!
+  future {
+//    threadinfo("future")
+    debug("huhu1")
+    splash.showProgress("startup...", 1)
+    debug("huhu2")
+    initit(stage)
+    Thread.sleep(1500)
+    splash.close()
+  }
+
+  def initit(myStage: Stage) {
+//    threadinfo("initit")
+    splash.showProgress("running checks...", 1)
     Checks.CheckComparedFile()
-    // startup
+    splash.showProgress("startup...", 1)
     info("sfsync version = " + version)
     info("java.version = " + System.getProperty("java.version"))
     info("scala version = " + scala.util.Properties.versionString)
@@ -179,7 +200,7 @@ object Main extends JFXApp with Logging {
     //  import scala.collection.JavaConversions._
     //  System.getProperties.foreach( p => println("prop " + p.getKey + " : " + p.getValue) )
 
-    // init
+    splash.showProgress("initializing GUI...", 1)
 
     val menu = new Menu("SFSync") {
       items.add(new MenuItem("About")) // TODO
@@ -243,33 +264,36 @@ object Main extends JFXApp with Logging {
     tabpane = new TabPane {
     }
 
-    var maincontent = new VBox {
+    filesView = new FilesView
+    settingsView = new MainView(filesView)
+
+    val maincontent = new VBox {
       if (isMac) content += menuBar
       content ++= List(toolBar,tabpane,statusBar)
     }
 
-
-    filesView = new FilesView
-    settingsView = new MainView(filesView)
-
-    stage = new JFXApp.PrimaryStage {
-      title = "SFSync"
-      width = Store.config.width.toDouble
-      height = Store.config.height.toDouble
-      scene = new Scene {
+    splash.showProgress("showing GUI...", 1)
+    runUI {
+      myStage.title = "SFSync"
+      myStage.x = Store.config.x.toDouble
+      myStage.y = Store.config.y.toDouble
+      myStage.width = Store.config.width.toDouble
+      myStage.height = Store.config.height.toDouble
+      myStage.scene = new Scene {
         content = maincontent
+      }
+
+      maincontent.prefHeight <== myStage.height
+      maincontent.prefWidth <== myStage.width
+      tabpane.prefHeight <== myStage.height - toolBar.height - statusBar.height - 21
+      tabpane.tabs = List(settingsView, filesView)
+      statusBar.prefWidth <== myStage.width
+
+      if (Store.config.currentServer.value > -1) {
+        settingsView.serverView.serverChanged()
       }
     }
 
-    maincontent.prefHeight <== stage.height
-    maincontent.prefWidth <== stage.width
-    tabpane.prefHeight <== stage.height - toolBar.height - statusBar.height - 21
-    tabpane.tabs = List(settingsView, filesView)
-    statusBar.prefWidth <== stage.width
-
-    if (Store.config.currentServer.value > -1) {
-      settingsView.serverView.serverChanged()
-    }
 
     // ini after UI shown
     runUI({
@@ -279,6 +303,8 @@ object Main extends JFXApp with Logging {
       else
         settingsView.sp.setDividerPositions(0.3,0.6)
     })
+    splash.showProgress("ready.", 1)
+
   }
   object Status {
     var status: StringProperty = StringProperty("?")
@@ -485,41 +511,58 @@ object Main extends JFXApp with Logging {
   }
 }
 
-/* how to make this work? */
-class Splash(sstage: Stage) {
-  val maxProgress = 3
+// a scalafx splashscreen: implement from main SFX routine, then call showProgress() or close() from any thread
+class Splash extends Logging {
+  val maxProgress = 6
   var progress = 0
 
-  def showProgress(text: String, increment: Int) {
-    ta.text = text
-    progress += increment
-    pb.progress = progress.toDouble/maxProgress
+  val sstage = new Stage(jfxs.StageStyle.UNDECORATED) {
+    initOwner(Main.stage)
+    initModality(jfxs.Modality.APPLICATION_MODAL)
+    width = 500
+    height = 300
   }
 
-  def close() {
-    sstage.close()
+  val logo = new TextField {
+    text = "SFSync"
+    prefHeight = 250
+    style = "-fx-background-color: lightblue;-fx-font: 100px Tahoma;"
+    alignment = Pos.CENTER
   }
-  //  val sstage = new JFXApp.PrimaryStage {
-  //    initStyle(jfxs.StageStyle.UNDECORATED)
-  //  val sstage = new Stage(jfxs.StageStyle.UNDECORATED) {
-  //    //    initModality(jfxs.Modality.APPLICATION_MODAL)
-  //    width = 500
-  //    height = 300
-  //  }
   val ta = new TextArea {
     text = ""
+    prefHeight = 35
     editable = false
     wrapText = true
   }
-  val pb = new ProgressBar { prefHeight = 20 ; tooltip = new Tooltip { text = "Progress" } }
+  val pb = new ProgressBar {
+    prefHeight = 15
+    tooltip = new Tooltip { text = "Progress" }
+  }
   val cont = new VBox {
-    style = "-fx-background-color: lightblue;"
-    content ++= List(ta,pb)
+    content ++= List(logo,ta,pb)
   }
   sstage.scene = new Scene {
     content = cont
   }
+  cont.prefWidth <== sstage.scene.width
+  cont.prefHeight <== sstage.scene.height
+  pb.prefWidth <== cont.width
   cont.autosize()
   sstage.show()
   sstage.toFront()
+
+  def showProgress(text: String, increment: Int) {
+//    threadinfo("showprogr")
+    ta.text = text
+    progress += increment
+    runUIwait { pb.progress = progress.toDouble/maxProgress }
+  }
+
+  def close() {
+    if (progress != maxProgress) {
+      info("splashscreen: set maxProgress to " + progress)
+    }
+    runUI { sstage.close() }
+  }
 }

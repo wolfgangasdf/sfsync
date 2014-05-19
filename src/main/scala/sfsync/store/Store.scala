@@ -96,6 +96,8 @@ class Config {
   var currentFilter: IntegerProperty = 0
   var width: IntegerProperty = 800
   var height: IntegerProperty = 600
+  var x: IntegerProperty = 100
+  var y: IntegerProperty = 100
   var dividerPositions = new ArrayBuffer[Double]
   var cryptoSecret = ""
 }

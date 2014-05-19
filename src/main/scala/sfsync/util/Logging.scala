@@ -91,6 +91,10 @@ trait Logging {
   protected def info(msg: => Any, t: => Throwable = null) { if (LoggerBase.logInfo) dolog("INF: ", msg, t) }
   protected def warn(msg: => Any, t: => Throwable = null) { if (LoggerBase.logWarning) dolog("WRN: ", msg, t) }
 
+  protected def threadinfo(msg: String) {
+    println("-------------------------------------------- " + msg + " in thread " + Thread.currentThread().getId +
+      " (isFX:" + scalafx.application.Platform.isFxApplicationThread + ")")
+  }
   def dolog(prefix: String, msg: Any, exc: Throwable) {
     synchronized {
       var logs = prefix + self.getClass.getName + "[" + Thread.currentThread().getId + "]: " + msg
