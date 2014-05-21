@@ -308,6 +308,7 @@ object Main extends JFXApp with Logging {
 
   }
   object Status {
+    implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
     var status: StringProperty = StringProperty("?")
     var local = StringProperty("?")
     var remote = StringProperty("?")
@@ -379,9 +380,11 @@ object Main extends JFXApp with Logging {
       width = 500
       height = 300
     }
-    val ti = new TextField {
+    val ti = new TextArea {
       text = title
       editable = false
+      prefHeight = 30
+      style = "-fx-font-size: 20;"
     }
     val ta = new TextArea {
       text = ""

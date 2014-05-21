@@ -343,7 +343,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
 
   def synchronize() {
     debug("synchronize() in thread " + Thread.currentThread().getId)
-    runUIwait { Main.Status.status.clear }
+    runUIwait { Main.Status.clear() }
 
     val progress = runUIwait { new Main.Progress("Synchronize") {
       onAbortClicked = () => {
@@ -440,7 +440,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
         }
         view.updateSyncEntries()
         view.enableActions = false
-        Main.Status.clear
+        Main.Status.clear()
       }
       cleanupProfile(switchBackToSettings)
     }
