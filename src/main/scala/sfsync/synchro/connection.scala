@@ -200,7 +200,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
       onProgress(bytesTransferred.toDouble/bytesTotal)
       !stopRequested // abort transfer if requested
     }
-    def end() = debug("MySftpProgressMonitor finished")
+    def end() = {}
   }
   def deletefile(what: String, mtime: Long) {
     val (cp, isdir) = checkIsDir(what)

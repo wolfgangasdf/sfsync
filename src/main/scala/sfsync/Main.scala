@@ -128,6 +128,7 @@ class MainView(filesView: FilesView) extends Tab with Logging {
 
 object Main extends JFXApp with Logging {
   val VERSION = BuildInfo.version
+  val APPNAME = BuildInfo.name
   val resv = getClass.getResource("/sfsync/HGVERSION.txt")
   val version = VERSION + (if (resv != null) " (" + io.Source.fromURL(resv).mkString.trim + ")" else "")
   def system = ActorSystem("sfsyncactors")
@@ -197,20 +198,20 @@ object Main extends JFXApp with Logging {
       }
     }
 
-    //  import scala.collection.JavaConversions._
-    //  System.getProperties.foreach( p => println("prop " + p.getKey + " : " + p.getValue) )
+      import scala.collection.JavaConversions._
+      System.getProperties.foreach( p => println("prop " + p.getKey + " : " + p.getValue) )
 
     splash.showProgress("initializing GUI...", 1)
 
-    val menu = new Menu("SFSync") {
-      items.add(new MenuItem("About")) // TODO
-      items.add(new MenuItem("Quit")) // TODO
-    }
-    val menuBar = new MenuBar {
-      useSystemMenuBar = true
-      minWidth = 100
-      menus.add(menu)
-    }
+//    val menu = new Menu("SFSync") {
+//      items.add(new MenuItem("About")) // TODO
+//      items.add(new MenuItem("Quit")) // TODO
+//    }
+//    val menuBar = new MenuBar {
+//      useSystemMenuBar = true
+//      minWidth = 100
+//      menus.add(menu)
+//    }
 
     btSync = new Button("Synchronize") {
         onAction = (ae: ActionEvent) => {
@@ -268,7 +269,7 @@ object Main extends JFXApp with Logging {
     settingsView = new MainView(filesView)
 
     val maincontent = new VBox {
-      if (isMac) content += menuBar
+//      if (isMac) content += menuBar // TODO
       content ++= List(toolBar,tabpane,statusBar)
     }
 
@@ -313,6 +314,11 @@ object Main extends JFXApp with Logging {
     List(status,local,remote).map(x => x.onChange(
       statusLabel.text = "Local:" + local.value + "  Remote: " + remote.value + "  | " + status.value
     ))
+    def clear() {
+      status = ""
+      local = ""
+      remote = ""
+    }
   }
 
 
@@ -364,7 +370,7 @@ object Main extends JFXApp with Logging {
     sane
   }
 
-  class Progress(iniText: String) {
+  class Progress(title: String) {
     var onAbortClicked = () => {}
     val dstage = new Stage(jfxs.StageStyle.UTILITY) {
       initOwner(Main.stage)
@@ -373,8 +379,12 @@ object Main extends JFXApp with Logging {
       width = 500
       height = 300
     }
+    val ti = new TextField {
+      text = title
+      editable = false
+    }
     val ta = new TextArea {
-      text = iniText
+      text = ""
       editable = false
       wrapText = true
     }
@@ -390,7 +400,7 @@ object Main extends JFXApp with Logging {
         hbarPolicy = ScrollPane.ScrollBarPolicy.NEVER
         vgrow = Priority.ALWAYS
       }
-      content ++= List(sp, bAbort, pb1, pb2)
+      content ++= List(ti, sp, bAbort, pb1, pb2)
     }
     dstage.scene = new Scene {
       content = cont

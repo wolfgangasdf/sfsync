@@ -152,10 +152,13 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
 
   def init() {
     view.updateSyncButton(allow = false)
-    if (protocol.executeBefore.value != "") {
-      runUIwait {
-        Main.Status.status.value = "execute 'before'..."
+    val progress = runUIwait { new Main.Progress("Initialize connection") {
+      onAbortClicked = () => {
+        abortProfile()
       }
+    }}.asInstanceOf[Main.Progress]
+    if (protocol.executeBefore.value != "") {
+      runUIwait { progress.update(1.0, "execute 'before'...") }
       import sys.process._
       val res = protocol.executeBefore.value.split("#").toSeq.!
       if (res != 0) {
@@ -163,40 +166,39 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       }
     }
 
-    runUIwait { Main.Status.status.value = "ready" }
 
     local = new LocalConnection(true) {
       remoteBasePath = server.localFolder.value
     }
     val uri = MyURI(protocol.protocoluri.value)
     debug(s"puri = ${protocol.protocoluri.value}  proto = ${uri.protocol}")
-    runUIwait { Main.Status.status.value = "ini remote connection..." }
+    runUIwait { progress.update(1.0, "initialize remote connection...") }
     remote = uri.protocol match {
       case "sftp" => new SftpConnection(false,uri)
       case "file" => new LocalConnection(false)
       case _ => throw new RuntimeException("wrong protocol: " + uri.protocol)
     }
-    runUIwait { Main.Status.status.value = "ready" }
     remote.localBasePath = server.localFolder.value
     remote.remoteBasePath = protocol.protocolbasefolder
     profileInitialized = true
+    runUIwait { progress.close() }
   }
 
 
   def compare() {
     debug("compare() in thread " + Thread.currentThread().getId)
 
-    val progress = runUIwait { new Main.Progress("Find files...") {
+    val progress = runUIwait { new Main.Progress("Compare files") {
       onAbortClicked = () => {
         abortProfile()
       }
     }}.asInstanceOf[Main.Progress]
 
+    runUIwait { progress.update(1.0, "searching for files...") }
     // reset
     runUIwait { view.enableActions = true }
     // reset table
-    runUIwait { Main.Status.status.value = "Resetting database..." }
-    debug("resetting table...")
+    runUIwait { progress.update(1.0, "resetting database...") }
     val sw = new StopWatch // for timing meas
     import org.squeryl.PrimitiveTypeMode.transaction
     import org.squeryl.PrimitiveTypeMode._
@@ -238,7 +240,6 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
           if (swUI.getTime > UIUpdateInterval) {
             runUIwait { // give UI time
               progress.update(0.0, s"Find files... parsing:\n${vf.path}")
-              Main.Status.status.value = "Find files... " + vf.path
               Main.Status.local.value = lfiles.toString
               Main.Status.remote.value = rfiles.toString
               view.updateSyncEntries()
@@ -277,7 +278,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     })
 
     info("*********************** start find files local and remote...")
-    runUIwait { Main.Status.status.value = "Find files..." }
+    runUIwait { progress.update(1.0, "find files...") }
     future {
       subfolder.subfolders.map(local.list(_, server.filterRegexp, receiveActor, recursive = true, viaActor = true))
     }
@@ -310,7 +311,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     runUIwait {
       Main.Status.local.value = lfiles.toString
       Main.Status.remote.value = rfiles.toString
-      Main.Status.status.value = "Compare files..."
+      progress.update(1.0, "comparing files...")
     }
     // compare entries
     sw.restart()
@@ -342,9 +343,9 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
 
   def synchronize() {
     debug("synchronize() in thread " + Thread.currentThread().getId)
-    runUIwait { Main.Status.status.value = "Synchronize..." }
+    runUIwait { Main.Status.status.clear }
 
-    val progress = runUIwait { new Main.Progress( "Synchronize...") {
+    val progress = runUIwait { new Main.Progress("Synchronize") {
       onAbortClicked = () => {
         abortProfile()
       }
@@ -391,7 +392,6 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
               // view.updateSyncEntries() // this doesn't get the updates db...
               runUIwait {
                 // update status
-                Main.Status.status.value = s"Synchronize($iii/$tosync): ${se.path}"
                 progress.update(iii.toDouble/tosync, s"Synchronize($iii/$tosync):\n  Path: ${se.path}\n  Size: " + relevantSize)
               }
               swUIupdate.restart()
@@ -440,9 +440,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
         }
         view.updateSyncEntries()
         view.enableActions = false
-        Main.Status.status.value = sbar
-        Main.Status.local.value = ""
-        Main.Status.remote.value = ""
+        Main.Status.clear
       }
       cleanupProfile(switchBackToSettings)
     }
