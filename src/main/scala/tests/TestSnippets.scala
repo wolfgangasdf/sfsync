@@ -5,6 +5,8 @@ import akka.actor._
 import java.security.{Key, KeyStore}
 import sfsync.util.Logging
 
+import scala.concurrent.Future
+
 //import akka.actor.{ActorRefFactory, ActorSystem}
 
 //import sfsync.synchro.{ComparedFile, VirtualFile, SftpConnection}
@@ -266,13 +268,13 @@ class aaa extends Logging {
 object TestLogging extends App with Logging {
   import scala.concurrent.future
   import scala.concurrent.ExecutionContext.Implicits.global
-  future {
+  Future {
     info("f1info")
     warn("f1warn")
     error("f1error")
     debug("f1debug")
   }
-  future {
+  Future {
     info("f2info")
     warn("f2warn")
     error("f2error")

@@ -15,9 +15,8 @@ import scalafx.event.ActionEvent
 import scalafx.geometry.Pos
 import scalafx.scene.web.WebView
 import scalafx.beans.property.StringProperty
-import scala._
 import scala.language.reflectiveCalls
-import scala.concurrent.future
+import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.implicitConversions
 import akka.actor._
@@ -170,19 +169,22 @@ object Main extends JFXApp with Logging {
 //  threadinfo("Main")
 
   // I need to return from this so that splash can be updated. initialize in other thread, use runUI{} if needed!
-  future {
+  Future {
 //    threadinfo("future")
     debug("huhu1")
     splash.showProgress("startup...", 1)
     debug("huhu2")
     initit(stage)
+    debug("huhu3")
     Thread.sleep(1500)
     splash.close()
   }
 
   def initit(myStage: Stage) {
 //    threadinfo("initit")
+    debug("huhuhu1")
     splash.showProgress("running checks...", 1)
+    debug("huhuhu2")
     Checks.CheckComparedFile()
     splash.showProgress("startup...", 1)
     info("sfsync version = " + version)
@@ -219,7 +221,7 @@ object Main extends JFXApp with Logging {
             btCompare.setDisable(true)
             btSync.setDisable(true)
           }
-          future {
+          Future {
             profile.synchronize()
           }
           unit()
@@ -346,13 +348,13 @@ object Main extends JFXApp with Logging {
   def runCompare() = {
     doCleanup()
     val sane = settingsView.serverView.server != null && settingsView.serverView.server.localFolder.value != "" &&
-      settingsView.protocolView.protocol.protocoluri.value != "" && !settingsView.subfolderView.subfolder.subfolders.isEmpty
+      settingsView.protocolView.protocol.protocoluri.value != "" && settingsView.subfolderView.subfolder.subfolders.nonEmpty
     if (sane) {
       profile = new Profile (filesView, settingsView.serverView.server, settingsView.protocolView.protocol, settingsView.subfolderView.subfolder)
       lbInfo.text.set("  Current profile:  " + settingsView.serverView.server.toString + " | " + settingsView.subfolderView.subfolder.toString)
       filesView.profile = profile
       tabpane.selectionModel().select(filesView)
-      future { // this is key, do in new thread!
+      Future { // this is key, do in new thread!
         try {
           profile.init()
           profile.compare()
@@ -567,9 +569,13 @@ class Splash extends Logging {
 
   def showProgress(text: String, increment: Int) {
 //    threadinfo("showprogr")
-    ta.text = text
     progress += increment
-    runUIwait { pb.progress = progress.toDouble/maxProgress }
+    debug("ho1")
+    runUIwait {
+      debug("ho2")
+      ta.text = text
+      pb.progress = progress.toDouble/maxProgress
+    }
   }
 
   def close() {

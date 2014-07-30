@@ -9,7 +9,7 @@ import scalafx.scene.control._
 import scalafx.event.ActionEvent
 import scalafx. {collections => sfxc}
 import javafx. {stage => jfxs}
-import scala.concurrent.future
+import scala.concurrent.{Future, future}
 import scala.concurrent.ExecutionContext.Implicits.global
 import java.util.concurrent.FutureTask
 
@@ -54,7 +54,7 @@ object TestConcurrency extends JFXApp {
         }
         bottom = new Button("add many in other thread") {
           onAction = (ae: ActionEvent) => {
-            future { // this launces a new thread that can't access UI
+            Future { // this launces a new thread that can't access UI
               while (true) {
                 Thread.sleep(1000)
                 println("XXXXXXX before launching dialog via runuiwait")

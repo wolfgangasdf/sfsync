@@ -2,14 +2,13 @@ import sbt._
 import sbt.Keys._
 //import no.vedaadata.sbtjavafx.JavaFXPlugin._
 import scala.Some
-import org.sbtidea.SbtIdeaPlugin._
 import sbtbuildinfo.Plugin._
 
 object BuildSettings {
   val buildOrganization = "com.wolle.sfsync"
   val buildName = "SFSync"
   val buildVersion = "0.2"
-  val buildScalaVersion = "2.10.2"
+  val buildScalaVersion = "2.11.2"
 
   val buildSettings = Defaults.defaultSettings ++ Seq(
     organization := buildOrganization,
@@ -27,14 +26,12 @@ object BuildSettings {
 object Dependencies {
   val scala = "org.scala-lang" % "scala-library" % BuildSettings.buildScalaVersion % "provided"
 //  val scalaReflect = "org.scala-lang" % "scala-reflect" % BuildSettings.buildScalaVersion
-  val akka = "com.typesafe.akka" %% "akka-actor" % "2.2.1"
-  val scalafx = "org.scalafx" % "scalafx_2.11.0-RC4" % "1.0.0-R8"
+  val akka = "com.typesafe.akka" %% "akka-actor" % "2.3.4"
+  val scalafx = "org.scalafx" %% "scalafx" % "8.0.5-R5"
 //  val sftp = "fr.janalyse" %% "janalyse-ssh" % "0.9.10" % "compile" // scala version too experimental as of 201311
   val sftp = "com.jcraft" % "jsch" % "0.1.50" //% "compile"
   val h2 = "com.h2database" % "h2" % "1.3.173"
-  val squeryl = "org.squeryl" %% "squeryl" % "0.9.5-6"
-
-
+  val squeryl = "org.squeryl" %% "squeryl" % "0.9.5-7"
 }
 
 object WMPBuild extends Build {
@@ -59,9 +56,9 @@ object WMPBuild extends Build {
 //    Some(j)
 //  }
 
-  val javaHome = Some("/Library/Java/JavaVirtualMachines/jdk1.7.0_55.jdk/Contents/Home") // TODO use above if environm var read
+//  val javaHome = Some("/Library/Java/JavaVirtualMachines/jdk1.7.0_55.jdk/Contents/Home") // TODO use above if environm var read
 
-  lazy val unmanagedListing = unmanagedJars in Compile += Attributed.blank(file(javaHome.get + "/jre/lib/jfxrt.jar"))
+//  lazy val unmanagedListing = unmanagedJars in Compile += Attributed.blank(file(javaHome.get + "/jre/lib/jfxrt.jar"))
 
   // javafx ini for scalafx. needed only for package-javafx, in principle
 
@@ -73,12 +70,12 @@ object WMPBuild extends Build {
 //    JFX.addJfxrtToClasspath := true
 //  )
 
-//  no.vedaadata.sbtjavafx.JavaFXPlugin.packageJavaFxTask
+//  no.vedaadata.sbtjavafx.JavaFXPlugin.packageJavaFxTask()
 
   lazy val sfsyncSettings = buildSettings ++ Seq(
     name := "SFSync",
-    libraryDependencies ++= Seq(scala, akka, scalafx, sftp, h2, squeryl),
-    unmanagedListing
+    libraryDependencies ++= Seq(scala, akka, scalafx, sftp, h2, squeryl)
+//    , unmanagedListing
   )
 
   lazy val myBuildInfoSettings = Seq(
@@ -96,5 +93,5 @@ object WMPBuild extends Build {
     settings = sfsyncSettings
       ++ buildInfoSettings ++ myBuildInfoSettings
   ).settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
-    .settings(ideaExcludeFolders := IntelliJexcludeFolders)
+//gone?    .settings(ideaExcludeFolders := IntelliJexcludeFolders)
 }

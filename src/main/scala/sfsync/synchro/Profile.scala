@@ -279,10 +279,10 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
 
     info("*********************** start find files local and remote...")
     runUIwait { progress.update(1.0, "find files...") }
-    future {
+    Future {
       subfolder.subfolders.map(local.list(_, server.filterRegexp, receiveActor, recursive = true, viaActor = true))
     }
-    future {
+    Future {
       subfolder.subfolders.map(remote.list(_, server.filterRegexp, receiveActor, recursive = true, viaActor = true))
     }
     implicit val timeout = Timeout(36500 days)

@@ -13,7 +13,7 @@ import collection.mutable.ListBuffer
 
 object TestSFXScenes extends JFXApp {
   class MainScene extends Scene {
-    fill = Color.LIGHTGREEN
+    fill = Color.LightGreen
     content = new VBox {
       content = List(
         new Button("button") {
@@ -31,7 +31,7 @@ object TestSFXScenes extends JFXApp {
     }
   }
   class OtherScene extends Scene {
-    fill = Color.LIGHTCORAL
+    fill = Color.LightCoral
     content = new VBox {
       content = List(
         new Button("button") {

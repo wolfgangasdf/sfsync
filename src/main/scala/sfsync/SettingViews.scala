@@ -6,7 +6,6 @@ import sfsync.Helpers._
 import sfsync.Main.Dialog
 import sfsync.synchro.{Profile, MyURI}
 
-import scala._
 import scala.collection.JavaConversions._
 import scalafx.Includes._
 import scalafx.scene._
