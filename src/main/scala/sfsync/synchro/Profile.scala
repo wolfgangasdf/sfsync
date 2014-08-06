@@ -290,10 +290,19 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     var waitMore = true
     while (waitMore) {
       if (stopProfileRequested) waitMore = false else {
-        waitMore = Await.result(receiveActor ? 'replyWhenDone, Duration.Inf) != 'done
+        debug("waiting...")
+        try {
+          implicit val timeout = Timeout(5 seconds)
+          val future = receiveActor ? 'replyWhenDone // have to talk to actor in future!
+          val result = Await.result(future, timeout.duration) // don't use Await.result directly on actor...
+          waitMore = result != 'done
+        } catch {
+          case e: IllegalArgumentException => warn("ignoring exception " + e.getMessage)
+        }
       }
       Thread.sleep(100)
     }
+    debug("FINISHED waiting! waitmore = " + waitMore)
 
     if (stopProfileRequested) {
       debug("stopProfileRequested !! cleanup...")
