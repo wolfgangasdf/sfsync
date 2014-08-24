@@ -398,6 +398,8 @@ object Main extends JFXApp with Logging {
     }
     val pb1 = new ProgressBar { prefHeight = 20 ; tooltip = new Tooltip { text = "Overall" } }
     val pb2 = new ProgressBar { prefHeight = 20 ; tooltip = new Tooltip { text = "File" } }
+//    val pb2text = new TextField { editable = false ; text = "xx" }
+//    val pb2stack = new StackPane { children ++= List(pb2, pb2text) } // TODO for transfer rate etc...
     val bAbort = new Button("Abort") { prefHeight = 30 ; onAction = (ae: ActionEvent) => { onAbortClicked() } }
     val cont = new VBox {
       style = "-fx-background-color: lightblue;"
@@ -417,6 +419,7 @@ object Main extends JFXApp with Logging {
     cont.prefHeight <== dstage.scene.height
     pb1.prefWidth <== dstage.scene.width
     pb2.prefWidth <== dstage.scene.width
+//    pb2text.prefWidth <== dstage.scene.width
     bAbort.prefWidth <== dstage.scene.width
     cont.autosize()
     dstage.show()
@@ -425,8 +428,9 @@ object Main extends JFXApp with Logging {
       ta.text = s
       pb1.progress = progressValue
     }
-    def updateProgressBar2(progressValue: Double) {
+    def updateProgressBar2(progressValue: Double, s: String = "") {
       pb2.progress = progressValue
+//      pb2text.text = s
     }
 
     def close() { dstage.close() }

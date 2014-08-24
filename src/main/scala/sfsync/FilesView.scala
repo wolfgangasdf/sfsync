@@ -141,7 +141,8 @@ class FilesView() extends Tab with Logging {
   }
 
   def setListItems(x: com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry]) {
-    tv.setItems(x)
+    tv.items = x
+    debug("setListItems: number=" + x.length) // TODO sometimes too many shown, surely bug javafx
   }
 
   def updateSyncEntries() { // doesn't work if session that modified did not commit...

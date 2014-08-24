@@ -359,6 +359,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
         abortProfile()
       }
     }}.asInstanceOf[Main.Progress]
+
     remote.onProgress = (progressVal: Double) => {
       runUIwait( {
         progress.updateProgressBar2(progressVal)
