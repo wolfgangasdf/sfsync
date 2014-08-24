@@ -42,6 +42,9 @@ class MyListView[T <: ListableThing](
     val onChange: () => Unit
     ) extends VBox {
 
+  minWidth = 250
+  maxWidth = 250
+
   def sortit() { obsBuffer.sort((x,y) => x.name.compareTo(y.name)<0) }
 
   sortit()
@@ -111,6 +114,7 @@ class MyListView[T <: ListableThing](
 }
 
 class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: String = "", filter: String = "", canDropFile: Boolean = false) extends HBox {
+  alignment = Pos.CENTER_RIGHT
   val bwidth = if (onButtonClick != null) 60 else 0
   var tf = new TextField() {
     text = ""
@@ -142,15 +146,13 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
     }
   }
   var lb = new Label() {
-    prefWidth = 200
+    prefWidth = 150
     text = labelText
-//    alignment = javafx.geometry.Pos.CENTER_RIGHT // doesn't work
-    delegate.setAlignment(javafx.geometry.Pos.CENTER_RIGHT)
+    alignment = Pos.CENTER_RIGHT
     labelFor = tf
   }
-  lb.prefWidth <== this.prefWidth / 3
-  tf.prefWidth <== this.prefWidth * 2/3 - bwidth
-
+  lb.hgrow = Priority.NEVER
+  tf.hgrow = Priority.ALWAYS
   content = List(lb, tf)
   spacing = 10
 
@@ -165,10 +167,13 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
   }
 }
 
-abstract class ServerView(val config: Config) extends BorderPane with Logging {
+abstract class ServerView(val config: Config) extends GridPane with Logging {
+  margin = insetsstd
   prefHeight = 130
+  gridLinesVisible = false
   def onServerChange()
   var server = new Server
+  var sdv: ServerDetailView = null
   def serverChanged() {
     debug("serverChanged!")
     val idx = lvs.lvs.getSelectionModel.getSelectedIndices.head
@@ -176,9 +181,10 @@ abstract class ServerView(val config: Config) extends BorderPane with Logging {
       server=config.servers(idx)
       config.currentServer.set(idx)
 
-      val sdv = new ServerDetailView
-      sdv.prefWidth <== (this.width - lvs.prefWidth)
-      right = sdv
+      if (sdv != null) children.remove(sdv)
+      sdv = new ServerDetailView
+      sdv.prefWidth <== (this.prefWidth - lvs.width)
+      add(sdv, 1, 0, 1, 2)
 
       onServerChange()
     }
@@ -194,21 +200,22 @@ abstract class ServerView(val config: Config) extends BorderPane with Logging {
   }
 
   class ServerDetailView extends VBox {
+    margin = insetsstd
+    alignment = Pos.CENTER_RIGHT
     val tfID = new MyTextField("Cache ID: ",null, "just leave it") { tf.text <==> server.id }
     val tfFilter = new MyTextField("Filter: ",null, "regex, e.g., (.*12)|(.*e2)") { tf.text <==> server.filterRegexp }
     val tfLocalFolder = new MyTextField(
-      "Local folder: ",
+      "Local root: ",
       () => fcLocalDir(server.localFolder),
       toolTip = "Local base folder such as '/localdir'",
       filter = directoryFilter,
       canDropFile = true
     ) { tf.text <==> server.localFolder }
-    var bClearCache = new Button("Clear cache") { onAction = (ae: ActionEvent) => { CacheDB.clearDB() } }
+    var bClearCache = new Button("Clear cache") {
+      onAction = (ae: ActionEvent) => { CacheDB.clearDB() }
+      tooltip = "Clears the cache database for selected sync location"
+    }
     val clist = List(tfLocalFolder,tfFilter,tfID,bClearCache)
-    tfLocalFolder.prefWidth <== this.prefWidth
-    tfFilter.prefWidth <== this.prefWidth
-    tfID.prefWidth <== this.prefWidth
-    bClearCache.prefWidth <== this.prefWidth
     content = clist
     spacing = 5
   }
@@ -221,24 +228,30 @@ abstract class ServerView(val config: Config) extends BorderPane with Logging {
     }
   }
   lvs.margin = insetsstd
-  top = new Label() { text = "Sync locations:" }
-  left = lvs
+  add(new Label() { text = "Sync locations:" ; style = "-fx-font-weight: bold" }, 0, 0)
+  add(lvs, 0, 1)
 }
 
-class ProtocolView(val server: Server) extends BorderPane {
+class ProtocolView(val server: Server) extends GridPane with Logging {
   prefHeight = 100
+  margin = insetsstd
+  alignment = Pos.CENTER_RIGHT
+  gridLinesVisible = false
   var protocol: Protocol = null
+  var pdv: ProtocolDetailView = null
   def protocolChanged() {
     val idx = lvp.lvs.getSelectionModel.getSelectedIndex
     if (idx > -1) {
       protocol=server.protocols(idx)
       server.currentProtocol.value = idx
-      val pdv = new ProtocolDetailView
-      pdv.prefWidth <== (this.width - lvp.prefWidth)
-      right = pdv
+      if (pdv != null) children.remove(pdv)
+      pdv = new ProtocolDetailView
+      pdv.prefWidth <== (this.prefWidth - lvp.width)
+      add(pdv, 1, 0, 1, 2)
     }
   }
   class ProtocolDetailView extends VBox with Logging {
+    margin = insetsstd
     var tfBaseFolder = new MyTextField("Base folder: ", null,
       toolTip = "Remote base directory such as '/remotebasedir'",
       filter = directoryFilter, canDropFile = true) { tf.text <==> protocol.protocolbasefolder }
@@ -258,16 +271,12 @@ class ProtocolView(val server: Server) extends BorderPane {
     }
     var tfExBefore = new MyTextField("Execute before: ", null, "use '#' to separate args") { tf.text <==> protocol.executeBefore }
     var tfExAfter = new MyTextField("Execute after: ", null, "use '#' to separate args") { tf.text <==> protocol.executeAfter }
-    tfBaseFolder.prefWidth <== this.prefWidth
-    tfURI.prefWidth <== this.prefWidth
-    tfExBefore.prefWidth <== this.prefWidth
-    tfExAfter.prefWidth <== this.prefWidth
     content = List(tfURI, tfBaseFolder, tfExBefore, tfExAfter)
   }
-  var lvp = new MyListView[Protocol](() => new Protocol,server.protocols, server.currentProtocol.value, () => protocolChanged())
+  var lvp = new MyListView[Protocol](() => new Protocol, server.protocols, server.currentProtocol.value, () => protocolChanged())
   lvp.margin = insetsstd
-  top = new Label() { text = "Protocols:" }
-  left = lvp
+  add(new Label() { text = "Protocols:" ; style = "-fx-font-weight: bold" }, 0, 0)
+  add(lvp, 0, 1)
 }
 
 class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localremote: Boolean) extends Logging {
@@ -396,12 +405,16 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
 
 }
 
-class SubFolderView(val server: Server) extends BorderPane {
+class SubFolderView(val server: Server) extends GridPane {
   prefHeight = 150
+  margin = insetsstd
+  alignment = Pos.CENTER_RIGHT
+  gridLinesVisible = false
   var subfolder: SubFolder= null
   var lvp = new MyListView[SubFolder](() => new SubFolder,server.subfolders, server.currentSubFolder.value, () => subfolderChanged())
   import scalafx.scene.control.Button._
-  lvp.buttons.content += new Button("Add <Allfiles> Subset") {
+  lvp.buttons.content += new Button("Add <Allfiles>") {
+    tooltip = "Adds a subset that will synchronize all files"
     onAction = (ae: ActionEvent) => {
       val sf = new SubFolder {
         name = "All files"
@@ -413,17 +426,26 @@ class SubFolderView(val server: Server) extends BorderPane {
   }
 
   lvp.margin = insetsstd
-  top = new Label() { text = "Subsets:" }
-  left = lvp
+  add(new Label() {
+    text = "Subsets:"
+    style = "-fx-font-weight: bold"
+    tooltip =
+      """Subsets allow recursive synchronization
+        |of only selected folders""".stripMargin
+  }, 0, 0)
+  add(lvp, 0, 1)
+
+  var sfdv: SubFolderDetailView = null
   def subfolderChanged() {
     val idx = lvp.lvs.getSelectionModel.getSelectedIndex
     if (idx > -1) {
       subfolder=server.subfolders(idx)
       server.currentSubFolder.value = idx
 
-      val sfdv =  new SubFolderDetailView
-      right = sfdv
-      sfdv.prefWidth <== (this.width - lvp.prefWidth)
+      if (sfdv != null) children.remove(sfdv)
+      sfdv =  new SubFolderDetailView
+      sfdv.prefWidth <== (this.prefWidth - lvp.width)
+      add(sfdv, 1, 0, 1, 2)
     }
   }
   class SubFolderDetailView extends VBox with Logging {
@@ -499,7 +521,6 @@ class SubFolderView(val server: Server) extends BorderPane {
     }
 
     content = List(lvs,controls)
-    lvs.prefWidth <== this.width
   }
 
 }

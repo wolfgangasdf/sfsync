@@ -104,7 +104,9 @@ class MainView(filesView: FilesView) extends Tab with Logging {
       filesView.setListItems(CacheDB.syncEntries)
       val tmpdp =  ArrayBuffer(sp.dividerPositions: _*)
       protocolView = new ProtocolView(server)
+      protocolView.prefWidth <== this.width - 10
       subfolderView = new SubFolderView(server)
+      subfolderView.prefWidth <== this.width - 10
       sp.items(1) = protocolView
       sp.items(2) = subfolderView
       if (server.currentProtocol.value > -1) {
@@ -122,6 +124,7 @@ class MainView(filesView: FilesView) extends Tab with Logging {
   val sp = new SplitPane
   sp.orientation = jgo.VERTICAL
   sp.items += (serverView, new BorderPane(), new BorderPane())
+  serverView.prefWidth <== sp.width - 10
   content =sp
 }
 
@@ -543,6 +546,7 @@ class Splash extends Logging {
     prefHeight = 250
     style = "-fx-background-color: lightblue;-fx-font: 100px Tahoma;"
     alignment = Pos.CENTER
+    editable = false
   }
   val ta = new TextArea {
     text = ""
