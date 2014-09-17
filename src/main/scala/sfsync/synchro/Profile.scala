@@ -236,7 +236,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       debug("receiveList in thread " + Thread.currentThread().getId)
       become {
         case addFile(vf, islocal) =>
-          //          debug("  received " + vf)
+          //debug("  received " + vf)
           if (swUI.getTime > UIUpdateInterval) {
             runUIwait { // give UI time
               progress.update(0.0, s"Find files... parsing:\n${vf.path}")
@@ -266,13 +266,14 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
           }
         case 'done =>
           finished -= 1
+          debug("receivelist: new finished = " + finished)
           if (finished == 0) {
             debug("receiveList: remotelistfinished!")
           }
         case 'replyWhenDone => if (finished==0) {
           sender ! 'done
-          debug("exit actor receiveList")
-          context.stop(self)
+          debug("receiveList: replywhendone: done!")
+          // context.stop(self) // must not do here
         } else sender ! 'notyet
       }
     })
@@ -297,7 +298,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
           val result = Await.result(future, timeout.duration) // don't use Await.result directly on actor...
           waitMore = result != 'done
         } catch {
-          case e: IllegalArgumentException => warn("ignoring exception " + e.getMessage)
+          case e: java.util.concurrent.TimeoutException => warn("ignoring exception " + e.getMessage)
         }
       }
       Thread.sleep(100)

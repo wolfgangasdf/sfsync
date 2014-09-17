@@ -343,16 +343,15 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
     var res = ""
     var tv: TreeView[String] = null
     val btAddToFolders = new Button("Add selected") {
-      disable = true
       onAction = (ae: ActionEvent) => {
-        val si = tv.selectionModel().selectedItems.head.asInstanceOf[FilePathTreeItem]
-        res=si.path.replaceAll("^/","").replaceAll("/$","")
-        folders.add(res)
+        for (si <- tv.selectionModel().selectedItems) {
+          val sif = si.asInstanceOf[FilePathTreeItem]
+          if (sif.isDir) folders.add(sif.path.replaceAll("^/", "").replaceAll("/$", ""))
+        }
         print("")
       }
     }
     val btSelect = new Button("Select") {
-      disable = true
       onAction = (ae: ActionEvent) => {
         val si = tv.selectionModel().selectedItems.head.asInstanceOf[FilePathTreeItem]
         res=si.path.replaceAll("^/","").replaceAll("/$","")
@@ -361,17 +360,10 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
     }
     tv = new TreeView[String](rootNode) {
       editable = false
-      selectionModel().selectedItems.onChange(
-        (ob, _) => {
-          var goodselection = false
-          if (ob.size == 1) {
-            val si = selectionModel().selectedItems.head.asInstanceOf[FilePathTreeItem]
-            debug("si=" + si)
-            if (si.isDir) goodselection = true
-          }
-          btAddToFolders.disable = !goodselection
-        }
-      )
+      selectionModel().selectionMode = mtype match {
+        case ADDTOFOLDERSMODE => SelectionMode.MULTIPLE
+        case SELECTMODE => SelectionMode.SINGLE
+      }
     }
     rootNode.expanded = true
     val cont = new BorderPane {

@@ -175,6 +175,7 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
     if (Files.exists(sp)) {
       parseContent(sp, goDeeper = true)
     }
+    debug(s"listrec DONE (rbp=$remoteBasePath sf=$subfolder rec=$recursive) in thread ${Thread.currentThread().getId}")
     if (viaActor) {receiver ! 'done ; null} else reslist
   }
 
