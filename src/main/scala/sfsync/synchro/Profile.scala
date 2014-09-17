@@ -282,9 +282,11 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     runUIwait { progress.update(1.0, "find files...") }
     Future {
       subfolder.subfolders.map(local.list(_, server.filterRegexp, receiveActor, recursive = true, viaActor = true))
+      debug("future local list at end sw=" + sw.getTime)
     }
     Future {
       subfolder.subfolders.map(remote.list(_, server.filterRegexp, receiveActor, recursive = true, viaActor = true))
+      debug("future remote list at end sw=" + sw.getTime)
     }
     implicit val timeout = Timeout(36500 days)
     info("*********************** wait until all received...")
@@ -303,7 +305,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       }
       Thread.sleep(100)
     }
-    debug("FINISHED waiting! waitmore = " + waitMore)
+    debug("FINISHED waiting! time up to now=" + sw.getTime + "   waitmore = " + waitMore)
 
     if (stopProfileRequested) {
       debug("stopProfileRequested !! cleanup...")
