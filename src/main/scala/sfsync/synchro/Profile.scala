@@ -229,6 +229,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     var lfiles = 0
     var rfiles = 0
     val swUI = new StopWatch // for UI update
+    val hourOffset = server.hourOffset.value.toInt
 
     receiveActor = actor(Main.system, name = "receive")(new Act {
       var receiveActorSession: Session = null
@@ -260,7 +261,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
             } else { // update db entry
               val se = q.single
               if (islocal) { se.lTime = vf.modTime ; se.lSize = vf.size }
-              else         { se.rTime = vf.modTime ; se.rSize = vf.size }
+              else         { se.rTime = vf.modTime + hourOffset*60*60*1000 ; se.rSize = vf.size }
               MySchema.files.update(se)
             }
           }

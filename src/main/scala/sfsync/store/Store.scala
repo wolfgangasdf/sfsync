@@ -115,6 +115,7 @@ class Server extends ListableThing {
   implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
   implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
   var id: StringProperty = new java.util.Date().getTime.toString
+  var hourOffset: StringProperty = "0"
   var localFolder: StringProperty = ""
   var filterRegexp: StringProperty = ""
   var protocols = new sfxc.ObservableBuffer[Protocol]
@@ -168,6 +169,7 @@ object Store extends Logging {
       saveVal("localfolder", server.localFolder)
       saveVal("filterregexp", server.filterRegexp)
       saveVal("id", server.id)
+      saveVal("houroffset", server.hourOffset)
       saveVal("protocolcurr", server.currentProtocol)
       for (proto <- server.protocols) {
         saveVal("protocol", proto.name)
@@ -215,6 +217,7 @@ object Store extends Logging {
           case "localfolder" => lastserver.localFolder.value = sett(1)
           case "filterregexp" => lastserver.filterRegexp.value = sett(1)
           case "id" => lastserver.id.value = sett(1)
+          case "houroffset" => lastserver.hourOffset.value = sett(1)
           case "protocolcurr" => lastserver.currentProtocol.value = sett(1).toInt
           case "protocol" =>
             lastprotocol = new Protocol { name = sett(1) }
