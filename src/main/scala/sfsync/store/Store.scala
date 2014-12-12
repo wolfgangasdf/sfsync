@@ -464,7 +464,7 @@ object CacheDB extends Logging {
     cleanup()
     connected = false
 
-    info("connecting to database name=" + name + " at " + DBSettings.dbpath(name))
+    info("connecting to database name=" + name + " at " + Paths.get(DBSettings.dbpath(name) + ".h2.db"))
     Class.forName("org.h2.Driver")
     val dbexists = Files.exists(Paths.get(DBSettings.dbpath(name) + ".h2.db"))
     val databaseConnection = s"jdbc:h2:" + DBSettings.dbpath(name) + ";MVCC=TRUE;CACHE_SIZE=131072" + (if (dbexists) ";create=true" else "")
