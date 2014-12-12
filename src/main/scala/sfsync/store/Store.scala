@@ -11,7 +11,6 @@ import scalafx.beans.property._
 import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
 import scala.collection.mutable
-import scala.Some
 import scala.language.{reflectiveCalls, postfixOps}
 
 import java.nio.file._
@@ -420,7 +419,7 @@ object CacheDB extends Logging {
             }
           }
         } catch { case e: Exception => warn("se.get: ignored exception:" + e) }
-        seCache.get(p1).getOrElse(null)
+        seCache.getOrElse(p1, null)
       }
       def size(): Int = {
         try {
@@ -435,7 +434,7 @@ object CacheDB extends Logging {
                     )
                       select se
                   ).size
-                debug("get size=" + sizeCache)
+                debug("updated size=" + sizeCache)
               }
             else sizeCache = 0
           }

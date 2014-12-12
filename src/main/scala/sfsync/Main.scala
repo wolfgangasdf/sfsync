@@ -100,8 +100,8 @@ class MainView(filesView: FilesView) extends Tab with Logging {
       debug("onServerChange!")
       // connect to database
       CacheDB.connectDB(server.id)
-      // update filesview
-      filesView.setListItems(CacheDB.syncEntries)
+//      // update filesview
+//      filesView.setListItems(CacheDB.syncEntries)
       val tmpdp =  ArrayBuffer(sp.dividerPositions: _*)
       protocolView = new ProtocolView(server)
       protocolView.prefWidth <== this.width - 10

@@ -92,7 +92,9 @@ class FilesView() extends Tab with Logging {
 
   val colStatus = new TableColumn[SyncEntry, String]("Status") {
     prefWidth=50
-    cellValueFactory = (xx) => { StringProperty(xx.value.status) }
+    cellValueFactory = (xx) => {
+      StringProperty(xx.value.status)
+    }
 // TODO doesn't work, updateItem not called...
 //    cellFactory = (xx) => { // tooltip
 //      val x = new TextFieldTableCell[SyncEntry, String] {
@@ -107,10 +109,11 @@ class FilesView() extends Tab with Logging {
     def call(param: jfxsc.TableColumn[SyncEntry, String]): jfxsc.TableCell[SyncEntry, String] = {
       val x = new jfxsc.cell.TextFieldTableCell[SyncEntry, String]() {
         override def updateItem(f: String, empty: Boolean) {
-          if (!empty) {
-            super.updateItem(f, empty)
+          super.updateItem(f, empty)
+          if (!empty)
             setStyle("-fx-background-color: " + CF.stringToColor(f) + ";")
-          }
+          else
+            setStyle("")
         }
       }
       x
@@ -142,14 +145,12 @@ class FilesView() extends Tab with Logging {
 
   def setListItems(x: com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry]) {
     tv.items = x
-    debug("setListItems: number=" + x.length) // TODO sometimes too many shown, surely bug javafx
   }
 
   def updateSyncEntries() { // doesn't work if session that modified did not commit...
     debug("updateSyncEntries in thread " + Thread.currentThread().getId)
     CacheDB.invalidateCache()
     CacheDB.initializeSyncEntries(Option(true), getFilter)
-
 
     setListItems(CacheDB.syncEntries)
     // workaround for tableview update...
