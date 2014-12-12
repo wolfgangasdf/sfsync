@@ -8,7 +8,7 @@ object BuildSettings {
   val buildOrganization = "com.wolle.sfsync"
   val buildName = "SFSync"
   val buildVersion = "0.2"
-  val buildScalaVersion = "2.11.2"
+  val buildScalaVersion = "2.11.4"
 
   val buildSettings = Defaults.defaultSettings ++ Seq(
     organization := buildOrganization,
@@ -26,11 +26,11 @@ object BuildSettings {
 object Dependencies {
   val scala = "org.scala-lang" % "scala-library" % BuildSettings.buildScalaVersion % "provided"
 //  val scalaReflect = "org.scala-lang" % "scala-reflect" % BuildSettings.buildScalaVersion
-  val akka = "com.typesafe.akka" %% "akka-actor" % "2.3.4"
-  val scalafx = "org.scalafx" %% "scalafx" % "8.0.5-R5"
+  val akka = "com.typesafe.akka" %% "akka-actor" % "2.3.7"
+  val scalafx = "org.scalafx" %% "scalafx" % "8.0.20-R6" // https://github.com/scalafx/scalafx/releases
 //  val sftp = "fr.janalyse" %% "janalyse-ssh" % "0.9.10" % "compile" // scala version too experimental as of 201311
-  val sftp = "com.jcraft" % "jsch" % "0.1.50" //% "compile"
-  val h2 = "com.h2database" % "h2" % "1.3.173"
+  val sftp = "com.jcraft" % "jsch" % "0.1.51" //% "compile"
+  val h2 = "com.h2database" % "h2" % "1.4.182"
   val squeryl = "org.squeryl" %% "squeryl" % "0.9.5-7"
 }
 
