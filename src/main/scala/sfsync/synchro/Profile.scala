@@ -243,7 +243,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
               progress.update(0.0, s"Find files... parsing:\n${vf.path}")
               Main.Status.local.value = lfiles.toString
               Main.Status.remote.value = rfiles.toString
-              view.updateSyncEntries()
+              // TODO does not work of course... view.updateSyncEntries()
             }
             swUI.restart()
           }
@@ -304,7 +304,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
           case e: java.util.concurrent.TimeoutException => warn("ignoring exception " + e.getMessage)
         }
       }
-      Thread.sleep(100)
+      Thread.sleep(250)
     }
     debug("FINISHED waiting! time up to now=" + sw.getTime + "   waitmore = " + waitMore)
 
@@ -324,6 +324,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     runUIwait {
       Main.Status.local.value = lfiles.toString
       Main.Status.remote.value = rfiles.toString
+      view.updateSyncEntries()
       progress.update(1.0, "comparing files...")
     }
     // compare entries
