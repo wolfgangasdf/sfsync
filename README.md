@@ -9,9 +9,16 @@ SFSync is a file synchronization program. It uses different paradigms than http:
 * `protocols` are protocols that are used to synchronize against the same remote location
     * you can e.g. use sftp and a samba mount in parallel, with different remote roots, while the same cache database is used.
 * `subsets` are used to synchronize only part below a root. Often, there are only certain folders that I modify and I don't need to sync all everytime.
+* You don't need an initial sync of everything below the root! I found this to be not acceptable in many cases.
 
+## Current version ##
 
-Current version: 
+## Status ##
+File synchronization is a delicate thing. However, if you keep the Files list-view on the default setting "changes", only files are modified that you see. You can review before pressing `Synchronize`.
+* I use it since more than a year without any data loss
+* There is no sanity check before synchronization, so you can create the paradox to delete a folder but copy a child file. This will result in nice synchronization errors, but if your changes are intentionally, no data loss will happen.
+* The routine that assigns the initial actions after comparison is tested on program startup. Check the code, I find this safe.
+* But I can't be responsible for any data loss, of course.
 
 ### Getting started ###
 
@@ -25,6 +32,8 @@ To package it (and run via shell script, e.g., via quicksilver)
 	sbt project packageJavafx
 	./sfsync-run.sh
 
+### Tutorial ###
+to be written
 
 ### Contributors ###
 
