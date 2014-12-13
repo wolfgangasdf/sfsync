@@ -114,7 +114,7 @@ class MyListView[T <: ListableThing](
 }
 
 class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: String = "", filter: String = "", canDropFile: Boolean = false) extends HBox {
-  alignment = Pos.CENTER_RIGHT
+  alignment = Pos.CenterRight
   val bwidth = if (onButtonClick != null) 60 else 0
   var tf = new TextField() {
     text = ""
@@ -148,11 +148,11 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
   var lb = new Label() {
     prefWidth = 150
     text = labelText
-    alignment = Pos.CENTER_RIGHT
+    alignment = Pos.CenterRight
     labelFor = tf
   }
-  lb.hgrow = Priority.NEVER
-  tf.hgrow = Priority.ALWAYS
+  lb.hgrow = Priority.Never
+  tf.hgrow = Priority.Always
   content = List(lb, tf)
   spacing = 10
 
@@ -201,7 +201,7 @@ abstract class ServerView(val config: Config) extends GridPane with Logging {
 
   class ServerDetailView extends VBox {
     margin = insetsstd
-    alignment = Pos.CENTER_RIGHT
+    alignment = Pos.CenterRight
     val tfID = new MyTextField("Cache ID: ",null, "just leave it") { tf.text <==> server.id }
     val tfHourOffset = new MyTextField("Time offset (hours): ",null, "for summer/winter time problems", filter = "^[-+]?\\d+$") { tf.text <==> server.hourOffset }
     val tfFilter = new MyTextField("Filter: ",null, "regex, e.g., (.*12)|(.*e2)") { tf.text <==> server.filterRegexp }
@@ -236,7 +236,7 @@ abstract class ServerView(val config: Config) extends GridPane with Logging {
 class ProtocolView(val server: Server) extends GridPane with Logging {
   prefHeight = 100
   margin = insetsstd
-  alignment = Pos.CENTER_RIGHT
+  alignment = Pos.CenterRight
   gridLinesVisible = false
   var protocol: Protocol = null
   var pdv: ProtocolDetailView = null
@@ -374,7 +374,7 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
       bottom = new HBox {
         margin = insetsstd
         spacing = 5
-        alignment = Pos.CENTER
+        alignment = Pos.Center
         content = List(
           mtype match {
             case ADDTOFOLDERSMODE => btAddToFolders
@@ -401,7 +401,7 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
 class SubFolderView(val server: Server) extends GridPane {
   prefHeight = 150
   margin = insetsstd
-  alignment = Pos.CENTER_RIGHT
+  alignment = Pos.CenterRight
   gridLinesVisible = false
   var subfolder: SubFolder= null
   var lvp = new MyListView[SubFolder](() => new SubFolder,server.subfolders, server.currentSubFolder.value, () => subfolderChanged())

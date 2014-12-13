@@ -128,7 +128,7 @@ object CompareStuff extends Logging {
     })
 
     // return true if changes
-    !MySchema.files.where(se => (se.relevant === true) and (se.action <> A_ISEQUAL)).isEmpty
+    MySchema.files.where(se => (se.relevant === true) and (se.action <> A_ISEQUAL)).nonEmpty
   }
 
 }
@@ -460,6 +460,37 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     }
   }
 
+  // init action to make local as remote
+  def iniLocalAsRemote(): Unit = {
+    transaction {
+      val q = MySchema.files.where(se => (se.relevant === true) and (se.action <> A_ISEQUAL))
+      MySchema.files.update(q.map(se => {
+        se.action = se.action match {
+          case A_RMREMOTE => A_USEREMOTE
+          case A_USELOCAL => if (se.rSize > -1) A_USEREMOTE else A_RMLOCAL
+          case A_UNKNOWN => if (se.rSize > -1) A_USEREMOTE else A_RMLOCAL
+          case x => x
+        }
+        se
+      }))
+    }
+  }
+
+  // init action to make local as remote
+  def iniRemoteAsLocal(): Unit = {
+    transaction {
+      val q = MySchema.files.where(se => (se.relevant === true) and (se.action <> A_ISEQUAL))
+      MySchema.files.update(q.map(se => {
+        se.action = se.action match {
+          case A_RMLOCAL => A_USELOCAL
+          case A_USEREMOTE => if (se.lSize > -1) A_USELOCAL else A_RMREMOTE
+          case A_UNKNOWN => if (se.lSize > -1) A_USELOCAL else A_RMREMOTE
+          case x => x
+        }
+        se
+      }))
+    }
+  }
 
   // initiate stopping of profile actions and cleanup.
   def abortProfile() {

@@ -80,8 +80,8 @@ object Helpers {
   }
 
   import scalafx.beans.property._
-  implicit def StringPropertyToString(sp: StringProperty) = sp.value
-  implicit def IntegerPropertyToInt(sp: IntegerProperty) = sp.value
+  implicit def StringPropertyToString(sp: StringProperty): String = sp.value
+  implicit def IntegerPropertyToInt(sp: IntegerProperty): Int = sp.value
 //  implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
 //  implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
 
@@ -408,7 +408,7 @@ object Main extends JFXApp with Logging {
         fitToWidth = true
         fitToHeight = true
         hbarPolicy = ScrollPane.ScrollBarPolicy.NEVER
-        vgrow = Priority.ALWAYS
+        vgrow = Priority.Always
       }
       content ++= List(ti, sp, bAbort, pb1, pb2)
     }
@@ -482,7 +482,7 @@ object Main extends JFXApp with Logging {
           prefHeight = 25
           margin = insetsstd
           spacing = 5
-          alignment = Pos.CENTER
+          alignment = Pos.Center
           content = mtype match {
             case 1 => List(
               new Button("Ok") {
@@ -549,7 +549,7 @@ class Splash extends Logging {
     text = "SFSync"
     prefHeight = 250
     style = "-fx-background-color: lightblue;-fx-font: 100px Tahoma;"
-    alignment = Pos.CENTER
+    alignment = Pos.Center
     editable = false
   }
   val ta = new TextArea {

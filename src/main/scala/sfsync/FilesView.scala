@@ -7,6 +7,7 @@ import sfsync.util.Logging
 import sfsync.Helpers._
 
 import scala.language.{implicitConversions, reflectiveCalls, postfixOps}
+import scalafx.collections.ObservableBuffer
 import scalafx.scene.layout._
 import scalafx.scene.control._
 import scalafx. {collections => sfxc}
@@ -159,9 +160,32 @@ class FilesView() extends Tab with Logging {
     tv.getColumns.get(0).setVisible(true)
   }
 
-  val btDebugInfo = new Button("Debug info") {
+  object advActions extends Enumeration {
+//    type action = Value
+    val debug = Value("Debug info")
+    val asRemote = Value("Make local as remote")
+    val asLocal = Value("Make remote as local")
+  }
+  val cbAdvanced = new ComboBox[String] {
+    maxWidth = 200
+    promptText = "Advanced..."
+    items = ObservableBuffer(advActions.values.map(x => x.toString).toList)
     onAction = (ae: ActionEvent) => {
-      debug("SE: " + tv.selectionModel().getSelectedItem)
+      if (value.value != null) {
+        advActions.withName(value.value) match {
+          case advActions.debug => debug("SE: " + tv.selectionModel().getSelectedItem)
+          case advActions.asRemote =>
+            profile.iniLocalAsRemote()
+            updateSyncEntries()
+            updateSyncButton()
+          case advActions.asLocal =>
+            profile.iniRemoteAsLocal()
+            updateSyncEntries()
+            updateSyncButton()
+        }
+        value = null
+//        selectionModel.value.clearSelection() // TODO does not work... bug?
+      }
     }
   }
 
@@ -284,7 +308,7 @@ class FilesView() extends Tab with Logging {
   }
 
   var bv = new HBox { content = List(cFilter,btRmLocal, btUseLocal, btMerge,
-    btSkip, btRmBoth, btUseRemote, btRmRemote, btDebugInfo, btDiff)
+    btSkip, btRmBoth, btUseRemote, btRmRemote, btDiff, cbAdvanced)
   }
 
   def getFilter = {
