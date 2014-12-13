@@ -467,7 +467,7 @@ object CacheDB extends Logging {
     info("connecting to database name=" + name + " at " + Paths.get(DBSettings.dbpath(name) + ".h2.db"))
     Class.forName("org.h2.Driver")
     val dbexists = Files.exists(Paths.get(DBSettings.dbpath(name) + ".h2.db"))
-    val databaseConnection = s"jdbc:h2:" + DBSettings.dbpath(name) + ";MVCC=TRUE;CACHE_SIZE=131072" + (if (dbexists) ";create=true" else "")
+    val databaseConnection = s"jdbc:h2:" + DBSettings.dbpath(name) + ";MVCC=FALSE;CACHE_SIZE=131072;EARLY_FILTER=TRUE" + (if (dbexists) ";create=true" else "")
     sessionFactory.concreteFactory = Some(() => {
       Session.create(java.sql.DriverManager.getConnection(databaseConnection), new H2Adapter)
     })

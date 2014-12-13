@@ -11,6 +11,7 @@ import sfsync.{Main, FilesView}
 import sfsync.Helpers._
 import sfsync.util.{Logging, StopWatch}
 
+import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.concurrent._
 import scala.concurrent.duration._
@@ -186,6 +187,9 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
 
 
   def compare() {
+
+    var times: mutable.LinkedHashMap[String, Double] = mutable.LinkedHashMap()
+
     debug("compare() in thread " + Thread.currentThread().getId)
 
     val progress = runUIwait { new Main.Progress("Compare files") {
@@ -223,7 +227,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
         a
       }))
     }
-    debug("  resetting table took " + sw.getTimeRestart)
+    times += "resetting table" -> sw.getTimeRestart
     runUIwait { view.updateSyncEntries() }
     // the receive actor
     var lfiles = 0
@@ -283,12 +287,13 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     runUIwait { progress.update(1.0, "find files...") }
     Future {
       subfolder.subfolders.map(local.list(_, server.filterRegexp, receiveActor, recursive = true, viaActor = true))
-      debug("future local list at end sw=" + sw.getTime)
+      times += "future local list at end" -> sw.getTime
     }
     Future {
       subfolder.subfolders.map(remote.list(_, server.filterRegexp, receiveActor, recursive = true, viaActor = true))
-      debug("future remote list at end sw=" + sw.getTime)
+      times += "future remote list at end sw=" -> sw.getTime
     }
+    times += "before waiting" -> sw.getTime
     implicit val timeout = Timeout(36500 days)
     info("*********************** wait until all received...")
     var waitMore = true
@@ -306,6 +311,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       }
       Thread.sleep(250)
     }
+    times += "finished waiting" -> sw.getTime
     debug("FINISHED waiting! time up to now=" + sw.getTime + "   waitmore = " + waitMore)
 
     if (stopProfileRequested) {
@@ -349,9 +355,10 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       }
       !haveChanges && canSync
     }
-    debug("  comparing etc took " + sw.getTime)
+    times += "comparing etc" -> sw.getTime
     runUIwait { progress.close() }
 
+    debug("----------------- times:\n" + times.mkString("\n"))
     if (runSync == true) synchronize() // if no changes found, run synchronize from here to update cache db!
   }
 
