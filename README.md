@@ -1,6 +1,5 @@
-# README #
 
-## Introduction ##
+# Introduction
 
 SFSync is a file synchronization program. It uses different paradigms than http://jfilesync.sourceforge.net/ :
 
@@ -21,7 +20,7 @@ File synchronization is a delicate thing. However, if you keep the Files list-vi
 * The routine that assigns the initial actions after comparison is tested on program startup. Check the code, I find this safe.
 * But I can't be responsible for any data loss, of course.
 
-### Getting started ###
+# Getting started #
 
 To run it, you need java >= 1.8
 
@@ -37,10 +36,10 @@ To package it (and run via shell script, e.g., via quicksilver)
 	sbt project packageJavafx
 	./sfsync-run.sh
 
-### Tutorial ###
+# Tutorial #
 to be written
 
-### Used frameworks ###
+# Used frameworks #
 
 * scala 2.11.4
 * akka
@@ -49,10 +48,10 @@ to be written
 * h2 database for cache
 * squeryl
 
-### Contributors ###
+# Contributors #
 
 Contributions are of course very welcome, please contact me or use the standard methods.
 
-### Maintainer ###
+# Maintainer #
 
 wolfgang.loeffler@gmail.com
