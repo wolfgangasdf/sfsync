@@ -3,6 +3,7 @@
 ## Introduction ##
 
 SFSync is a file synchronization program. It uses different paradigms than http://jfilesync.sourceforge.net/ :
+
     * `sync locations` are places in the local filesystem that are synchronized against some other place
         * if you want to sync against multiple places, create multiple sync locations for the same folder!
     * `protocols` are protocols that are used to synchronize against the same remote location
