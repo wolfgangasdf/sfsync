@@ -23,6 +23,10 @@ File synchronization is a delicate thing. However, if you keep the Files list-vi
 
 ### Getting started ###
 
+To run it, you need java >= 1.8
+
+To build it, you need a java jdk >= 1.8 and sbt 0.13.
+
 To run it: 
 
 	sbt run
@@ -35,6 +39,15 @@ To package it (and run via shell script, e.g., via quicksilver)
 
 ### Tutorial ###
 to be written
+
+### Used frameworks ###
+
+* scala 2.11.4
+* akka
+* scalafx 8
+* com.jcraft.jsch for sftp
+* h2 database for cache
+* squeryl
 
 ### Contributors ###
 
