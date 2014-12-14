@@ -10,13 +10,9 @@ import scalafx.{collections => sfxc}
 import scalafx.beans.property._
 import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
-import scala.collection.mutable
 import scala.language.{reflectiveCalls, postfixOps}
 
 import java.nio.file._
-import org.squeryl.adapters.H2Adapter
-import org.squeryl.PrimitiveTypeMode._
-import org.squeryl.{Schema, Optimistic, KeyedEntity, Session, SessionFactory}
 
 
 object DBSettings extends Logging {
@@ -251,20 +247,29 @@ object Store extends Logging {
 
 }
 
-class BaseEntity extends KeyedEntity[Long] {
-  var id: Long = 0
+class SyncEntry2(var path: String, var se: SyncEntry) {
+  override def toString = {s"[path=TODO action=${se.action} lTime=${se.lTime} lSize=${se.lSize} rTime=${se.rTime} rSize=${se.rSize} cTime=${se.cTime} cSize=${se.cSize} rel=${se.relevant}"}
+  def toStringNice = {
+    s"""
+     |Path: TODO
+     |Local : ${se.detailsLocal.value}
+     |Remote: ${se.detailsRemote.value}
+     |Cache : ${se.detailsCache.value} (${se.hasCachedParent})
+    """.stripMargin
+  }
 }
 
 // if path endswith '/', it's a dir!!!
 // if ?Size == -1: file does not exist
-class SyncEntry(var path: String, var action: Int,
+class SyncEntry(var action: Int,
                 var lTime: Long, var lSize: Long,
                 var rTime: Long, var rSize: Long,
                 var cTime: Long, var cSize: Long,
+                var isDir: Boolean,
                 var relevant: Boolean,
                 var selected: Boolean = false,
                 var delete: Boolean = false
-                 ) extends BaseEntity with Optimistic {
+                 ) {
   var hasCachedParent = false // only used for folders!
   def sameTime(t1: Long, t2: Long) = Math.abs(t1 - t2) < 2000 // in milliseconds
 
@@ -276,7 +281,7 @@ class SyncEntry(var path: String, var action: Int,
     if (rSize != -1) dformat.format(new java.util.Date(rTime)) + "(" + rSize + ")" else "none")
   def detailsCache = new StringProperty(this, "detailsc",
     if (cSize != -1) dformat.format(new java.util.Date(cTime)) + "(" + cSize + ")" else "none")
-  def isDir = path.endsWith("/")
+//  def isDir = path.endsWith("/")
   def isEqual = {
     if (isDir) {
       if (lSize != -1 && rSize != -1) true else false
@@ -327,172 +332,103 @@ class SyncEntry(var path: String, var action: Int,
     //debug("iniaction: " + this.toString)
     this
   }
-  override def toString = {s"[path=$path action=$action lTime=$lTime lSize=$lSize rTime=$rTime rSize=$rSize cTime=$cTime cSize=$cSize rel=$relevant"}
-  def toStringNice = {
-    s"""
-     |Path: $path
-     |Local : ${detailsLocal.value}
-     |Remote: ${detailsRemote.value}
-     |Cache : ${detailsCache.value} ($hasCachedParent)
-    """.stripMargin
-  }
 }
 
-object MySchema extends Schema {
-  val files = table[SyncEntry]
-
-  on(files)(file => declare(
-    file.id is (primaryKey,autoIncremented),
-    file.path is (indexed, unique, dbType("varchar(16384)"))
-  ))
-}
-
-object CacheDB extends Logging {
-
-  val sessionFactory = SessionFactory
-  var connected = false
-  var sizeCache: Int = -1
-  var seCache = new mutable.HashMap[Int,SyncEntry]()
+object Cache extends Logging {
+  var cache: java.util.TreeMap[String, SyncEntry] = null
+  var paginationcache: java.util.HashMap[Int, SyncEntry2] = null
+  var cachemodified = false
   var syncEntries: com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry] = null
-  var seSession: Session = null
 
-  def getSession: Session = {
-    if (connected) {
-      val session = sessionFactory.newSession
-      debug("getSession: new session " + session + " in thread " + Thread.currentThread().getId)
-      session
-    } else null
-  }
-  def getSESession = {
-    if (connected) {
-      if (seSession == null) {
-        seSession = getSession
-        debug("getSESession: new SEsession " + seSession + " in thread " + Thread.currentThread().getId)
-      }
-    }
-    seSession
-  }
-  def updateSE(se: SyncEntry, clearCache: Boolean = true) {
-    using(getSESession) {
-      MySchema.files.update(se)
-      if (clearCache) invalidateCache()
-    }
-  }
-  def closeSEsession() {
-    if (seSession != null) {
-      seSession.close
-      seSession = null
-    }
-  }
-  def invalidateCache() {
-    sizeCache = -1
-    seCache.clear()
-    closeSEsession()
+  def getCacheFilename(name: String) = {
+    "" + DBSettings.dbpath(name) + "-cache.txt"
   }
 
-  // implement caching DB provider
-  def initializeSyncEntries(onlyRelevant: Option[Boolean], filterActions: List[Int] = ALLACTIONS) {
-    closeSEsession()
+  def loadCache(name: String) = {
+    cache = new java.util.TreeMap[String, SyncEntry]()
+    val fff = Paths.get(getCacheFilename(name))
+    if (!Files.exists(fff)) {
+      println("create cache file!")
+      Files.createFile(fff)
+    }
+    val lines = Files.readAllLines(fff, filecharset).toArray
+    lines.foreach(lll => {
+      var sett = splitsetting(lll.toString)
+      val modTime = sett(0).toLong
+      sett = splitsetting(sett(1))
+      val size = sett(0).toLong
+      val path = sett(1) // this is safe, also commas in filename ok
+      val vf = new SyncEntry(A_UNKNOWN, -1, -1, -1, -1, modTime, size, path.endsWith("/"), false)
+      cache.put(path, vf)
+    })
+    debug("loaded cache file!")
+    cachemodified = true
+  }
+
+  def saveCache(name: String) {
+    val fff = new java.io.File(getCacheFilename(name))
+    if (fff.exists) fff.delete()
+    val out = new java.io.BufferedWriter(new java.io.FileWriter(fff),1000000)
+    for ((path, cf: SyncEntry) <- cache) {
+      out.write("" + cf.cTime + "," + cf.cSize + "," + path + "\n")
+    }
+    out.close()
+    println("***** cache saved!")
+    // forget scalax.io.file: much too slow
+  }
+
+  def clearCacheFile(name: String) {
+    val fff = Paths.get(getCacheFilename(name))
+    if (Files.exists(fff)) {
+      Files.delete(fff)
+    }
+  }
+  
+  // use this for any modification or set cachemodified manually!
+  def update(key: String, se: SyncEntry) = {
+    cache.put(key, se)
+    cachemodified = true
+  }
+
+  def clearPaginationCache() = {
+    paginationcache.clear()
+    cachemodified = false
+  }
+
+  // for listview
+  def initializeSyncEntries(onlyRelevant: Boolean, filterActions: List[Int] = ALLACTIONS) {
     syncEntries =  new com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry]() {
-      def get(p1: Int): SyncEntry = {
+      def get(p1: Int): SyncEntry2 = {
         try {
-          if (!seCache.contains(p1)) {
-            if (seCache.size > 5000) seCache.clear() // TODO increase?
+          if (!paginationcache.containsKey(p1) || cachemodified) {
+            if (paginationcache.size > 5000 || cachemodified) {
+              clearPaginationCache()
+            }
             debug("get p1=" + p1)
-            using(getSESession) {
               var startindex = p1 - 10 // cache for scrolling etc // TODO more?
               if (startindex < 0 ) startindex = 0
-              val res =
-                from(MySchema.files) (se =>
-                  where(
-                    (se.relevant === onlyRelevant.?) and
-                    (se.action in filterActions)
-                  )
-                  select se
-                  orderBy se.path
-                ) page(startindex,300)
-              var iii = startindex
-              res.foreach(se => { // update cache
-                if (!seCache.contains(iii)) seCache.put(iii,se)
-                iii += 1
-              })
-            }
+              var iii = 0
+              for ( (path, se:SyncEntry) <- cache) {
+                if ((!onlyRelevant || se.relevant) && filterActions.contains(se.action)) {
+                  iii += 1
+                  paginationcache.put(iii, new SyncEntry2(path, se))
+                }
+              }
           }
         } catch { case e: Exception => warn("se.get: ignored exception:" + e) }
-        seCache.getOrElse(p1, null)
+        paginationcache.get(p1, null)
       }
-      def size(): Int = {
-        try {
-          if (sizeCache == -1) {
-            if (getSession != null)
-              using(getSESession) {
-                sizeCache =
-                  from(MySchema.files)(se =>
-                    where(
-                      (se.relevant === onlyRelevant.?) and
-                        (se.action in filterActions)
-                    )
-                      select se
-                  ).size
-                debug("updated size=" + sizeCache)
-              }
-            else sizeCache = 0
-          }
-        } catch { case e: Exception => warn("se.size: ignored exception:" + e) }
-        sizeCache
-      }
+      def size(): Int = cache.size()
     }
   }
 
-  def cleanup() {
-    if (seSession != null) {
-      seSession.close
-      seSession = null
+  def canSync: Boolean = {
+    for ( (path, se:SyncEntry) <- cache) {
+      if (se.relevant && se.action == A_UNKNOWN) return false
     }
-    invalidateCache()
+    true
   }
 
-  def canSync = {
-    transaction {
-      val si = MySchema.files.where(se => (se.relevant === true) and (se.action === A_UNKNOWN)).size
-      si == 0
-    }
-  }
 
-  def connectDB(name: String) = {
-    debug("connectDB() in thread " + Thread.currentThread().getId)
-    cleanup()
-    connected = false
-
-    info("connecting to database name=" + name + " at " + Paths.get(DBSettings.dbpath(name) + ".h2.db"))
-    Class.forName("org.h2.Driver")
-    val dbexists = Files.exists(Paths.get(DBSettings.dbpath(name) + ".h2.db"))
-    val databaseConnection = s"jdbc:h2:" + DBSettings.dbpath(name) + ";MVCC=FALSE;CACHE_SIZE=131072;EARLY_FILTER=TRUE" + (if (dbexists) ";create=true" else "")
-    sessionFactory.concreteFactory = Some(() => {
-      Session.create(java.sql.DriverManager.getConnection(databaseConnection), new H2Adapter)
-    })
-
-    connected = true
-    transaction {
-      if (!dbexists) {
-        MySchema.create
-        info("  Created the schema")
-        MySchema.printDdl
-      }
-    }
-    initializeSyncEntries(onlyRelevant = Option(false))
-    dbexists
-  }
-
-  def clearDB() {
-    transaction {
-      MySchema.drop // now drop database to make updates easier!
-      MySchema.create
-      info("  Created the schema")
-      MySchema.printDdl
-//      MySchema.files.deleteWhere(se => se.id.isNotNull)
-      invalidateCache()
-    }
-  }
 
 }
