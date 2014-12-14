@@ -1,7 +1,7 @@
 import sbt._
 import sbt.Keys._
 //import no.vedaadata.sbtjavafx.JavaFXPlugin._
-import scala.Some
+//import scala.Some
 import sbtbuildinfo.Plugin._
 
 object BuildSettings {
@@ -30,8 +30,8 @@ object Dependencies {
   val scalafx = "org.scalafx" %% "scalafx" % "8.0.20-R6" // https://github.com/scalafx/scalafx/releases
 //  val sftp = "fr.janalyse" %% "janalyse-ssh" % "0.9.10" % "compile" // scala version too experimental as of 201311
   val sftp = "com.jcraft" % "jsch" % "0.1.51" //% "compile"
-  val h2 = "com.h2database" % "h2" % "1.4.182"
-  val squeryl = "org.squeryl" %% "squeryl" % "0.9.5-7"
+//  val h2 = "com.h2database" % "h2" % "1.4.182"
+//  val squeryl = "org.squeryl" %% "squeryl" % "0.9.5-7"
 }
 
 object WMPBuild extends Build {
@@ -74,7 +74,7 @@ object WMPBuild extends Build {
 
   lazy val sfsyncSettings = buildSettings ++ Seq(
     name := "SFSync",
-    libraryDependencies ++= Seq(scala, akka, scalafx, sftp, h2, squeryl)
+    libraryDependencies ++= Seq(scala, akka, scalafx, sftp)//, h2, squeryl)
 //    , unmanagedListing
   )
 

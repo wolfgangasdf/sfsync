@@ -158,7 +158,7 @@ object BenchmarkDB {
     }
   }
 
-  def testJavaTreeMapObjFull() = { // there is no mutable scala TreeMap
+  def testJavaTreeMapObjFull() = {
   val hm = new java.util.TreeMap[String, SyncEntry]()
     stats("javatreemapobjfull put") {
       for (ii <- 1 to nele) hm.put(s1 + ii, new SyncEntry(ii, ii+1, ii+3, 1,2,3,4,false,false,false,false))
@@ -171,11 +171,26 @@ object BenchmarkDB {
     }
   }
 
+  def testScalaTreeMapObjFull() = {
+    var hm = new scala.collection.immutable.TreeMap[String, SyncEntry]()
+    stats("scalatreemapobjfull put") {
+      for (ii <- 1 to nele) hm += (s1 + ii -> new SyncEntry(ii, ii+1, ii+3, 1,2,3,4,false,false,false,false))
+    }
+    stats("scalatreemapobjfull get") {
+      for (ii <- 1 to nele) hm.get(s1 + ii)
+    }
+    stats("scalatreemapobjfull upd") {
+      for (ii <- 1 to nele) hm += (s1 + ii -> new SyncEntry(ii, ii+1, ii+3, 1,2,3,4,false,false,false,false))
+    }
+  }
+
   def main(args: Array[String]): Unit = {
     testJavaTreeMapObj2()
     testJavaTreeMapObj2()
     testJavaTreeMapObjFull()
     testJavaTreeMapObjFull()
+    testScalaTreeMapObjFull()
+    testScalaTreeMapObjFull()
   }
 
 }

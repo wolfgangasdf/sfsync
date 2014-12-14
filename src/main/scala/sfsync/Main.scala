@@ -173,21 +173,15 @@ object Main extends JFXApp with Logging {
 
   // I need to return from this so that splash can be updated. initialize in other thread, use runUI{} if needed!
   Future {
-//    threadinfo("future")
-    debug("huhu1")
     splash.showProgress("startup...", 1)
-    debug("huhu2")
     initit(stage)
-    debug("huhu3")
     Thread.sleep(1500)
     splash.close()
   }
 
   def initit(myStage: Stage) {
 //    threadinfo("initit")
-    debug("huhuhu1")
     splash.showProgress("running checks...", 1)
-    debug("huhuhu2")
     Checks.CheckComparedFile()
     splash.showProgress("startup...", 1)
     info("sfsync version = " + version)
@@ -203,8 +197,8 @@ object Main extends JFXApp with Logging {
       }
     }
 
-      import scala.collection.JavaConversions._
-      System.getProperties.foreach( p => println("prop " + p.getKey + " : " + p.getValue) )
+    import scala.collection.JavaConversions._
+//    System.getProperties.foreach( p => println("prop " + p.getKey + " : " + p.getValue) )
 
     splash.showProgress("initializing GUI...", 1)
 

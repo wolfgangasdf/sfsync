@@ -12,6 +12,9 @@ import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
 import scala.language.{reflectiveCalls, postfixOps}
 
+import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
+
 import java.nio.file._
 
 
@@ -332,20 +335,53 @@ class SyncEntry(var action: Int,
     //debug("iniaction: " + this.toString)
     this
   }
+
+  override def toString = s"[action=$action lTime=$lTime lSize=$lSize rTime=$rTime rSize=$rSize cTime=$cTime cSize=$cSize rel=$relevant"
+
 }
 
+
+class MyTreeMap[K, V] extends java.util.TreeMap[K, V] {
+  // this is 10x faster than foreach, can do it.remove(), return false to stop (or true/Unit for continue)
+  def iterate(fun: ( java.util.Iterator[java.util.Map.Entry[K, V]], K, V ) => Any, reversed: Boolean = false) = {
+    val it = if (reversed)
+      this.descendingMap().entrySet().iterator()
+    else
+      this.entrySet().iterator()
+    var fres = true
+    while (it.hasNext && fres) {
+      val ele = it.next()
+      val fres1 = fun(it, ele.getKey, ele.getValue)
+      fres = fres1 match {
+        case fres2: Boolean => fres2
+        case _ => true
+      }
+    }
+  }
+}
+
+
 object Cache extends Logging {
-  var cache: java.util.TreeMap[String, SyncEntry] = null
-  var paginationcache: java.util.HashMap[Int, SyncEntry2] = null // only for list view!
+  var cache: MyTreeMap[String, SyncEntry] = null
+  var paginationcache = new MyTreeMap[Int, SyncEntry2]() // only for list view!
   private var cachemodified = false // make sure to reload listview if things modified!
   var observableList: com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry2] = null
+
+  def dumpAll() = {
+    cache.iterate( (it, path, se) => println(path + ": " + se.toString))
+  }
 
   def getCacheFilename(name: String) = {
     "" + DBSettings.dbpath(name) + "-cache.txt"
   }
 
+  def iniCache() = {
+    cache = new MyTreeMap[String, SyncEntry]()
+    cachemodified = true
+  }
+
   def loadCache(name: String) = {
-    cache = new java.util.TreeMap[String, SyncEntry]()
+    cache = new MyTreeMap[String, SyncEntry]()
     val fff = Paths.get(getCacheFilename(name))
     if (!Files.exists(fff)) {
       println("create cache file!")
@@ -399,26 +435,32 @@ object Cache extends Logging {
   def initializeSyncEntries(onlyRelevant: Boolean, filterActions: List[Int] = ALLACTIONS) {
     observableList =  new com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry2]() {
       def get(p1: Int): SyncEntry2 = {
-        try {
-          if (!paginationcache.containsKey(p1) || cachemodified) {
-            if (paginationcache.size > 5000 || cachemodified) {
-              clearPaginationCache()
-            }
-            debug("get p1=" + p1)
-              var startindex = p1 - 10 // cache for scrolling etc // TODO more?
-              if (startindex < 0 ) startindex = 0
-              var iii = 0
-              for ( (path, se:SyncEntry) <- cache) {
-                if ((!onlyRelevant || se.relevant) && filterActions.contains(se.action)) {
-                  iii += 1
-                  paginationcache.put(iii, new SyncEntry2(path, se))
-                }
-              }
+        if (!paginationcache.containsKey(p1) || cachemodified) {
+          if (paginationcache.size > 5000 || cachemodified) {
+            clearPaginationCache()
           }
-        } catch { case e: Exception => warn("se.get: ignored exception:" + e) }
-        paginationcache.get(p1, null)
+          var startindex = p1 - 10 // cache for scrolling etc // TODO more?
+          if (startindex < 0 ) startindex = 0
+          debug("refresh cache p1=" + p1 + " startindex=" + startindex)
+          var iii = 0
+          cache.iterate( (it, path, se) => {
+            if ((!onlyRelevant || se.relevant) && filterActions.contains(se.action)) {
+              if (iii >= startindex)
+                paginationcache.put(iii, new SyncEntry2(path, se))
+              iii += 1
+              if (iii > (startindex + 20)) false else true
+            } else true
+          })
+        }
+        paginationcache.get(p1)
       }
-      def size(): Int = cache.size()
+      def size(): Int = {
+        var iii = 0
+        cache.iterate((it, path, se) => {
+          if ((!onlyRelevant || se.relevant) && filterActions.contains(se.action)) iii += 1
+        })
+        iii
+      }
     }
   }
 

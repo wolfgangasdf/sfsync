@@ -22,8 +22,9 @@ import akka.pattern.ask
 import akka.util.Timeout
 import akka.actor.ActorRef
 
-import org.squeryl.Session
-import org.squeryl.PrimitiveTypeMode._
+import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
+
 
 class TransferProtocol (
   var uri: String,
@@ -53,83 +54,85 @@ object CompareStuff extends Logging {
     path.split("/").dropRight(1).mkString("/") + "/"
   }
   // compare, update database entries only.
-  def compareSyncEntries() = {
+  def compareSyncEntries(): Boolean = {
     val swse = new StopWatch
     // q contains all entries to be checked
-    val q = MySchema.files.where(se => (se.relevant === true) and (se.action === A_UNCHECKED))
+
+    // to avoid first full sync: mark all folders that are subfolders of already synced folder
     // update hasCachedParent for all folders not in cache and check if it has parent folder that has been synced before in current set
-    val qfsnocache = q.where(se => se.path.like("%/") and se.cSize === -1)
-    MySchema.files.update(qfsnocache.map(se => {
-      var tmpf = se.path
-      var haveCachedParentDir = false
-      var doit = true
-      while (!haveCachedParentDir && doit) {
-        tmpf = getParentFolder(tmpf)
-        if (tmpf != "/") {
-          val pq = q.where(se => se.path === tmpf)
-          if (pq.size == 1) {
-            if (pq.head.cSize != -1) haveCachedParentDir = true
+    Cache.cache.iterate((it, path, se) => {
+      if (se.relevant && se.isDir) {
+        var tmpf = path
+        var haveCachedParentDir = false
+        var doit = true
+        while (!haveCachedParentDir && doit) {
+          tmpf = getParentFolder(tmpf)
+          if (tmpf != "/") {
+            if (Cache.cache.containsKey(tmpf))
+              if (Cache.cache.get(tmpf).cSize != -1) haveCachedParentDir = true
           } else {
-            doit = false // parent not in relevant set in DB
+            doit = false
           }
-        } else doit = false
+        }
+        se.hasCachedParent = haveCachedParentDir
+        se.compareSetAction(newcache = !haveCachedParentDir) // compare
       }
-      se.hasCachedParent = haveCachedParentDir
-      se.compareSetAction(newcache = !haveCachedParentDir) // compare
-      se
-    }))
+    })
     debug("TTT a took = " + swse.getTimeRestart)
+
     // iterate over all folders that are cacheed
-    val qfscache = q.where(se => se.path.like("%/") and se.cSize <> -1)
-    //println("**** all dirs with cache:") ; qfscache.map(se => println(se))
-    MySchema.files.update(qfscache.map(se => {
-      se.hasCachedParent = true
-      se.compareSetAction(newcache = false)
-      se
-    }))
+    Cache.cache.iterate((it, path, se) => {
+      if (se.relevant && se.isDir && se.cSize != -1) {
+        se.hasCachedParent = true
+        se.compareSetAction(newcache = false) // compare
+      }
+    })
     debug("TTT b took = " + swse.getTimeRestart)
+
     // iterate over the rest: all files.
-    //println("**** checking all files:")
-    //        val qfiles = q.minus(qfsnocache).minus(qfscache) // not implemented :-(
-    val qfiles = q.where(se => not (se.path.like("%/")) )
-    MySchema.files.update(qfiles.map(se => {
-      //println("   file: " + se.path)
-      if (se.cSize == -1) { // only get parent folder for unknown files, faster!
-        val parent = getParentFolder(se.path)
-        if (!MySchema.files.where(sex => sex.path === parent).head.hasCachedParent) {
-          se.compareSetAction(newcache = true) // test
-          //print("  [c]")
+    Cache.cache.iterate((it, path, se) => {
+      if (se.relevant && !se.isDir) {
+        if (se.cSize == -1) { // only get parent folder for unknown files, faster!
+        val parent = getParentFolder(path)
+          if (!Cache.cache.get(parent).hasCachedParent) {
+            se.compareSetAction(newcache = true) // test
+            //print("  [c]")
+          } else {
+            se.compareSetAction(newcache = false)
+            //print("  [b]")
+          }
         } else {
           se.compareSetAction(newcache = false)
-          //print("  [b]")
+          //print("  [a]")
         }
-      } else {
-        se.compareSetAction(newcache = false)
-        //print("  [a]")
       }
-      //println(" ==> " + CF.amap(se.action))
-      se
-    }))
+    })
     debug("TTT c took = " + swse.getTimeRestart)
 
     // iterate over all folders that will be deleted: check that other side is not modified below
-    val delfolds = MySchema.files.where(se => (se.relevant === true) and
-      se.path.like("%/") and ( se.action === A_RMLOCAL or se.action === A_RMREMOTE ) )
-    delfolds.foreach(sef => {
-      // all folders below that have different action than folder sef
-      val subthings = MySchema.files.where(se => (se.relevant === true) and se.path.like(sef.path + "%") and se.action <> sef.action)
-      if (subthings.size > 0) { // fishy, mark all children and parent '?'
-        sef.action = A_UNKNOWN
-        val subthings2 = MySchema.files.where(se => (se.relevant === true) and se.path.like(sef.path + "%"))
-        MySchema.files.update(subthings2.map(se => {
-          se.action = A_UNKNOWN
-          se
-        }))
+    Cache.cache.iterate((it, path, se) => {
+      if (se.relevant && se.isDir && List(A_RMLOCAL, A_RMREMOTE).contains(se.action)) {
+        var fishy = false
+        Cache.cache.iterate((it2, path2, se2) => {
+          if (se.relevant && path2.startsWith(path) && se2.action != se.action) {
+            fishy = true
+          }
+        })
+        if (fishy) {
+          Cache.cache.iterate((it2, path2, se2) => {
+            if (se.relevant && path2.startsWith(path)) {
+              se2.action = A_UNKNOWN
+            }
+          })
+        }
       }
     })
+    debug("TTT d took = " + swse.getTimeRestart)
 
     // return true if changes
-    MySchema.files.where(se => (se.relevant === true) and (se.action <> A_ISEQUAL)).nonEmpty
+    var res = false
+    Cache.cache.iterate((it, path, se) => if (se.relevant && se.action != A_ISEQUAL) res = true)
+    res
   }
 
 }
@@ -204,29 +207,23 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     // reset table
     runUIwait { progress.update(1.0, "resetting database...") }
     val sw = new StopWatch // for timing meas
-    import org.squeryl.PrimitiveTypeMode.transaction
-    import org.squeryl.PrimitiveTypeMode._
     var cacheall = false
     for (sf <- subfolder.subfolders) if (sf == "") cacheall = true
-    transaction {
-      // remove cache orphans (happens if user doesn't click synchronize
-      MySchema.files.deleteWhere(se => se.cSize === -1)
-      // ini files
-      val q = from(MySchema.files)(s=>select(s))
-      MySchema.files.update(q.map(a =>{
-        var tmp = cacheall
-        if (!cacheall) for (sf <- subfolder.subfolders) if (a.path.startsWith("/" + sf + "/")) tmp = true
-        if (tmp) {
-          a.action = A_UNCHECKED
-          a.lSize = -1; a.lTime = -1
-          a.rSize = -1; a.rTime = -1
-          a.relevant = true
-        } else {
-          a.relevant = false
-        }
-        a
-      }))
-    }
+    // remove cache orphans (happens if user doesn't click synchronize
+    Cache.cache.iterate((it, path, se) => if (se.cSize == -1) it.remove())
+    // ini files
+    Cache.cache.iterate((it, path, se) => {
+      var addit = cacheall
+      if (!cacheall) for (sf <- subfolder.subfolders) if (path.startsWith("/" + sf + "/")) addit = true
+      if (addit) {
+        se.action = A_UNCHECKED
+        se.lSize = -1; se.lTime = -1
+        se.rSize = -1; se.rTime = -1
+        se.relevant = true
+      } else {
+        se.relevant = false
+      }
+    })
     times += "resetting table" -> sw.getTimeRestart
     runUIwait { view.updateSyncEntries() }
     // the receive actor
@@ -236,7 +233,6 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     val hourOffset = server.hourOffset.value.toInt
 
     receiveActor = actor(Main.system, name = "receive")(new Act {
-      var receiveActorSession: Session = null
       var finished = 2*subfolder.subfolders.length // cowntdown for lists
       debug("receiveList in thread " + Thread.currentThread().getId)
       become {
@@ -252,23 +248,10 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
             swUI.restart()
           }
           if (islocal) lfiles += 1 else rfiles += 1
-          if (receiveActorSession==null) {
-            receiveActorSession = CacheDB.getSession
-            debug("created receivesession " + receiveActorSession + " in Thread " + Thread.currentThread().getId)
-          }
-          using (receiveActorSession) {
-            val q = MySchema.files.where(se => se.path === vf.path)
-            if (q.size == 0) { // new entry
-              val senew = new SyncEntry(vf.path, A_UNCHECKED, if (islocal) vf.modTime else 0, if (islocal) vf.size else -1,
-                if (!islocal) vf.modTime else 0, if (!islocal) vf.size else -1,0,-1,true)
-              MySchema.files.insert(senew)
-            } else { // update db entry
-              val se = q.single
-              if (islocal) { se.lTime = vf.modTime ; se.lSize = vf.size }
-              else         { se.rTime = vf.modTime + hourOffset*60*60*1000 ; se.rSize = vf.size }
-              MySchema.files.update(se)
-            }
-          }
+          val se = Cache.cache.getOrDefault(vf.path, new SyncEntry(A_UNCHECKED, 0, -1, 0, -1, 0, -1, vf.path.endsWith("/"),true))
+          if (islocal) { se.lTime = vf.modTime ; se.lSize = vf.size }
+          else         { se.rTime = vf.modTime + hourOffset*60*60*1000 ; se.rSize = vf.size }
+          Cache.cache += (vf.path -> se)
         case 'done =>
           finished -= 1
           debug("receivelist: new finished = " + finished)
@@ -336,12 +319,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     // compare entries
     sw.restart()
     info("*********************** compare sync entries")
-    val receiveSession = CacheDB.getSession
-    debug("created receivesession " + receiveSession + " in Thread " + Thread.currentThread().getId)
-    val haveChanges = using(receiveSession) {
-      CompareStuff.compareSyncEntries()
-    }
-    if (receiveSession!=null) receiveSession.close
+    val haveChanges = CompareStuff.compareSyncEntries()
 
     info("*********************** compare: finish up")
     val runSync = runUIwait {
@@ -380,76 +358,74 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
 
     val sw = new StopWatch
     val swUIupdate = new StopWatch
-    val syncSession = CacheDB.getSession
+    var iii = 0
+    Cache.cache.iterate( (it, path, se) => { if (se.relevant) iii += 1 })
+    val tosync = iii
+    iii = 0
+
+    def dosync(path: String, se: SyncEntry) = {
+      iii += 1
+
+      var showit = false
+      val relevantSize = if (se.action == A_USELOCAL) se.lSize else if (se.action == A_USEREMOTE) se.rSize else 0
+      if (relevantSize > 10000) showit = true
+
+      if (swUIupdate.getTime > UIUpdateInterval || showit) {
+        // syncSession.connection.commit() // I cannot sync in update...
+        // as long as squeryl doesn't know that I am the only write-session! how to do this?
+        // view.updateSyncEntries() // this doesn't get the updates db...
+        runUIwait {
+          // update status
+          progress.update(iii.toDouble/tosync, s"Synchronize($iii/$tosync):\n  Path: $path\n  Size: " + relevantSize)
+        }
+        swUIupdate.restart()
+      } // update status
+      try {
+        se.action match {
+          case A_MERGE => throw new Exception("merge not implemented yet!")
+          case A_RMLOCAL | A_RMBOTH => local.deletefile(path, se.lTime); se.delete = true; se.relevant = false
+          case A_RMREMOTE | A_RMBOTH => remote.deletefile(path, se.rTime); se.delete = true; se.relevant = false
+          case A_USELOCAL => remote.putfile(path, se.lTime); se.rTime = se.lTime; se.rSize = se.lTime; se.cSize = se.lSize; se.cTime = se.lTime; se.relevant = false
+          case A_USEREMOTE => remote.getfile(path, se.rTime); se.lTime = se.rTime; se.lSize = se.rTime; se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false
+          case A_ISEQUAL => se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false
+          case A_SKIP =>
+          case A_CACHEONLY => se.delete = true
+          case aa => throw new UnsupportedOperationException("unknown action: " + aa)
+        }
+      } catch {
+        case e: Exception =>
+          error("sync exception:", e)
+          se.action = A_SYNCERROR
+          se.delete = false
+          syncLog += (e + "[" + path + "]" + "\n")
+      }
+      if (stopProfileRequested) throw new ProfileAbortedException("stopreq")
+    }
 
     try {
-      using(syncSession) {
-        for (state <- List(1, 2)) {
-          // delete and add dirs must be done in reverse order!
-          var iii = 0
-          debug("syncing state = " + state)
-          val q = state match {
-            case 1 => // delete
-              from(MySchema.files)(se => where((se.relevant === true) and (se.action in List(A_RMBOTH, A_RMLOCAL, A_RMREMOTE)))
-                select se
-                orderBy (se.path desc) // this allows deletion of dirs!
-              )
-            case _ => // put/get and others
-              from(MySchema.files)(se => where(se.relevant === true)
-                select se
-                orderBy (se.path asc) // this allows deletion of dirs!
-              )
-          }
-          val tosync = q.size
-          MySchema.files.update(q.map(se => {
-            iii += 1
-
-            var showit = false
-            val relevantSize = if (se.action == A_USELOCAL) se.lSize else if (se.action == A_USEREMOTE) se.rSize else 0
-            if (relevantSize > 10000) showit = true
-
-            if (swUIupdate.getTime > UIUpdateInterval || showit) {
-              // syncSession.connection.commit() // I cannot sync in update...
-              // as long as squeryl doesn't know that I am the only write-session! how to do this?
-              // view.updateSyncEntries() // this doesn't get the updates db...
-              runUIwait {
-                // update status
-                progress.update(iii.toDouble/tosync, s"Synchronize($iii/$tosync):\n  Path: ${se.path}\n  Size: " + relevantSize)
+      for (state <- List(1, 2)) {
+        // delete and add dirs must be done in reverse order!
+        debug("syncing state = " + state)
+        val q = state match {
+          case 1 => // delete
+            Cache.cache.iterate( (it, path, se) => {
+              if (se.relevant && List(A_RMBOTH, A_RMLOCAL, A_RMREMOTE).contains(se.action)) {
+                dosync(path, se)
               }
-              swUIupdate.restart()
-            } // update status
-            try {
-              se.action match {
-                case A_MERGE => throw new Exception("merge not implemented yet!")
-                case A_RMLOCAL | A_RMBOTH => local.deletefile(se.path, se.lTime); se.delete = true; se.relevant = false
-                case A_RMREMOTE | A_RMBOTH => remote.deletefile(se.path, se.rTime); se.delete = true; se.relevant = false
-                case A_USELOCAL => remote.putfile(se.path, se.lTime); se.rTime = se.lTime; se.rSize = se.lTime; se.cSize = se.lSize; se.cTime = se.lTime; se.relevant = false
-                case A_USEREMOTE => remote.getfile(se.path, se.rTime); se.lTime = se.rTime; se.lSize = se.rTime; se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false
-                case A_ISEQUAL => se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false
-                case A_SKIP =>
-                case A_CACHEONLY => se.delete = true
-                case aa => throw new UnsupportedOperationException("unknown action: " + aa)
-              }
-            } catch {
-              case e: Exception =>
-                error("sync exception:", e)
-                se.action = A_SYNCERROR
-                se.delete = false
-                syncLog += (e + "[" + se.path + "]" + "\n")
-            }
-            if (stopProfileRequested) throw new ProfileAbortedException("stopreq")
-            se
-          })) // update loop
-          // update cache: remove removed/cacheonly files
-          MySchema.files.deleteWhere(se => se.delete === true)
-        } // for state
-      }// using(syncsession)
+            }, reversed = true)
+          case _ => // put/get and others
+            Cache.cache.iterate( (it, path, se) => {
+              if (se.relevant) dosync(path, se)
+            })
+        }
+        // update cache: remove removed/cacheonly files
+        Cache.cache.iterate( (it, path, se) => { if (se.delete) it.remove() })
+      } // for state
     } catch {
       case abex: ProfileAbortedException  =>
         debug("ProfileAbortedException!!! " + abex)
       case ex: Exception => error("Unexpected other exception:" + ex)
     } finally {
-      syncSession.close
       sw.stopPrintTime("TTTTTTTTT synchronized in ")
       var switchBackToSettings = true
       runUIwait {
@@ -470,34 +446,30 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
 
   // init action to make local as remote
   def iniLocalAsRemote(): Unit = {
-    transaction {
-      val q = MySchema.files.where(se => (se.relevant === true) and (se.action <> A_ISEQUAL))
-      MySchema.files.update(q.map(se => {
+    Cache.cache.iterate( (it, path, se) => {
+      if (se.relevant && se.action != A_ISEQUAL) {
         se.action = se.action match {
           case A_RMREMOTE => A_USEREMOTE
           case A_USELOCAL => if (se.rSize > -1) A_USEREMOTE else A_RMLOCAL
           case A_UNKNOWN => if (se.rSize > -1) A_USEREMOTE else A_RMLOCAL
           case x => x
         }
-        se
-      }))
-    }
+      }
+    })
   }
 
   // init action to make local as remote
   def iniRemoteAsLocal(): Unit = {
-    transaction {
-      val q = MySchema.files.where(se => (se.relevant === true) and (se.action <> A_ISEQUAL))
-      MySchema.files.update(q.map(se => {
+    Cache.cache.iterate( (it, path, se) => {
+      if (se.relevant && se.action != A_ISEQUAL) {
         se.action = se.action match {
           case A_RMLOCAL => A_USELOCAL
           case A_USEREMOTE => if (se.lSize > -1) A_USELOCAL else A_RMREMOTE
           case A_UNKNOWN => if (se.lSize > -1) A_USELOCAL else A_RMREMOTE
           case x => x
         }
-        se
-      }))
-    }
+      }
+    })
   }
 
   // initiate stopping of profile actions and cleanup.
@@ -506,11 +478,14 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     local.stopRequested = true
     remote.stopRequested = true
     stopProfileRequested = true
+    // TODO: make sure that stopped, then save cache!
+    Cache.saveCache(server.id)
   }
 
   // cleanup (transfers must be stopped before)
   def cleanupProfile(switchBackToSettings: Boolean = true) {
     debug("cleanup profile...")
+    Cache.saveCache(server.id)
     if (remote != null) remote.cleanUp()
     if (local != null) local.cleanUp()
     remote = null

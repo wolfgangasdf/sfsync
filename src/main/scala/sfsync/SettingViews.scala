@@ -213,7 +213,7 @@ abstract class ServerView(val config: Config) extends GridPane with Logging {
       canDropFile = true
     ) { tf.text <==> server.localFolder }
     var bClearCache = new Button("Clear cache") {
-      onAction = (ae: ActionEvent) => { CacheDB.clearDB() }
+      onAction = (ae: ActionEvent) => { Cache.clearCacheFile(server.id) }
       tooltip = "Clears the cache database for selected sync location"
     }
     val clist = List(tfLocalFolder,tfFilter,tfID,tfHourOffset, bClearCache)
@@ -223,7 +223,7 @@ abstract class ServerView(val config: Config) extends GridPane with Logging {
   var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer, () => serverChanged()) {
     override def beforeDelete(what: Server) = {
       if (Dialog.showYesNo("Really delete server " + what)) {
-        CacheDB.clearDB()
+        Cache.clearCacheFile(what.id)
         true
       } else false
     }

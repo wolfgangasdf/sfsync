@@ -122,7 +122,9 @@ class FilesView() extends Tab with Logging {
   })
   val colDetailsLocal = new TableColumn[SyncEntry2, String]("Local") {
     prefWidth=200
-    cellValueFactory = (xx) => { StringProperty(xx.value.se.detailsLocal) }
+    cellValueFactory = (xx) => {
+      StringProperty(xx.value.se.detailsLocal)
+    }
   }
   val colDetailsRemote = new TableColumn[SyncEntry2, String]("Remote") {
     prefWidth=200
