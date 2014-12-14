@@ -336,9 +336,9 @@ class SyncEntry(var action: Int,
 
 object Cache extends Logging {
   var cache: java.util.TreeMap[String, SyncEntry] = null
-  var paginationcache: java.util.HashMap[Int, SyncEntry2] = null
-  var cachemodified = false
-  var syncEntries: com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry] = null
+  var paginationcache: java.util.HashMap[Int, SyncEntry2] = null // only for list view!
+  private var cachemodified = false // make sure to reload listview if things modified!
+  var observableList: com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry2] = null
 
   def getCacheFilename(name: String) = {
     "" + DBSettings.dbpath(name) + "-cache.txt"
@@ -397,7 +397,7 @@ object Cache extends Logging {
 
   // for listview
   def initializeSyncEntries(onlyRelevant: Boolean, filterActions: List[Int] = ALLACTIONS) {
-    syncEntries =  new com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry]() {
+    observableList =  new com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry2]() {
       def get(p1: Int): SyncEntry2 = {
         try {
           if (!paginationcache.containsKey(p1) || cachemodified) {

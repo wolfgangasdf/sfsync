@@ -2,7 +2,7 @@ package sfsync
 
 import sfsync.synchro._
 import sfsync.synchro.Actions._
-import sfsync.store.{CacheDB, SyncEntry, Store}
+import sfsync.store.{SyncEntry2, Cache, Store}
 import sfsync.util.Logging
 import sfsync.Helpers._
 
@@ -70,10 +70,10 @@ class FilesView() extends Tab with Logging {
   var profile: Profile = null
   private var syncEnabled = false
 
-  val colPath = new TableColumn[SyncEntry, String]("Path") {
+  val colPath = new TableColumn[SyncEntry2, String]("Path") {
     cellValueFactory = (xx) => { StringProperty(xx.value.path) }
     cellFactory = (xx) => { // tooltip
-    val x = new TextFieldTableCell[SyncEntry, String] {
+    val x = new TextFieldTableCell[SyncEntry2, String] {
         // must set tooltip only after cell created! can't override updateItem, do it here...
         onMouseEntered = (event: scalafx.scene.input.MouseEvent) => {
           if (tooltip.value == null) {
@@ -91,10 +91,10 @@ class FilesView() extends Tab with Logging {
     }
   }
 
-  val colStatus = new TableColumn[SyncEntry, String]("Status") {
+  val colStatus = new TableColumn[SyncEntry2, String]("Status") {
     prefWidth=50
     cellValueFactory = (xx) => {
-      StringProperty(xx.value.status)
+      StringProperty(xx.value.se.status)
     }
 // TODO doesn't work, updateItem not called...
 //    cellFactory = (xx) => { // tooltip
@@ -106,9 +106,9 @@ class FilesView() extends Tab with Logging {
 //      x
 //    }
   }
-  colStatus.setCellFactory(new jfxu.Callback[jfxsc.TableColumn[SyncEntry, String],jfxsc.TableCell[SyncEntry, String]] {
-    def call(param: jfxsc.TableColumn[SyncEntry, String]): jfxsc.TableCell[SyncEntry, String] = {
-      val x = new jfxsc.cell.TextFieldTableCell[SyncEntry, String]() {
+  colStatus.setCellFactory(new jfxu.Callback[jfxsc.TableColumn[SyncEntry2, String],jfxsc.TableCell[SyncEntry2, String]] {
+    def call(param: jfxsc.TableColumn[SyncEntry2, String]): jfxsc.TableCell[SyncEntry2, String] = {
+      val x = new jfxsc.cell.TextFieldTableCell[SyncEntry2, String]() {
         override def updateItem(f: String, empty: Boolean) {
           super.updateItem(f, empty)
           if (!empty)
@@ -120,16 +120,16 @@ class FilesView() extends Tab with Logging {
       x
     }
   })
-  val colDetailsLocal = new TableColumn[SyncEntry, String]("Local") {
+  val colDetailsLocal = new TableColumn[SyncEntry2, String]("Local") {
     prefWidth=200
-    cellValueFactory = (xx) => { StringProperty(xx.value.detailsLocal) }
+    cellValueFactory = (xx) => { StringProperty(xx.value.se.detailsLocal) }
   }
-  val colDetailsRemote = new TableColumn[SyncEntry, String]("Remote") {
+  val colDetailsRemote = new TableColumn[SyncEntry2, String]("Remote") {
     prefWidth=200
-    cellValueFactory = (xx) => { StringProperty(xx.value.detailsRemote) }
+    cellValueFactory = (xx) => { StringProperty(xx.value.se.detailsRemote) }
   }
 
-  var tv = new TableView[SyncEntry](CacheDB.syncEntries) { // only string-listview is properly updated!
+  var tv = new TableView[SyncEntry2](Cache.observableList) { // only string-listview is properly updated!
     // columns ++= List(col1) // doesn't work
     delegate.getColumns.addAll(
       colDetailsLocal.delegate, colStatus.delegate, colDetailsRemote.delegate, colPath.delegate
@@ -144,16 +144,15 @@ class FilesView() extends Tab with Logging {
     )
   }
 
-  def setListItems(x: com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry]) {
+  def setListItems(x: com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry2]) {
     tv.items = x
   }
 
   def updateSyncEntries() { // doesn't work if session that modified did not commit...
     debug("updateSyncEntries in thread " + Thread.currentThread().getId)
-    CacheDB.invalidateCache()
-    CacheDB.initializeSyncEntries(Option(true), getFilter)
+    Cache.initializeSyncEntries(onlyRelevant = true, filterActions = getFilter)
 
-    setListItems(CacheDB.syncEntries)
+    setListItems(Cache.observableList)
     // workaround for tableview update...
     // javafx bug: http://javafx-jira.kenai.com/browse/RT-22599
     tv.getColumns.get(0).setVisible(false)
@@ -196,13 +195,13 @@ class FilesView() extends Tab with Logging {
   val btDiff = new Button("Quick diff") {
     onAction = (ae: ActionEvent) => {
       if (profile != null) if (profile.profileInitialized) {
-        val se = tv.selectionModel().getSelectedItem
-        if (se != null) {
-          if (se.lSize + se.rSize < 100000) {
+        val se2 = tv.selectionModel().getSelectedItem
+        if (se2 != null) {
+          if (se2.se.lSize + se2.se.rSize < 100000) {
             val lf = Files.createTempFile("sfsync-localfile", ".tmp")
             val rf = Files.createTempFile("sfsync-remotefile", ".tmp")
-            profile.local.getfile(se.path, se.lTime, lf.toString)
-            profile.remote.getfile(se.path, se.rTime, rf.toString)
+            profile.local.getfile(se2.path, se2.se.lTime, lf.toString)
+            profile.remote.getfile(se2.path, se2.se.rTime, rf.toString)
             val lfc = readFileToString(lf)
             val rfc = readFileToString(rf)
             val diff = new diff_match_patch {
@@ -210,7 +209,7 @@ class FilesView() extends Tab with Logging {
             }
             debug("lfc:\n" + lfc)
             debug("rfc:\n" + rfc)
-            val (d, msg) = if (se.action == A_USELOCAL)
+            val (d, msg) = if (se2.se.action == A_USELOCAL)
               (diff.diff_main(rfc, lfc), "Changes remote -> local:")
             else (diff.diff_main(lfc, rfc), "Changes local -> remote:")
             diff.diff_cleanupSemantic(d)
@@ -227,8 +226,8 @@ class FilesView() extends Tab with Logging {
     new Button(lab) {
       onAction = (ae: ActionEvent) => {
         for (idx <- tv.selectionModel().getSelectedItems) {
-          idx.action = action
-          CacheDB.updateSE(idx, clearCache = false)
+          idx.se.action = action
+          Cache.update(idx.path, idx.se) // TODO was: , clearCache = false)
         }
         // advance
         tv.selectionModel().clearAndSelect(tv.selectionModel().getSelectedIndices.max+1)
@@ -255,7 +254,7 @@ class FilesView() extends Tab with Logging {
   // returns true if can synchronize
   def updateSyncButton() = {
     debug("update sync button")
-    val canSync = if (syncEnabled) CacheDB.canSync else false
+    val canSync = if (syncEnabled) Cache.canSync else false
     Main.btSync.setDisable(!canSync)
     canSync
   }
@@ -270,13 +269,13 @@ class FilesView() extends Tab with Logging {
       var allowAction = true
       var legal = true // all have same file exist status
       var existCheck: (Boolean, Boolean) = null // (alllocalexists, allremoteexists)
-      for (se <- tv.selectionModel().getSelectedItems) {
+      for (se2 <- tv.selectionModel().getSelectedItems) {
         if (existCheck == null)
-          existCheck = (se.lSize != -1, se.rSize != -1)
+          existCheck = (se2.se.lSize != -1, se2.se.rSize != -1)
         else
-          if (existCheck != (se.lSize != -1, se.rSize != -1)) legal = false
-        if (!se.isEqual) allEqual = false
-        if (se.action == A_UNCHECKED || se.action == A_CACHEONLY) allowAction = false
+          if (existCheck != (se2.se.lSize != -1, se2.se.rSize != -1)) legal = false
+        if (!se2.se.isEqual) allEqual = false
+        if (se2.se.action == A_UNCHECKED || se2.se.action == A_CACHEONLY) allowAction = false
       }
       if (allowAction) {
         btSkip.setDisable(false)

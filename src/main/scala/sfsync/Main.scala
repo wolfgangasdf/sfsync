@@ -99,7 +99,7 @@ class MainView(filesView: FilesView) extends Tab with Logging {
     def onServerChange() {
       debug("onServerChange!")
       // connect to database
-      CacheDB.connectDB(server.id)
+      Cache.loadCache(server.id)
 //      // update filesview
 //      filesView.setListItems(CacheDB.syncEntries)
       val tmpdp =  ArrayBuffer(sp.dividerPositions: _*)
