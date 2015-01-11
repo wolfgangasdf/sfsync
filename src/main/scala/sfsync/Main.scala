@@ -97,11 +97,6 @@ class MainView(filesView: FilesView) extends Tab with Logging {
   var firstStart = true
   var serverView = new ServerView(Store.config) {
     def onServerChange() {
-      debug("onServerChange!")
-      // connect to database
-      Cache.loadCache(server.id)
-//      // update filesview
-//      filesView.setListItems(CacheDB.syncEntries)
       val tmpdp =  ArrayBuffer(sp.dividerPositions: _*)
       protocolView = new ProtocolView(server)
       protocolView.prefWidth <== this.width - 10
@@ -196,9 +191,6 @@ object Main extends JFXApp with Logging {
         warn("!!!!!!!!!!! set LC_CTYPE variable for correct foreign character handling!")
       }
     }
-
-    import scala.collection.JavaConversions._
-//    System.getProperties.foreach( p => println("prop " + p.getKey + " : " + p.getValue) )
 
     splash.showProgress("initializing GUI...", 1)
 

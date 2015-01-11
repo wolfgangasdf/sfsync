@@ -155,6 +155,8 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
   class ProfileAbortedException(message: String = null, cause: Throwable = null) extends RuntimeException(message, cause)
 
   def init() {
+    Cache.loadCache(server.id)
+
     view.updateSyncButton(allow = false)
     val progress = runUIwait { new Main.Progress("Initialize connection") {
       onAbortClicked = () => {
@@ -478,7 +480,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     local.stopRequested = true
     remote.stopRequested = true
     stopProfileRequested = true
-    // TODO: make sure that stopped, then save cache!
+    // TODO: make sure that stopped, then save cache! also call cleanup here?
     Cache.saveCache(server.id)
   }
 

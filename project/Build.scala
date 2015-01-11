@@ -1,8 +1,39 @@
 import sbt._
 import sbt.Keys._
-//import no.vedaadata.sbtjavafx.JavaFXPlugin._
-//import scala.Some
 import sbtbuildinfo.Plugin._
+
+//import no.vedaadata.sbtjavafx.JavaFXPlugin
+//import no.vedaadata.sbtjavafx.JavaFXPlugin.JFX
+
+object Build extends Build {
+  lazy val myBuildInfoSettings = Seq(
+    sourceGenerators in Compile <+= buildInfo,
+    buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion),
+    buildInfoPackage := "sfsync"
+  )
+  lazy val sfsync = Project(
+    id = "sfsync",
+    base = file("."),
+    /* should work but doesn't (sbt run can't find main class), use build.sbt for now:
+      settings = Defaults.coreDefaultSettings ++ JavaFXPlugin.jfxSettings ++ Seq(
+        JFX.mainClass := Some("sgar.Sgar"),
+     */
+    settings = Defaults.coreDefaultSettings ++ Seq(
+      name := "SFSync",
+      organization := "sfsync",
+      version := "0.9-SNAPSHOT",
+      scalaVersion := "2.11.4",
+      scalacOptions ++= Seq("-feature", "-unchecked", "-deprecation", "-encoding", "UTF-8"),
+      libraryDependencies ++= Seq(
+        "org.scalafx" %% "scalafx" % "8.0.20-R6",
+        "com.typesafe.akka" %% "akka-actor" % "2.3.7",
+        "com.jcraft" % "jsch" % "0.1.51"
+      )
+    ) ++ buildInfoSettings ++ myBuildInfoSettings
+  )
+}
+
+/*
 
 object BuildSettings {
   val buildOrganization = "com.wolle.sfsync"
@@ -95,3 +126,5 @@ object WMPBuild extends Build {
   ).settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
 //gone?    .settings(ideaExcludeFolders := IntelliJexcludeFolders)
 }
+
+*/

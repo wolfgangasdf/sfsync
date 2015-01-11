@@ -381,6 +381,7 @@ object Cache extends Logging {
   }
 
   def loadCache(name: String) = {
+    info("load cache database..." + name)
     cache = new MyTreeMap[String, SyncEntry]()
     val fff = Paths.get(getCacheFilename(name))
     if (!Files.exists(fff)) {
@@ -397,23 +398,24 @@ object Cache extends Logging {
       val vf = new SyncEntry(A_UNKNOWN, -1, -1, -1, -1, modTime, size, path.endsWith("/"), false)
       cache.put(path, vf)
     })
-    debug("loaded cache file!")
+    info("cache database loaded!")
     cachemodified = true
   }
 
   def saveCache(name: String) {
-    val fff = new java.io.File(getCacheFilename(name))
+    info("save cache database..." + name)
+    val fff = new java.io.File(getCacheFilename(name)) // forget scalax.io.file: much too slow
     if (fff.exists) fff.delete()
     val out = new java.io.BufferedWriter(new java.io.FileWriter(fff),1000000)
     for ((path, cf: SyncEntry) <- cache) {
       out.write("" + cf.cTime + "," + cf.cSize + "," + path + "\n")
     }
     out.close()
-    println("***** cache saved!")
-    // forget scalax.io.file: much too slow
+    info("cache database saved!")
   }
 
   def clearCacheFile(name: String) {
+    info("delete cache database " + name)
     val fff = Paths.get(getCacheFilename(name))
     if (Files.exists(fff)) {
       Files.delete(fff)
