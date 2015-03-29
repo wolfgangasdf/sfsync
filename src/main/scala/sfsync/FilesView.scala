@@ -8,6 +8,7 @@ import sfsync.Helpers._
 
 import scala.language.{implicitConversions, reflectiveCalls, postfixOps}
 import scalafx.collections.ObservableBuffer
+import scalafx.scene.control.Alert.AlertType
 import scalafx.scene.layout._
 import scalafx.scene.control._
 import scalafx. {collections => sfxc}
@@ -216,7 +217,7 @@ class FilesView() extends Tab with Logging {
             else (diff.diff_main(lfc, rfc), "Changes local -> remote:")
             diff.diff_cleanupSemantic(d)
             val res = diff.diff_prettyHtml(d)
-            Main.Dialog.showMessage(msg, res)
+            Main.dialogMessage(AlertType.Information, "Quick diff", msg, res)
           }
         }
       }
@@ -308,7 +309,7 @@ class FilesView() extends Tab with Logging {
     }
   }
 
-  var bv = new HBox { content = List(cFilter,btRmLocal, btUseLocal, btMerge,
+  var bv = new HBox { children = List(cFilter,btRmLocal, btUseLocal, btMerge,
     btSkip, btRmBoth, btUseRemote, btRmRemote, btDiff, cbAdvanced)
   }
 
@@ -324,7 +325,7 @@ class FilesView() extends Tab with Logging {
   // init
   debug("FilesView() in thread " + Thread.currentThread().getId)
   val vb = new VBox {
-    content = List(tv,bv)
+    children = List(tv,bv)
   }
 
   tv.selectionModel().setSelectionMode(javafx.scene.control.SelectionMode.MULTIPLE)

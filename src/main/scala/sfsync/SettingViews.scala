@@ -3,7 +3,6 @@ package sfsync
 import sfsync.util._
 import sfsync.store._
 import sfsync.Helpers._
-import sfsync.Main.Dialog
 import sfsync.synchro.{Profile, MyURI}
 
 import scala.collection.JavaConversions._
@@ -81,7 +80,7 @@ class MyListView[T <: ListableThing](
   def beforeDelete(what: T) = true
 
   val buttons = new HBox {
-    content = List(
+    children = List(
       new Button("add") {
         onAction = (ae: ActionEvent) => {
           val newi = factory()
@@ -110,7 +109,7 @@ class MyListView[T <: ListableThing](
     )
   }
 
-  content = List(lvs, buttons)
+  children = List(lvs, buttons)
 }
 
 class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: String = "", filter: String = "", canDropFile: Boolean = false) extends HBox {
@@ -153,7 +152,7 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
   }
   lb.hgrow = Priority.Never
   tf.hgrow = Priority.Always
-  content = List(lb, tf)
+  children = List(lb, tf)
   spacing = 10
 
   if (onButtonClick != null) {
@@ -163,7 +162,7 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
         unit()
       }
     }
-    content.add(butt)
+    children.add(butt)
   }
 }
 
@@ -217,12 +216,12 @@ abstract class ServerView(val config: Config) extends GridPane with Logging {
       tooltip = "Clears the cache database for selected sync location"
     }
     val clist = List(tfLocalFolder,tfFilter,tfID,tfHourOffset, bClearCache)
-    content = clist
+    children = clist
     spacing = 5
   }
   var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer, () => serverChanged()) {
     override def beforeDelete(what: Server) = {
-      if (Dialog.showYesNo("Really delete server " + what)) {
+      if (Main.dialogOkCancel("Delete server", "Delete server (only settings & cached data)", "Really delete server " + what)) {
         Cache.clearCacheFile(what.id)
         true
       } else false
@@ -272,7 +271,7 @@ class ProtocolView(val server: Server) extends GridPane with Logging {
     }
     var tfExBefore = new MyTextField("Execute before: ", null, "use '#' to separate args") { tf.text <==> protocol.executeBefore }
     var tfExAfter = new MyTextField("Execute after: ", null, "use '#' to separate args") { tf.text <==> protocol.executeAfter }
-    content = List(tfURI, tfBaseFolder, tfExBefore, tfExAfter)
+    children = List(tfURI, tfBaseFolder, tfExBefore, tfExAfter)
   }
   var lvp = new MyListView[Protocol](() => new Protocol, server.protocols, server.currentProtocol.value, () => protocolChanged())
   lvp.margin = insetsstd
@@ -375,7 +374,7 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
         margin = insetsstd
         spacing = 5
         alignment = Pos.Center
-        content = List(
+        children = List(
           mtype match {
             case ADDTOFOLDERSMODE => btAddToFolders
             case SELECTMODE => btSelect
@@ -406,7 +405,7 @@ class SubFolderView(val server: Server) extends GridPane {
   var subfolder: SubFolder= null
   var lvp = new MyListView[SubFolder](() => new SubFolder,server.subfolders, server.currentSubFolder.value, () => subfolderChanged())
   import scalafx.scene.control.Button._
-  lvp.buttons.content += new Button("Add <Allfiles>") {
+  lvp.buttons.children += new Button("Add <Allfiles>") {
     tooltip = "Adds a subset that will synchronize all files"
     onAction = (ae: ActionEvent) => {
       val sf = new SubFolder {
@@ -491,7 +490,7 @@ class SubFolderView(val server: Server) extends GridPane {
     }
 
     var controls = new HBox {
-      content = List(
+      children = List(
         new Button("Add (local)") {
           onAction = (ae: ActionEvent) => {
             val dc = new MyFileChooser(Main.filesView, Main.settingsView.serverView.server, Main.settingsView.protocolView.protocol, true)
@@ -513,7 +512,7 @@ class SubFolderView(val server: Server) extends GridPane {
       )
     }
 
-    content = List(lvs,controls)
+    children = List(lvs,controls)
   }
 
 }

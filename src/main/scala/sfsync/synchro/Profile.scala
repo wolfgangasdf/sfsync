@@ -6,7 +6,6 @@ this runs not in ui thread, so use runUI and runUIwait!
 
 import sfsync.synchro.Actions._
 import sfsync.store._
-import sfsync.Main.Dialog
 import sfsync.{Main, FilesView}
 import sfsync.Helpers._
 import sfsync.util.{Logging, StopWatch}
@@ -24,6 +23,7 @@ import akka.actor.ActorRef
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
+import scalafx.scene.control.Alert.AlertType
 
 
 class TransferProtocol (
@@ -435,7 +435,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
         var sbar = "Finished synchronize"
         if (syncLog != "") {
           switchBackToSettings = false
-          Dialog.showMessage("Errors during synchronization\n(mind that excluded files are not shown):\n" + syncLog)
+          Main.dialogMessage(AlertType.Error, "Error", "Errors during synchronization\n(mind that excluded files are not shown):\n", syncLog)
           sbar = "Synchronization error"
         }
         view.updateSyncEntries()

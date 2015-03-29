@@ -8,6 +8,7 @@ import sfsync.Helpers._
 import scalafx.application.JFXApp
 import scalafx.Includes._
 import scalafx.scene._
+import scalafx.scene.control.Alert.AlertType
 import scalafx.stage._
 import scalafx.scene.layout._
 import scalafx.scene.control._
@@ -128,6 +129,7 @@ object Main extends JFXApp with Logging {
   val APPNAME = BuildInfo.name
   val resv = getClass.getResource("/sfsync/HGVERSION.txt")
   val version = VERSION + (if (resv != null) " (" + io.Source.fromURL(resv).mkString.trim + ")" else "")
+
   def system = ActorSystem("sfsyncactors")
 
   var settingsView: MainView = null
@@ -153,7 +155,7 @@ object Main extends JFXApp with Logging {
 
   var btSync: Button = null
 
-  var tabpane: TabPane  = null
+  var tabpane: TabPane = null
 
   stage = new JFXApp.PrimaryStage {
     title = "xxx"
@@ -164,7 +166,7 @@ object Main extends JFXApp with Logging {
   stage.show()
   val splash = new Splash
 
-//  threadinfo("Main")
+  //  threadinfo("Main")
 
   // I need to return from this so that splash can be updated. initialize in other thread, use runUI{} if needed!
   Future {
@@ -175,7 +177,7 @@ object Main extends JFXApp with Logging {
   }
 
   def initit(myStage: Stage) {
-//    threadinfo("initit")
+    //    threadinfo("initit")
     splash.showProgress("running checks...", 1)
     Checks.CheckComparedFile()
     splash.showProgress("startup...", 1)
@@ -194,28 +196,28 @@ object Main extends JFXApp with Logging {
 
     splash.showProgress("initializing GUI...", 1)
 
-//    val menu = new Menu("SFSync") {
-//      items.add(new MenuItem("About")) // TODO
-//      items.add(new MenuItem("Quit")) // TODO
-//    }
-//    val menuBar = new MenuBar {
-//      useSystemMenuBar = true
-//      minWidth = 100
-//      menus.add(menu)
-//    }
+    //    val menu = new Menu("SFSync") {
+    //      items.add(new MenuItem("About")) // TODO
+    //      items.add(new MenuItem("Quit")) // TODO
+    //    }
+    //    val menuBar = new MenuBar {
+    //      useSystemMenuBar = true
+    //      minWidth = 100
+    //      menus.add(menu)
+    //    }
 
     btSync = new Button("Synchronize") {
-        onAction = (ae: ActionEvent) => {
-          runUI {
-            btCompare.setDisable(true)
-            btSync.setDisable(true)
-          }
-          Future {
-            profile.synchronize()
-          }
-          unit()
+      onAction = (ae: ActionEvent) => {
+        runUI {
+          btCompare.setDisable(true)
+          btSync.setDisable(true)
         }
+        Future {
+          profile.synchronize()
+        }
+        unit()
       }
+    }
     btCompare = new Button("Compare") {
       onAction = (ae: ActionEvent) => {
         runUI {
@@ -249,7 +251,9 @@ object Main extends JFXApp with Logging {
       )
     }
     statusBar = new ToolBar {
-      statusLabel = new Label() { text = "Sfsync Version " + Main.version }
+      statusLabel = new Label() {
+        text = "Sfsync Version " + Main.version
+      }
       content = List(statusLabel)
     }
 
@@ -260,8 +264,8 @@ object Main extends JFXApp with Logging {
     settingsView = new MainView(filesView)
 
     val maincontent = new VBox {
-//      if (isMac) content += menuBar // TODO
-      content ++= List(toolBar,tabpane,statusBar)
+      //      if (isMac) content += menuBar // TODO
+      children ++= List(toolBar, tabpane, statusBar)
     }
 
     splash.showProgress("showing GUI...", 1)
@@ -293,26 +297,28 @@ object Main extends JFXApp with Logging {
       if (Store.config.dividerPositions.length > 0)
         settingsView.sp.setDividerPositions(Store.config.dividerPositions: _*)
       else
-        settingsView.sp.setDividerPositions(0.3,0.6)
+        settingsView.sp.setDividerPositions(0.3, 0.6)
     })
     splash.showProgress("ready.", 1)
 
   }
+
   object Status {
     implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
+
     var status: StringProperty = StringProperty("?")
     var local = StringProperty("?")
     var remote = StringProperty("?")
-    List(status,local,remote).map(x => x.onChange(
+    List(status, local, remote).map(x => x.onChange(
       statusLabel.text = "Local:" + local.value + "  Remote: " + remote.value + "  | " + status.value
     ))
+
     def clear() {
       status = ""
       local = ""
       remote = ""
     }
   }
-
 
 
   override def stopApp() {
@@ -339,17 +345,18 @@ object Main extends JFXApp with Logging {
     val sane = settingsView.serverView.server != null && settingsView.serverView.server.localFolder.value != "" &&
       settingsView.protocolView.protocol.protocoluri.value != "" && settingsView.subfolderView.subfolder.subfolders.nonEmpty
     if (sane) {
-      profile = new Profile (filesView, settingsView.serverView.server, settingsView.protocolView.protocol, settingsView.subfolderView.subfolder)
+      profile = new Profile(filesView, settingsView.serverView.server, settingsView.protocolView.protocol, settingsView.subfolderView.subfolder)
       lbInfo.text.set("  Current profile:  " + settingsView.serverView.server.toString + " | " + settingsView.subfolderView.subfolder.toString)
       filesView.profile = profile
       tabpane.selectionModel().select(filesView)
-      Future { // this is key, do in new thread!
+      Future {
+        // this is key, do in new thread!
         try {
           profile.init()
           profile.compare()
         } catch {
           case e: Exception =>
-            runUIwait(Main.Dialog.showMessage("Exception: " + e + "\n" + e.getMessage))
+            runUIwait(dialogMessage(AlertType.Error, "Error", "Exception during compare", "Exception: " + e + "\n" + e.getMessage))
             e.printStackTrace()
             runUI {
               doCleanup()
@@ -357,9 +364,50 @@ object Main extends JFXApp with Logging {
         }
       }
     } else {
-      Dialog.showMessage("Correct sync settings and try again!")
+      dialogMessage(AlertType.Error, "Error", "Error initializing compare", "Correct sync settings and try again!")
     }
     sane
+  }
+
+  def dialogOkCancel(titletext: String, header: String, content: String): Boolean = {
+    new Alert(AlertType.Confirmation) {
+      initOwner(stage)
+      title = titletext
+      headerText = header
+      contentText = content
+    }.showAndWait() match {
+      case Some(ButtonType.OK) => true
+      case _ => false
+    }
+  }
+
+  def dialogInputString(titletext: String, header: String, content: String): String = {
+    new TextInputDialog() {
+      initOwner(stage)
+      title = titletext
+      headerText = header
+      contentText = content
+    }.showAndWait() match {
+      case Some(s) => s
+      case _ => ""
+    }
+  }
+
+  def dialogMessage(alertType: AlertType, titletext: String, header: String, htmlmsg: String) {
+    new Dialog[Boolean] {
+      initOwner(stage)
+      title = titletext
+      headerText = header
+      var sp2 = new ScrollPane { // optional html message
+        content = new WebView {
+          engine.loadContent(htmlmsg)
+        }
+        fitToWidth = true
+        fitToHeight = true
+      }
+      dialogPane().content = sp2
+      dialogPane().buttonTypes = Seq(ButtonType.OK)
+    }.showAndWait()
   }
 
   class Progress(title: String) {
@@ -367,7 +415,9 @@ object Main extends JFXApp with Logging {
     val dstage = new Stage(jfxs.StageStyle.UTILITY) {
       initOwner(Main.stage)
       initModality(jfxs.Modality.APPLICATION_MODAL)
-      onCloseRequest = (ae: WindowEvent) => { ae.consume() } // workaround to disable close
+      onCloseRequest = (ae: WindowEvent) => {
+        ae.consume()
+      } // workaround to disable close
       width = 500
       height = 300
     }
@@ -382,11 +432,23 @@ object Main extends JFXApp with Logging {
       editable = false
       wrapText = true
     }
-    val pb1 = new ProgressBar { prefHeight = 20 ; tooltip = new Tooltip { text = "Overall" } }
-    val pb2 = new ProgressBar { prefHeight = 20 ; tooltip = new Tooltip { text = "File" } }
-//    val pb2text = new TextField { editable = false ; text = "xx" }
-//    val pb2stack = new StackPane { children ++= List(pb2, pb2text) } // TODO for transfer rate etc...
-    val bAbort = new Button("Abort") { prefHeight = 30 ; onAction = (ae: ActionEvent) => { onAbortClicked() } }
+    val pb1 = new ProgressBar {
+      prefHeight = 20; tooltip = new Tooltip {
+        text = "Overall"
+      }
+    }
+    val pb2 = new ProgressBar {
+      prefHeight = 20; tooltip = new Tooltip {
+        text = "File"
+      }
+    }
+    //    val pb2text = new TextField { editable = false ; text = "xx" }
+    //    val pb2stack = new StackPane { children ++= List(pb2, pb2text) } // TODO for transfer rate etc...
+    val bAbort = new Button("Abort") {
+      prefHeight = 30; onAction = (ae: ActionEvent) => {
+        onAbortClicked()
+      }
+    }
     val cont = new VBox {
       style = "-fx-background-color: lightblue;"
       var sp = new ScrollPane {
@@ -396,7 +458,7 @@ object Main extends JFXApp with Logging {
         hbarPolicy = ScrollPane.ScrollBarPolicy.NEVER
         vgrow = Priority.Always
       }
-      content ++= List(ti, sp, bAbort, pb1, pb2)
+      children ++= List(ti, sp, bAbort, pb1, pb2)
     }
     dstage.scene = new Scene {
       content = cont
@@ -405,7 +467,7 @@ object Main extends JFXApp with Logging {
     cont.prefHeight <== dstage.scene.height
     pb1.prefWidth <== dstage.scene.width
     pb2.prefWidth <== dstage.scene.width
-//    pb2text.prefWidth <== dstage.scene.width
+    //    pb2text.prefWidth <== dstage.scene.width
     bAbort.prefWidth <== dstage.scene.width
     cont.autosize()
     dstage.show()
@@ -414,111 +476,18 @@ object Main extends JFXApp with Logging {
       ta.text = s
       pb1.progress = progressValue
     }
+
     def updateProgressBar2(progressValue: Double, s: String = "") {
       pb2.progress = progressValue
-//      pb2text.text = s
+      //      pb2text.text = s
     }
 
-    def close() { dstage.close() }
-  }
-
-
-  object Dialog {
-    val dstage = new Stage(jfxs.StageStyle.UTILITY) {
-      initOwner(Main.stage)
-      initModality(jfxs.Modality.APPLICATION_MODAL)
-      onCloseRequest = (ae: WindowEvent) => { ae.consume() } // workaround to disable close
-      width = 500
-      height = 300
-    }
-    private def showIt(mtype: Int, msg: String, htmlmsg: String = "") : String  = {
-      var res = "-1"
-      val cont = new VBox {
-        style = "-fx-background-color: lightblue;"
-        var tf = new TextField {
-          text = ""
-          onAction = (ae: ActionEvent) => { res = text.value; dstage.close() }
-        }
-        var sp = new ScrollPane { // text message
-          content = new TextArea {
-            text = msg
-            editable = false
-          }
-          fitToWidth = true
-          fitToHeight = true
-          if (htmlmsg != "") prefHeight = 15
-        }
-
-        var sp2 = new ScrollPane { // optional html message
-          content = new WebView {
-            engine.loadContent(htmlmsg)
-          }
-          fitToWidth = true
-          fitToHeight = true
-        }
-
-        content.add(sp)
-        mtype match {
-          case 1 | 2 => if (htmlmsg != "") content.add(sp2)
-          case 3 => content.add(tf)
-        }
-
-        import scalafx.scene.layout.HBox._ // implicit conversion must be imported??!
-        content += new HBox {
-          prefHeight = 25
-          margin = insetsstd
-          spacing = 5
-          alignment = Pos.Center
-          content = mtype match {
-            case 1 => List(
-              new Button("Ok") {
-                onAction = (ae: ActionEvent) => { res="1"; dstage.close() }
-              })
-            case 2 => List(
-              new Button("Yes") {
-                onAction = (ae: ActionEvent) => { res="1"; dstage.close() }
-              },
-              new Button("No") {
-                onAction = (ae: ActionEvent) => { res="0"; dstage.close() }
-              }
-            )
-            case 3 => List(
-              new Button("Ok") {
-                onAction = (ae: ActionEvent) => { res=tf.text.value; dstage.close() }
-              },
-              new Button("Cancel") {
-                onAction = (ae: ActionEvent) => { res=""; dstage.close() }
-              }
-            )
-          }
-        }
-      }
-      dstage.scene = new Scene {
-        content = cont
-      }
-      cont.prefWidth <== dstage.scene.width
-      cont.prefHeight <== dstage.scene.height
-      cont.autosize()
-      dstage.showAndWait()
-      res
-    }
-
-    def showMessage(msg: String, htmlmsg: String = "") : Boolean = {
-      val res = showIt(1, msg, htmlmsg)
-      res == "1"
-    }
-
-    def showYesNo(msg: String, htmlmsg: String = "") : Boolean = {
-      val res = showIt(2, msg, htmlmsg)
-      res == "1"
-    }
-    def showInputString(msg: String) : String = {
-      val res = showIt(3, msg)
-      res
+    def close() {
+      dstage.close()
     }
   }
+
 }
-
 // a scalafx splashscreen: implement from main SFX routine, then call showProgress() or close() from any thread
 class Splash extends Logging {
   val maxProgress = 6
@@ -549,7 +518,7 @@ class Splash extends Logging {
     tooltip = new Tooltip { text = "Progress" }
   }
   val cont = new VBox {
-    content ++= List(logo,ta,pb)
+    children ++= List(logo,ta,pb)
   }
   sstage.scene = new Scene {
     content = cont

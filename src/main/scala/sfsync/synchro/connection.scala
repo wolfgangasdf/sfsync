@@ -1,6 +1,6 @@
 package sfsync.synchro
 
-import sfsync.Main.Dialog
+import sfsync.Main
 import sfsync.store.Tools
 import sfsync.util.Logging
 
@@ -111,8 +111,7 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
     } catch {
       case ee: java.nio.file.DirectoryNotEmptyException =>
         val dir = Files.newDirectoryStream(fp).toList
-        val msg = s"Directory \n $cp \n not empty, DELETE ALL? Content:\n" + dir.map(a => a.toFile.getName).mkString("\n")
-        if (runUIwait(Dialog.showYesNo(msg)) == true) {
+        if (runUIwait(Main.dialogOkCancel("Warning", s"Directory \n $cp \n not empty, DELETE ALL?", "Content:\n" + dir.map(a => a.toFile.getName).mkString("\n"))) == true) {
           dir.map( f => Files.delete(f) )
           Files.delete(fp)
           return
@@ -220,8 +219,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
                 case s => tmp += lse
               }
             }
-            val msg = s"Directory \n $cp \n not empty, DELETE ALL? Content:\n" + tmp.map(a => a.getFilename).mkString("\n")
-            if (runUIwait(Dialog.showYesNo(msg)) == true) {
+            if (runUIwait(Main.dialogOkCancel("Warning", s"Directory \n $cp \n not empty, DELETE ALL?", "Content:\n" + tmp.map(a => a.getFilename).mkString("\n"))) == true) {
               tmp.map( f => sftp.rm(remoteBasePath + "/" + cp + "/" + f.getFilename) )
               sftp.rmdir(remoteBasePath + "/" + cp)
               return
@@ -342,10 +340,10 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
       debug(s"getPassword passcount = $getPassCount")
       getPassCount += 1
       if (getPassCount < 2 && password != "") password
-      else runUIwait(Dialog.showInputString("Enter password (to keep password: add to URI string, it will be encrypted):")).asInstanceOf[String]
+      else runUIwait(Main.dialogInputString("SSH", "SSH password required. To store password: add to URI string, it will be encrypted", "Password:")).asInstanceOf[String]
     }
     def promptYesNo(str: String) : Boolean = {
-      runUIwait(Dialog.showYesNo(str)) == true
+      runUIwait(Main.dialogOkCancel("SSH", "SSH subsystem question:", str)) == true
     }
 
     def promptKeyboardInteractive(destination: String, name: String, instruction: String, prompt: Array[String], echo: Array[Boolean]): Array[String] = null
