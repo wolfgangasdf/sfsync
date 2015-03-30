@@ -202,7 +202,6 @@ abstract class ServerView(val config: Config) extends GridPane with Logging {
     margin = insetsstd
     alignment = Pos.CenterRight
     val tfID = new MyTextField("Cache ID: ",null, "just leave it") { tf.text <==> server.id }
-    val tfHourOffset = new MyTextField("Time offset (hours): ",null, "for summer/winter time problems", filter = "^[-+]?\\d+$") { tf.text <==> server.hourOffset }
     val tfFilter = new MyTextField("Filter: ",null, "regex, e.g., (.*12)|(.*e2)") { tf.text <==> server.filterRegexp }
     val tfLocalFolder = new MyTextField(
       "Local root: ",
@@ -215,7 +214,7 @@ abstract class ServerView(val config: Config) extends GridPane with Logging {
       onAction = (ae: ActionEvent) => { Cache.clearCacheFile(server.id) }
       tooltip = "Clears the cache database for selected sync location"
     }
-    val clist = List(tfLocalFolder,tfFilter,tfID,tfHourOffset, bClearCache)
+    val clist = List(tfLocalFolder,tfFilter,tfID,bClearCache)
     children = clist
     spacing = 5
   }

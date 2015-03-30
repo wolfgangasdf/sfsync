@@ -232,7 +232,6 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     var lfiles = 0
     var rfiles = 0
     val swUI = new StopWatch // for UI update
-    val hourOffset = server.hourOffset.value.toInt
 
     receiveActor = actor(Main.system, name = "receive")(new Act {
       var finished = 2*subfolder.subfolders.length // cowntdown for lists
@@ -245,14 +244,14 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
               progress.update(0.0, s"Find files... parsing:\n${vf.path}")
               Main.Status.local.value = lfiles.toString
               Main.Status.remote.value = rfiles.toString
-              // TODO does not work of course... view.updateSyncEntries()
+              view.updateSyncEntries()
             }
             swUI.restart()
           }
           if (islocal) lfiles += 1 else rfiles += 1
           val se = Cache.cache.getOrDefault(vf.path, new SyncEntry(A_UNCHECKED, 0, -1, 0, -1, 0, -1, vf.path.endsWith("/"),true))
           if (islocal) { se.lTime = vf.modTime ; se.lSize = vf.size }
-          else         { se.rTime = vf.modTime + hourOffset*60*60*1000 ; se.rSize = vf.size }
+          else         { se.rTime = vf.modTime ; se.rSize = vf.size }
           Cache.cache += (vf.path -> se)
         case 'done =>
           finished -= 1
@@ -373,9 +372,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       if (relevantSize > 10000) showit = true
 
       if (swUIupdate.getTime > UIUpdateInterval || showit) {
-        // syncSession.connection.commit() // I cannot sync in update...
-        // as long as squeryl doesn't know that I am the only write-session! how to do this?
-        // view.updateSyncEntries() // this doesn't get the updates db...
+         view.updateSyncEntries()
         runUIwait {
           // update status
           progress.update(iii.toDouble/tosync, s"Synchronize($iii/$tosync):\n  Path: $path\n  Size: " + relevantSize)
