@@ -372,8 +372,8 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       if (relevantSize > 10000) showit = true
 
       if (swUIupdate.getTime > UIUpdateInterval || showit) {
-         view.updateSyncEntries()
         runUIwait {
+          view.updateSyncEntries()
           // update status
           progress.update(iii.toDouble/tosync, s"Synchronize($iii/$tosync):\n  Path: $path\n  Size: " + relevantSize)
         }
