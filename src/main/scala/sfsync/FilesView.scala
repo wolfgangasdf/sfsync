@@ -73,7 +73,7 @@ class FilesView() extends Tab with Logging {
 
   val colPath = new TableColumn[SyncEntry2, String]("Path") {
     cellValueFactory = (xx) => { StringProperty(xx.value.path) }
-    cellFactory = (xx) => { // tooltip
+    cellFactory = (xx: TableColumn[SyncEntry2, String]) => { // tooltip
     val x = new TextFieldTableCell[SyncEntry2, String] {
         // must set tooltip only after cell created! can't override updateItem, do it here...
         onMouseEntered = (event: scalafx.scene.input.MouseEvent) => {

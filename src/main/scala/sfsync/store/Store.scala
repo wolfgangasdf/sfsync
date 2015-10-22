@@ -383,6 +383,7 @@ object Cache extends Logging {
     val fff = Paths.get(getCacheFilename(name))
     if (!Files.exists(fff)) {
       println("create cache file!")
+      if (!Files.exists(fff.getParent)) Files.createDirectories(fff.getParent)
       Files.createFile(fff)
     }
     val lines = Files.readAllLines(fff, filecharset).toArray

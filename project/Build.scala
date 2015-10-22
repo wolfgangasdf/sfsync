@@ -22,12 +22,12 @@ object Build extends Build {
       name := "SFSync",
       organization := "sfsync",
       version := "0.9-SNAPSHOT",
-      scalaVersion := "2.11.6",
+      scalaVersion := "2.11.7",
       scalacOptions ++= Seq("-feature", "-unchecked", "-deprecation", "-encoding", "UTF-8"),
       libraryDependencies ++= Seq(
-        "org.scalafx" %% "scalafx" % "8.0.40-R8",
-        "com.typesafe.akka" %% "akka-actor" % "2.3.9",
-        "com.jcraft" % "jsch" % "0.1.52"
+        "org.scalafx" %% "scalafx" % "8.0.60-R9",
+        "com.typesafe.akka" %% "akka-actor" % "2.3.14",
+        "com.jcraft" % "jsch" % "0.1.53"
       )
     ) ++ buildInfoSettings ++ myBuildInfoSettings
   )
