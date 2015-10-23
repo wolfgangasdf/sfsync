@@ -22,7 +22,6 @@ import akka.util.Timeout
 import akka.actor.ActorRef
 
 import scala.collection.JavaConversions._
-import scala.collection.JavaConverters._
 import scalafx.scene.control.Alert.AlertType
 
 
@@ -134,8 +133,8 @@ object CompareStuff extends Logging {
     Cache.cache.iterate((it, path, se) => if (se.relevant && se.action != A_ISEQUAL) res = true)
     res
   }
-
 }
+
 class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: SubFolder) extends Logging {
   var cache: ListBuffer[VirtualFile] = null
   var local: GeneralConnection = null
@@ -227,7 +226,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       }
     })
     times += "resetting table" -> sw.getTimeRestart
-    runUIwait { view.updateSyncEntries() }
+    runUIwait { Cache.updateObservableBuffer(full = true) }
     // the receive actor
     var lfiles = 0
     var rfiles = 0
@@ -244,7 +243,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
               progress.update(0.0, s"Find files... parsing:\n${vf.path}")
               Main.Status.local.value = lfiles.toString
               Main.Status.remote.value = rfiles.toString
-              view.updateSyncEntries()
+              Cache.updateObservableBuffer(full = false)
             }
             swUI.restart()
           }
@@ -253,6 +252,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
           if (islocal) { se.lTime = vf.modTime ; se.lSize = vf.size }
           else         { se.rTime = vf.modTime ; se.rSize = vf.size }
           Cache.cache += (vf.path -> se)
+          Cache.queueCacheChange(vf.path)
         case 'done =>
           finished -= 1
           debug("receivelist: new finished = " + finished)
@@ -314,7 +314,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     runUIwait {
       Main.Status.local.value = lfiles.toString
       Main.Status.remote.value = rfiles.toString
-      view.updateSyncEntries()
+      Cache.updateObservableBuffer(full = false)
       progress.update(1.0, "comparing files...")
     }
     // compare entries
@@ -325,7 +325,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     info("*********************** compare: finish up")
     val runSync = runUIwait {
       Main.btCompare.setDisable(false)
-      view.updateSyncEntries()
+      Cache.updateObservableBuffer(full = true)
       val canSync = view.updateSyncButton(allow = true)
       if (haveChanges) {
         Main.Status.status.value = "Finished compare"
@@ -373,7 +373,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
 
       if (swUIupdate.getTime > UIUpdateInterval || showit) {
         runUIwait {
-          view.updateSyncEntries()
+          Cache.updateObservableBuffer(full = false)
           // update status
           progress.update(iii.toDouble/tosync, s"Synchronize($iii/$tosync):\n  Path: $path\n  Size: " + relevantSize)
         }
@@ -391,6 +391,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
           case A_CACHEONLY => se.delete = true
           case aa => throw new UnsupportedOperationException("unknown action: " + aa)
         }
+        if (se.action != A_SKIP) Cache.queueCacheChange(path)
       } catch {
         case e: Exception =>
           error("sync exception:", e)
@@ -405,7 +406,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       for (state <- List(1, 2)) {
         // delete and add dirs must be done in reverse order!
         debug("syncing state = " + state)
-        val q = state match {
+        state match {
           case 1 => // delete
             Cache.cache.iterate( (it, path, se) => {
               if (se.relevant && List(A_RMBOTH, A_RMLOCAL, A_RMREMOTE).contains(se.action)) {
@@ -435,7 +436,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
           Main.dialogMessage(AlertType.Error, "Error", "Errors during synchronization\n(mind that excluded files are not shown):\n", syncLog)
           sbar = "Synchronization error"
         }
-        view.updateSyncEntries()
+        Cache.updateObservableBuffer(full = true)
         view.enableActions = false
         Main.Status.clear()
       }

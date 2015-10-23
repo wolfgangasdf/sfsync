@@ -6,6 +6,8 @@ import sfsync.CF
 import sfsync.synchro.Actions._
 import sfsync.util.Logging
 
+import scalafx.collections.ObservableBuffer
+import scalafx.collections.ObservableBuffer._
 import scalafx.{collections => sfxc}
 import scalafx.beans.property._
 import scala.collection.mutable.ArrayBuffer
@@ -13,7 +15,7 @@ import scala.language.implicitConversions
 import scala.language.{reflectiveCalls, postfixOps}
 
 import scala.collection.JavaConversions._
-import scala.collection.JavaConverters._
+//import scala.collection.JavaConverters._
 
 import java.nio.file._
 
@@ -191,13 +193,13 @@ object Store extends Logging {
     var lastsubfolder: SubFolder = null
     info("----------load")
     val lines = DBSettings.getLines
-    if (lines.size == 0) {
+    if (lines.isEmpty) {
       info("no config file...")
       config = new Config
     } else {
       lines.foreach(lll => {
         val sett = splitsetting(lll.toString)
-        sett(0) match {
+        sett.head match {
           case "sfsyncsettingsversion" =>
             if (!sett(1).equals("1")) sys.error("wrong settings version")
             config = new Config()
@@ -226,7 +228,7 @@ object Store extends Logging {
             lastsubfolder = new SubFolder { name = sett(1) }
             lastserver.subfolders += lastsubfolder
           case "subfolderfolder" => lastsubfolder.subfolders.add(sett(1))
-          case _ => warn("unknown tag in config file: <" + sett(0) + ">")
+          case _ => warn("unknown tag in config file: <" + sett.head + ">")
         }
       })
     }
@@ -247,6 +249,7 @@ object Store extends Logging {
 
 }
 
+// TODO: make observable somehow?
 class SyncEntry2(var path: String, var se: SyncEntry) {
   override def toString = {s"[path=TODO action=${se.action} lTime=${se.lTime} lSize=${se.lSize} rTime=${se.rTime} rSize=${se.rSize} cTime=${se.cTime} cSize=${se.cSize} rel=${se.relevant}"}
   def toStringNice = {
@@ -337,7 +340,9 @@ class SyncEntry(var action: Int,
 
 }
 
-
+// MUST be sorted like treemap: first, cache file is put here, then possibly new files added, which must be sorted.
+// TODO: case insensitive? would look nicer...
+// need fast access by path (==key): hashmap. only solution: treemap.
 class MyTreeMap[K, V] extends java.util.TreeMap[K, V] {
   // this is 10x faster than foreach, can do it.remove(), return false to stop (or true/Unit for continue)
   def iterate(fun: ( java.util.Iterator[java.util.Map.Entry[K, V]], K, V ) => Any, reversed: Boolean = false) = {
@@ -357,12 +362,22 @@ class MyTreeMap[K, V] extends java.util.TreeMap[K, V] {
   }
 }
 
-
+// this holds the main database of files. also takes care of GUI observable list
 object Cache extends Logging {
   var cache: MyTreeMap[String, SyncEntry] = null
-  var paginationcache = new MyTreeMap[Int, SyncEntry2]() // only for list view!
-  private var cachemodified = false // make sure to reload listview if things modified!
-  var observableList: com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry2] = null
+  var observableListSleep = false
+  var observableList = new sfxc.ObservableBuffer[SyncEntry2]()
+  observableList.onChange( // automatically update treemap from UI changes
+    (source: ObservableBuffer[SyncEntry2], changes: Seq[Change]) => {
+      if (!observableListSleep) changes.foreach {
+        case Update(from, to) => observableList.subList(from, to).foreach(se2 => {
+          debug("changed se2: " + se2.toStringNice)
+          cache.update(se2.path, se2.se)
+        })
+        case _ => throw new NotImplementedError("obslist wants to do something else! ")
+      }
+    }
+  )
 
   def dumpAll() = {
     cache.iterate( (it, path, se) => println(path + ": " + se.toString))
@@ -374,12 +389,13 @@ object Cache extends Logging {
 
   def iniCache() = {
     cache = new MyTreeMap[String, SyncEntry]()
-    cachemodified = true
+    observableList.clear()
   }
 
   def loadCache(name: String) = {
     info("load cache database..." + name)
-    cache = new MyTreeMap[String, SyncEntry]()
+    iniCache()
+
     val fff = Paths.get(getCacheFilename(name))
     if (!Files.exists(fff)) {
       println("create cache file!")
@@ -389,15 +405,15 @@ object Cache extends Logging {
     val lines = Files.readAllLines(fff, filecharset).toArray
     lines.foreach(lll => {
       var sett = splitsetting(lll.toString)
-      val modTime = sett(0).toLong
+      val modTime = sett.head.toLong
       sett = splitsetting(sett(1))
-      val size = sett(0).toLong
+      val size = sett.head.toLong
       val path = sett(1) // this is safe, also commas in filename ok
       val vf = new SyncEntry(A_UNKNOWN, -1, -1, -1, -1, modTime, size, path.endsWith("/"), false)
       cache.put(path, vf)
     })
+    updateObservableBuffer(full = true)
     info("cache database loaded!")
-    cachemodified = true
   }
 
   def saveCache(name: String) {
@@ -418,50 +434,46 @@ object Cache extends Logging {
     if (Files.exists(fff)) {
       Files.delete(fff)
     }
-  }
-  
-  // use this for any modification or set cachemodified manually!
-  def update(key: String, se: SyncEntry) = {
-    cache.put(key, se)
-    cachemodified = true
-  }
-
-  def clearPaginationCache() = {
-    paginationcache.clear()
-    cachemodified = false
+    cache.clear()
+    observableList.clear()
   }
 
   // for listview
-  def initializeSyncEntries(onlyRelevant: Boolean, filterActions: List[Int] = ALLACTIONS) {
-    observableList =  new com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry2]() {
-      def get(p1: Int): SyncEntry2 = {
-        if (!paginationcache.containsKey(p1) || cachemodified) {
-          if (paginationcache.size > 5000 || cachemodified) {
-            clearPaginationCache()
-          }
-          var startindex = p1 - 10 // cache for scrolling etc // TODO more?
-          if (startindex < 0 ) startindex = 0
-          debug("refresh cache p1=" + p1 + " startindex=" + startindex)
-          var iii = 0
-          cache.iterate( (it, path, se) => {
-            if ((!onlyRelevant || se.relevant) && filterActions.contains(se.action)) {
-              if (iii >= startindex)
-                paginationcache.put(iii, new SyncEntry2(path, se))
-              iii += 1
-              if (iii > (startindex + 20)) false else true
-            } else true
-          })
-        }
-        paginationcache.get(p1)
-      }
-      def size(): Int = {
-        var iii = 0
-        cache.iterate((it, path, se) => {
-          if ((!onlyRelevant || se.relevant) && filterActions.contains(se.action)) iii += 1
-        })
-        iii
-      }
-    }
+  var filterActions: List[Int] = ALLACTIONS
+  val onlyRelevant = true
+  /*
+  the cacheChanges thing is too slow for local stuff... probably measure how fast it is?
+   */
+  val cacheChanges = new ArrayBuffer[String]()
+  def queueCacheChange(path: String): Unit = {
+//    cacheChanges += path
+  }
+
+  def updateObservableBuffer(full: Boolean = false): Unit = {
+    if (full)
+      Cache.initializeSyncEntries()
+//    else // TODO ignore filteractions here?
+//      cacheChanges.foreach(cc => {
+//        observableListSleep = true
+//        observableList.find(se2 => se2.path == cc).get.se = cache.get(cc)
+//        observableListSleep = false
+//      })
+    cacheChanges.clear()
+  }
+
+  // for listview
+  def initializeSyncEntries() {
+    debug("ini sync entries: filteraction=" + filterActions.mkString(","))
+    observableListSleep = true
+    observableList.clear()
+
+    // fill obslist
+    cache.iterate( (it, path, se) => {
+      if ((!onlyRelevant || se.relevant) && filterActions.contains(se.action)) {
+        observableList += new SyncEntry2(path, se)
+      } else true
+    })
+    observableListSleep = false
   }
 
   def canSync: Boolean = {

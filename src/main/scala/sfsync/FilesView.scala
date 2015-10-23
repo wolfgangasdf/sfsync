@@ -78,11 +78,14 @@ class FilesView() extends Tab with Logging {
         // must set tooltip only after cell created! can't override updateItem, do it here...
         onMouseEntered = (event: scalafx.scene.input.MouseEvent) => {
           if (tooltip.value == null) {
-            val se = xx.tableView().getItems.get(tableRow.value.getIndex)
-            if (se != null) { // mouseentered also on empty cells!
-              tooltip = new Tooltip {
-                text = se.toStringNice
-                style = "-fx-font-family: \"Courier New\";"
+            if (xx.tableView().getItems.size > tableRow.value.getIndex) {
+              val se = xx.tableView().getItems.get(tableRow.value.getIndex)
+              if (se != null) {
+                // mouseentered also on empty cells!
+                tooltip = new Tooltip {
+                  text = se.toStringNice
+                  style = "-fx-font-family: \"Courier New\";"
+                }
               }
             }
           }
@@ -139,7 +142,7 @@ class FilesView() extends Tab with Logging {
     )
     selectionModel().selectedItems.onChange(
       (ob, _) => {
-        if (ob.size > 0) {
+        if (ob.nonEmpty) {
           debug("selitemsonchange: ob.size=" + ob.size)
           updateActionButtons()
         }
@@ -147,20 +150,18 @@ class FilesView() extends Tab with Logging {
     )
   }
 
-  def setListItems(x: com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList[SyncEntry2]) {
-    tv.items = x
-  }
-
-  def updateSyncEntries() { // doesn't work if session that modified did not commit...
-    debug("updateSyncEntries in thread " + Thread.currentThread().getId)
-    Cache.initializeSyncEntries(onlyRelevant = true, filterActions = getFilter)
-
-    setListItems(Cache.observableList)
-    // workaround for tableview update...
-    // javafx bug: http://javafx-jira.kenai.com/browse/RT-22599
-    tv.getColumns.get(0).setVisible(false)
-    tv.getColumns.get(0).setVisible(true)
-  }
+//  def updateSyncEntries() { // doesn't work if session that modified did not commit...
+//    debug("updateSyncEntries in thread " + Thread.currentThread().getId)
+//    Cache.initializeSyncEntries(onlyRelevant = true, filterActions = getFilter)
+//
+////    tv.items = Cache.observableList
+//
+//    // workaround for tableview update...
+//    // javafx bug: https://bugs.openjdk.java.net/browse/JDK-8098085
+////    tv.refresh() // TODO: works now?
+////    tv.getColumns.get(0).setVisible(false)
+////    tv.getColumns.get(0).setVisible(true)
+//  }
 
   object advActions extends Enumeration {
 //    type action = Value
@@ -178,11 +179,11 @@ class FilesView() extends Tab with Logging {
           case advActions.debug => debug("SE: " + tv.selectionModel().getSelectedItem)
           case advActions.asRemote =>
             profile.iniLocalAsRemote()
-            updateSyncEntries()
+            Cache.updateObservableBuffer(full = true)
             updateSyncButton()
           case advActions.asLocal =>
             profile.iniRemoteAsLocal()
-            updateSyncEntries()
+            Cache.updateObservableBuffer(full = true)
             updateSyncButton()
         }
         value = null
@@ -230,13 +231,11 @@ class FilesView() extends Tab with Logging {
       onAction = (ae: ActionEvent) => {
         for (idx <- tv.selectionModel().getSelectedItems) {
           idx.se.action = action
-          Cache.update(idx.path, idx.se) // TODO was: , clearCache = false)
+          tv.refresh() // TODO bug: have to do this to refresh status col! (albeit event is emitted!)
         }
         // advance
         tv.selectionModel().clearAndSelect(tv.selectionModel().getSelectedIndices.max+1)
-
-        updateSyncEntries()
-        updateSyncButton()
+        updateSyncButton() // TODO check if this works (treemap updated already?)
         print("")
       }
     }
@@ -301,20 +300,26 @@ class FilesView() extends Tab with Logging {
     def getAll = (all,changes,problems)
   }
   filterList.addAll (F.all,F.changes,F.problems)
-  val cFilter = new ComboBox(filterList) {
-    selectionModel().select(Store.config.currentFilter)
+  val cFilter: ComboBox[String] = new ComboBox(filterList) {
     onAction = (ae: ActionEvent) => {
-      Store.config.currentFilter.value = selectionModel().getSelectedIndex
-      updateSyncEntries()
+      Store.config.currentFilter.value = cFilter.selectionModel().getSelectedIndex
+      Cache.filterActions = getFilter
+      debug("setting filter to " + getFilter.mkString(","))
+      Cache.updateObservableBuffer(full = true)
     }
+    selectionModel().select(Store.config.currentFilter)
+    Cache.filterActions = getFilter2(filterList.get(Store.config.currentFilter.value))
   }
 
   var bv = new HBox { children = List(cFilter,btRmLocal, btUseLocal, btMerge,
     btSkip, btRmBoth, btUseRemote, btRmRemote, btDiff, cbAdvanced)
   }
 
-  def getFilter = {
-    cFilter.getValue match {
+  def getFilter: List[Int] = {
+    getFilter2(cFilter.getValue)
+  }
+  def getFilter2(i: String): List[Int] = {
+    i match {
       case F.all => ALLACTIONS
       case F.changes => ALLACTIONS.filter( x => x != A_ISEQUAL && x != A_UNCHECKED )
       case F.problems => List(A_UNKNOWN, A_UNCHECKED, A_SKIP, A_CACHEONLY, A_SYNCERROR)
@@ -334,5 +339,6 @@ class FilesView() extends Tab with Logging {
   bv.prefWidth <== vb.width
 
   content = vb
+  
 }
 

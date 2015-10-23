@@ -95,7 +95,7 @@ object Checks {
 
 
     // insert stuff
-    ces.foreach(ce => Cache.update(ce.path, ce.se))
+    ces.foreach(ce => Cache.cache.put(ce.path, ce.se))
 
 //    println("**** initial:")
 //    Cache.dumpAll()
