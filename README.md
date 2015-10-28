@@ -15,8 +15,8 @@ SFSync is a file synchronization program. It uses different paradigms than http:
 ## Status ##
 File synchronization is a delicate thing. However, if you keep the Files list-view on the default setting "changes", only files are modified that you see in the list. You can review everything before pressing `Synchronize`.
 
-* I use it since more than a year without any data loss
-* There is no sanity check before synchronization, so you can create the paradox to delete a folder but copy a child file. This will result in nice synchronization errors, but if your changes are intentionally, no data loss will happen.
+* I use it since years without any data loss
+* There is no sanity check before synchronization, so you can create the paradox to delete a folder but copy a child file. This will result in nice synchronization errors, but no data loss will happen.
 * The routine that assigns the initial actions after comparison is tested on program startup. Check the code, I find this safe.
 * But I can't be responsible for any data loss, of course.
 
@@ -26,27 +26,26 @@ To run it, you need java >= 1.8
 
 To build it, you need a java jdk >= 1.8 and sbt 0.13.
 
-To run it: 
+Run it: 
 
 	sbt run
 
-To package it (and run via shell script, e.g., via quicksilver)
+Package it:
 
-	rm -r target # wildcards in sfsync-run.sh
-	sbt project packageJavafx
-	./sfsync-run.sh
+    sbt dist
 
 # Tutorial #
-to be written
 
 # Used frameworks #
 
-* scala 2.11.4
-* akka
-* scalafx 8
-* com.jcraft.jsch for sftp
-* h2 database for cache
-* squeryl
+* [Scala](http://www.scala-lang.org) and [Scala Build Tool](http://www.scala-sbt.org)
+* [Scalafx](http://scalafx.org) as wrapper for [JavaFX](http://docs.oracle.com/javafx) for the graphical user interface
+* [sbt-javafx](https://github.com/kavedaa/sbt-javafx) to create the runnable Reftool jar file
+* [sbt-buildinfo](https://github.com/sbt/sbt-buildinfo) to access build information
+* [sbt-appbundle](https://github.com/Sciss/sbt-appbundle) to create the mac app bundle
+* a modified version of [universalJavaApplicationStub](https://github.com/tofi86/universalJavaApplicationStub) to launch Reftool on Mac 
+* [Akka](http://akka.io/)
+* [Jsch](http://www.jcraft.com/jsch) to synchronize via sftp
 
 # Contributors #
 
@@ -55,3 +54,6 @@ Contributions are of course very welcome, please contact me or use the standard 
 # Maintainer #
 
 wolfgang.loeffler@gmail.com
+
+### License ###
+[MIT](http://opensource.org/licenses/MIT)
