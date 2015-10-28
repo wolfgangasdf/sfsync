@@ -389,7 +389,9 @@ object Cache extends Logging {
 
   def iniCache() = {
     cache = new MyTreeMap[String, SyncEntry]()
+    observableListSleep = true
     observableList.clear()
+    observableListSleep = false
   }
 
   def loadCache(name: String) = {
