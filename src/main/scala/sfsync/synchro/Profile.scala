@@ -171,22 +171,30 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       }
     }
 
-
-    local = new LocalConnection(true) {
-      remoteBasePath = server.localFolder.value
+    try {
+      local = new LocalConnection(true) {
+        remoteBasePath = server.localFolder.value
+      }
+      val uri = MyURI(protocol.protocoluri.value)
+      debug(s"puri = ${protocol.protocoluri.value}  proto = ${uri.protocol}")
+      runUIwait {
+        progress.update(1.0, "initialize remote connection...")
+      }
+      remote = uri.protocol match {
+        case "sftp" => new SftpConnection(false, uri)
+        case "file" => new LocalConnection(false)
+        case _ => throw new RuntimeException("wrong protocol: " + uri.protocol)
+      }
+      remote.localBasePath = server.localFolder.value
+      remote.remoteBasePath = protocol.protocolbasefolder
+      profileInitialized = true
+      runUIwait { progress.close() }
+    } catch {
+      case e: Exception =>
+        runUIwait { progress.close() }
+        Main.dialogMessage(AlertType.Error, "Error", "Error init profile:\n", e.toString)
+        throw e
     }
-    val uri = MyURI(protocol.protocoluri.value)
-    debug(s"puri = ${protocol.protocoluri.value}  proto = ${uri.protocol}")
-    runUIwait { progress.update(1.0, "initialize remote connection...") }
-    remote = uri.protocol match {
-      case "sftp" => new SftpConnection(false,uri)
-      case "file" => new LocalConnection(false)
-      case _ => throw new RuntimeException("wrong protocol: " + uri.protocol)
-    }
-    remote.localBasePath = server.localFolder.value
-    remote.remoteBasePath = protocol.protocolbasefolder
-    profileInitialized = true
-    runUIwait { progress.close() }
   }
 
 
