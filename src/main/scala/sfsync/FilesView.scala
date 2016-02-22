@@ -100,15 +100,6 @@ class FilesView() extends Tab with Logging {
     cellValueFactory = (xx) => {
       StringProperty(xx.value.se.status)
     }
-// TODO doesn't work, updateItem not called...
-//    cellFactory = (xx) => { // tooltip
-//      val x = new TextFieldTableCell[SyncEntry, String] {
-//        override def updateItem(f: String, empty: Boolean) {
-//          debug("HUHUHUHUHUHUHUHUH")
-//        }
-//      }
-//      x
-//    }
   }
   colStatus.setCellFactory(new jfxu.Callback[jfxsc.TableColumn[SyncEntry2, String],jfxsc.TableCell[SyncEntry2, String]] {
     def call(param: jfxsc.TableColumn[SyncEntry2, String]): jfxsc.TableCell[SyncEntry2, String] = {
@@ -150,19 +141,6 @@ class FilesView() extends Tab with Logging {
     )
   }
 
-//  def updateSyncEntries() { // doesn't work if session that modified did not commit...
-//    debug("updateSyncEntries in thread " + Thread.currentThread().getId)
-//    Cache.initializeSyncEntries(onlyRelevant = true, filterActions = getFilter)
-//
-////    tv.items = Cache.observableList
-//
-//    // workaround for tableview update...
-//    // javafx bug: https://bugs.openjdk.java.net/browse/JDK-8098085
-////    tv.refresh() // TODO: works now?
-////    tv.getColumns.get(0).setVisible(false)
-////    tv.getColumns.get(0).setVisible(true)
-//  }
-
   object advActions extends Enumeration {
 //    type action = Value
     val debug = Value("Debug info")
@@ -187,7 +165,6 @@ class FilesView() extends Tab with Logging {
             updateSyncButton()
         }
         value = null
-//        selectionModel.value.clearSelection() // TODO does not work... bug?
       }
     }
   }
@@ -235,7 +212,7 @@ class FilesView() extends Tab with Logging {
         }
         // advance
         tv.selectionModel().clearAndSelect(tv.selectionModel().getSelectedIndices.max+1)
-        updateSyncButton() // TODO check if this works (treemap updated already?)
+        updateSyncButton()
         print("")
       }
     }

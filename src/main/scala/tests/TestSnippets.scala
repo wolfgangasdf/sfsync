@@ -42,7 +42,7 @@ object ActorTest extends App{
   //  println("state " + act.getState.toString)
   //  println("state " + act.getState.toString)
   println("backhere")
-  system.shutdown()
+  system.terminate()
   sys.exit()
   //  exit()
 }

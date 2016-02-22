@@ -172,7 +172,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     }
 
     try {
-      local = new LocalConnection(true) {
+      local = new LocalConnection(true, false) {
         remoteBasePath = server.localFolder.value
       }
       val uri = MyURI(protocol.protocoluri.value)
@@ -181,8 +181,8 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
         progress.update(1.0, "initialize remote connection...")
       }
       remote = uri.protocol match {
-        case "sftp" => new SftpConnection(false, uri)
-        case "file" => new LocalConnection(false)
+        case "sftp" => new SftpConnection(false, server.cantSetDate.value, uri)
+        case "file" => new LocalConnection(false, server.cantSetDate.value)
         case _ => throw new RuntimeException("wrong protocol: " + uri.protocol)
       }
       remote.localBasePath = server.localFolder.value
@@ -256,7 +256,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
             swUI.restart()
           }
           if (islocal) lfiles += 1 else rfiles += 1
-          val se = Cache.cache.getOrDefault(vf.path, new SyncEntry(A_UNCHECKED, 0, -1, 0, -1, 0, -1, vf.path.endsWith("/"),true))
+          val se = Cache.cache.getOrDefault(vf.path, new SyncEntry(A_UNCHECKED, 0, -1, 0, -1, 0, 0, -1, vf.path.endsWith("/"),true))
           if (islocal) { se.lTime = vf.modTime ; se.lSize = vf.size }
           else         { se.rTime = vf.modTime ; se.rSize = vf.size }
           Cache.cache += (vf.path -> se)
@@ -392,9 +392,9 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
           case A_MERGE => throw new Exception("merge not implemented yet!")
           case A_RMLOCAL | A_RMBOTH => local.deletefile(path, se.lTime); se.delete = true; se.relevant = false
           case A_RMREMOTE | A_RMBOTH => remote.deletefile(path, se.rTime); se.delete = true; se.relevant = false
-          case A_USELOCAL => remote.putfile(path, se.lTime); se.rTime = se.lTime; se.rSize = se.lTime; se.cSize = se.lSize; se.cTime = se.lTime; se.relevant = false
-          case A_USEREMOTE => remote.getfile(path, se.rTime); se.lTime = se.rTime; se.lSize = se.rTime; se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false
-          case A_ISEQUAL => se.cSize = se.rSize; se.cTime = se.rTime; se.relevant = false
+          case A_USELOCAL => val nrt=remote.putfile(path, se.lTime); se.rTime = se.lTime; se.rSize = se.lTime; se.cSize = se.lSize; se.lcTime = se.lTime; se.rcTime = nrt; se.relevant = false
+          case A_USEREMOTE => remote.getfile(path, se.rTime); se.lTime = se.rTime; se.lSize = se.rTime; se.cSize = se.rSize; se.rcTime = se.rTime; se.rcTime = se.rTime; se.relevant = false
+          case A_ISEQUAL => se.cSize = se.rSize; se.lcTime = se.lTime; se.lcTime = se.lTime; se.rcTime = se.rTime; se.relevant = false
           case A_SKIP =>
           case A_CACHEONLY => se.delete = true
           case aa => throw new UnsupportedOperationException("unknown action: " + aa)
@@ -486,7 +486,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     local.stopRequested = true
     remote.stopRequested = true
     stopProfileRequested = true
-    // TODO: make sure that stopped, then save cache! also call cleanup here?
+    // TODO F: make sure that stopped, then save cache! also call cleanup here?
     Cache.saveCache(server.id)
   }
 

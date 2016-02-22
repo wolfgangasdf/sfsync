@@ -113,8 +113,10 @@ class MyList[T] extends ArrayBuffer[T] {
 
 class Server extends ListableThing {
   implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
+  implicit def BoolToBooleanProperty(b: Boolean): BooleanProperty = BooleanProperty(b)
   implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
   var id: StringProperty = new java.util.Date().getTime.toString
+  var cantSetDate: BooleanProperty = false
   var localFolder: StringProperty = ""
   var filterRegexp: StringProperty = ""
   var protocols = new sfxc.ObservableBuffer[Protocol]
@@ -166,6 +168,7 @@ object Store extends Logging {
     for (server <- config.servers) {
       saveVal("server", server.name)
       saveVal("localfolder", server.localFolder)
+      saveVal("cantsetdate", server.cantSetDate)
       saveVal("filterregexp", server.filterRegexp)
       saveVal("id", server.id)
       saveVal("protocolcurr", server.currentProtocol)
@@ -213,6 +216,7 @@ object Store extends Logging {
             lastserver = new Server { name = sett(1) }
             config.servers += lastserver
           case "localfolder" => lastserver.localFolder.value = sett(1)
+          case "cantsetdate" => lastserver.cantSetDate.value = sett(1).toBoolean
           case "filterregexp" => lastserver.filterRegexp.value = sett(1)
           case "id" => lastserver.id.value = sett(1)
           case "protocolcurr" => lastserver.currentProtocol.value = sett(1).toInt
@@ -249,15 +253,16 @@ object Store extends Logging {
 
 }
 
-// TODO: make observable somehow?
+// TODO F: make observable somehow?
 class SyncEntry2(var path: String, var se: SyncEntry) {
-  override def toString = {s"[path=TODO action=${se.action} lTime=${se.lTime} lSize=${se.lSize} rTime=${se.rTime} rSize=${se.rSize} cTime=${se.cTime} cSize=${se.cSize} rel=${se.relevant}"}
+  override def toString = {s"[path=TODO action=${se.action} lTime=${se.lTime} lSize=${se.lSize} rTime=${se.rTime} rSize=${se.rSize} lcTime=${se.lcTime} rcTime=${se.rcTime} cSize=${se.cSize} rel=${se.relevant}"}
   def toStringNice = {
     s"""
      |Path: TODO
      |Local : ${se.detailsLocal.value}
      |Remote: ${se.detailsRemote.value}
-     |Cache : ${se.detailsCache.value} (${se.hasCachedParent})
+     |LCache : ${se.detailsLCache.value}
+     |RCache : ${se.detailsRCache.value} (${se.hasCachedParent})
     """.stripMargin
   }
 }
@@ -267,7 +272,7 @@ class SyncEntry2(var path: String, var se: SyncEntry) {
 class SyncEntry(var action: Int,
                 var lTime: Long, var lSize: Long,
                 var rTime: Long, var rSize: Long,
-                var cTime: Long, var cSize: Long,
+                var lcTime: Long, var rcTime: Long, var cSize: Long,
                 var isDir: Boolean,
                 var relevant: Boolean,
                 var selected: Boolean = false,
@@ -282,8 +287,10 @@ class SyncEntry(var action: Int,
       if (lSize != -1) dformat.format(new java.util.Date(lTime)) + "(" + lSize + ")" else "none")
   def detailsRemote = new StringProperty(this, "detailsr",
     if (rSize != -1) dformat.format(new java.util.Date(rTime)) + "(" + rSize + ")" else "none")
-  def detailsCache = new StringProperty(this, "detailsc",
-    if (cSize != -1) dformat.format(new java.util.Date(cTime)) + "(" + cSize + ")" else "none")
+  def detailsRCache = new StringProperty(this, "detailsrc",
+    if (cSize != -1) dformat.format(new java.util.Date(rcTime)) + "(" + cSize + ")" else "none")
+  def detailsLCache = new StringProperty(this, "detailslc",
+    if (cSize != -1) dformat.format(new java.util.Date(lcTime)) + "(" + cSize + ")" else "none")
 //  def isDir = path.endsWith("/")
   def isEqual = {
     if (isDir) {
@@ -296,14 +303,14 @@ class SyncEntry(var action: Int,
     if (isDir) {
       if (lSize != -1 && cSize != -1) true else false
     } else {
-      if (lSize != -1 && lSize == cSize && sameTime(lTime, cTime)) true else false
+      if (lSize != -1 && lSize == cSize && sameTime(lTime, lcTime)) true else false
     }
   }
   def isReqC = {
     if (isDir) {
       if (rSize != -1 && cSize != -1) true else false
     } else {
-      if (rSize != -1 && rSize == cSize && sameTime(rTime, cTime)) true else false
+      if (rSize != -1 && rSize == cSize && sameTime(rTime, rcTime)) true else false
     }
   }
 
@@ -323,11 +330,12 @@ class SyncEntry(var action: Int,
         else action = A_UNKNOWN // not in cache but both present
       }
     } else { // in cache, not equal
-      if ( isLeqC && rSize == -1) action = A_RMLOCAL // remote was deleted (local still in cache)
+      if (isLeqC && isReqC ) action = A_ISEQUAL // apparently, cantSetDate=true
+      else if ( isLeqC && rSize == -1) action = A_RMLOCAL // remote was deleted (local still in cache)
       else if (lSize == -1 && isReqC ) action = A_RMREMOTE // local was deleted (remote still in cache)
       // both exist, as does fcache
-      else if ( isLeqC && rTime > lTime) action = A_USEREMOTE // flocal unchanged, remote newer
-      else if ( isReqC && lTime > rTime) action = A_USELOCAL // fremote unchanged, local newer
+      else if ( isLeqC && rTime > rcTime) action = A_USEREMOTE // flocal unchanged, remote newer
+      else if ( isReqC && lTime > lcTime) action = A_USELOCAL // fremote unchanged, local newer
       else action = A_UNKNOWN // both changed and all other strange things that might occur
     }
     //  debug("CF: " + toString)
@@ -336,12 +344,12 @@ class SyncEntry(var action: Int,
     this
   }
 
-  override def toString = s"[action=$action lTime=$lTime lSize=$lSize rTime=$rTime rSize=$rSize cTime=$cTime cSize=$cSize rel=$relevant"
+  override def toString = s"[action=$action lTime=$lTime lSize=$lSize rTime=$rTime rSize=$rSize lcTime=$lcTime rcTime=$rcTime cSize=$cSize rel=$relevant"
 
 }
 
 // MUST be sorted like treemap: first, cache file is put here, then possibly new files added, which must be sorted.
-// TODO: case insensitive? would look nicer...
+// TODO F: case insensitive? would look nicer...
 // need fast access by path (==key): hashmap. only solution: treemap.
 class MyTreeMap[K, V] extends java.util.TreeMap[K, V] {
   // this is 10x faster than foreach, can do it.remove(), return false to stop (or true/Unit for continue)
@@ -364,6 +372,7 @@ class MyTreeMap[K, V] extends java.util.TreeMap[K, V] {
 
 // this holds the main database of files. also takes care of GUI observable list
 object Cache extends Logging {
+  val CACHEVERSION = "V1"
   var cache: MyTreeMap[String, SyncEntry] = null
   var observableListSleep = false
   var observableList = new sfxc.ObservableBuffer[SyncEntry2]()
@@ -400,20 +409,29 @@ object Cache extends Logging {
 
     val fff = Paths.get(getCacheFilename(name))
     if (!Files.exists(fff)) {
-      println("create cache file!")
+      info("create cache file!")
       if (!Files.exists(fff.getParent)) Files.createDirectories(fff.getParent)
       Files.createFile(fff)
     }
-    val lines = Files.readAllLines(fff, filecharset).toArray
-    lines.foreach(lll => {
-      var sett = splitsetting(lll.toString)
-      val modTime = sett.head.toLong
-      sett = splitsetting(sett(1))
-      val size = sett.head.toLong
-      val path = sett(1) // this is safe, also commas in filename ok
-      val vf = new SyncEntry(A_UNKNOWN, -1, -1, -1, -1, modTime, size, path.endsWith("/"), false)
-      cache.put(path, vf)
-    })
+    val br = Files.newBufferedReader(fff, filecharset)
+    val cacheVersion = br.readLine()
+    if (cacheVersion == CACHEVERSION) {
+      var lll: String = null
+      while ({lll = br.readLine() ; lll != null}) {
+        var sett = splitsetting(lll.toString)
+        val lcTime = sett.head.toLong
+        sett = splitsetting(sett(1))
+        val rcTime = sett.head.toLong
+        sett = splitsetting(sett(1))
+        val size = sett.head.toLong
+        val path = sett(1) // this is safe, also commas in filename ok
+        val vf = new SyncEntry(A_UNKNOWN, -1, -1, -1, -1, lcTime, rcTime, size, path.endsWith("/"), false)
+        cache.put(path, vf)
+      }
+    } else {
+      info(s"Don't load cache, wrong cache version $cacheVersion <> $CACHEVERSION")
+    }
+    br.close()
     updateObservableBuffer(full = true)
     info("cache database loaded!")
   }
@@ -423,8 +441,9 @@ object Cache extends Logging {
     val fff = new java.io.File(getCacheFilename(name)) // forget scalax.io.file: much too slow
     if (fff.exists) fff.delete()
     val out = new java.io.BufferedWriter(new java.io.FileWriter(fff),1000000)
+    out.write(CACHEVERSION + "\n")
     for ((path, cf: SyncEntry) <- cache) {
-      out.write("" + cf.cTime + "," + cf.cSize + "," + path + "\n")
+      out.write("" + cf.lcTime + "," + cf.rcTime + "," + cf.cSize + "," + path + "\n")
     }
     out.close()
     info("cache database saved!")

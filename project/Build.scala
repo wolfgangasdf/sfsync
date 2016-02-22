@@ -26,7 +26,7 @@ object Build extends Build {
       scalacOptions ++= Seq("-feature", "-unchecked", "-deprecation", "-encoding", "UTF-8"),
       libraryDependencies ++= Seq(
         "org.scalafx" %% "scalafx" % "8.0.60-R9",
-        "com.typesafe.akka" %% "akka-actor" % "2.3.14",
+        "com.typesafe.akka" %% "akka-actor" % "2.4.0",
         "com.jcraft" % "jsch" % "0.1.53"
       )
     ) ++ buildInfoSettings ++ myBuildInfoSettings

@@ -78,14 +78,14 @@ class VirtualFile(var path: String, var modTime: Long, var size: Long) extends O
   def compare(that: VirtualFile): Int = path.compare(that.path)
 }
 
-abstract class GeneralConnection(isLocal: Boolean) extends Logging {
+abstract class GeneralConnection(isLocal: Boolean, cantSetDate: Boolean) extends Logging {
   var localBasePath: String = ""
   var remoteBasePath: String = ""
   var filterregex: Regex = new Regex(""".*""")
   @volatile var stopRequested = false
   def getfile(from: String, mtime: Long, to: String)
   def getfile(from: String, mtime: Long)
-  def putfile(from: String, mtime: Long)
+  def putfile(from: String, mtime: Long): Long // returns new mtime if cantSetDate
   def mkdirrec(absolutePath: String)
   def deletefile(what: String, mtime: Long)
   def list(where: String, filterregexp: String, receiver: ActorRef, recursive: Boolean, viaActor: Boolean): ArrayBuffer[VirtualFile]
@@ -101,7 +101,7 @@ abstract class GeneralConnection(isLocal: Boolean) extends Logging {
   def cleanUp() = {}
 }
 
-class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
+class LocalConnection(isLocal: Boolean, cantSetDate: Boolean) extends GeneralConnection(isLocal, cantSetDate) {
 
   def deletefile(what: String, mtime: Long) {
     val (cp, _) = checkIsDir(what)
@@ -112,13 +112,13 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
       case ee: java.nio.file.DirectoryNotEmptyException =>
         val dir = Files.newDirectoryStream(fp).toList
         if (runUIwait(Main.dialogOkCancel("Warning", s"Directory \n $cp \n not empty, DELETE ALL?", "Content:\n" + dir.map(a => a.toFile.getName).mkString("\n"))) == true) {
-          dir.map( f => Files.delete(f) )
+          dir.foreach(f => Files.delete(f) )
           Files.delete(fp)
           return
         }
     }
   }
-  def putfile(from: String, mtime: Long) {
+  def putfile(from: String, mtime: Long): Long = {
     val (cp, isdir) = checkIsDir(from)
     debug(s"from=$from isdir=$isdir")
     if (isdir) { // ensure that target path exists
@@ -129,6 +129,7 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
       }
     }
     Files.copy(Paths.get(localBasePath + "/" + cp), Paths.get(remoteBasePath + "/" + cp), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES)
+    mtime
   }
   def getfile(from: String, mtime: Long, to: String) {
     val (cp, isdir) = checkIsDir(from)
@@ -184,7 +185,7 @@ class LocalConnection(isLocal: Boolean) extends GeneralConnection(isLocal) {
 }
 
 
-class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection(isLocal) {
+class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) extends GeneralConnection(isLocal, cantSetDate) {
 
   class MySftpProgressMonitor extends SftpProgressMonitor {
     var bytesTransferred: Long = 0
@@ -210,7 +211,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
       } catch {
         case sftpe: SftpException => // unfortunately only "Failure" ; checking for content would be slow
           val xx = sftp.ls(remoteBasePath + "/" + cp)
-          if (xx.length > 0) {
+          if (xx.nonEmpty) {
             val tmp = new ListBuffer[ChannelSftp#LsEntry]
             for (obj <- xx ) {
               val lse = obj.asInstanceOf[ChannelSftp#LsEntry]
@@ -220,7 +221,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
               }
             }
             if (runUIwait(Main.dialogOkCancel("Warning", s"Directory \n $cp \n not empty, DELETE ALL?", "Content:\n" + tmp.map(a => a.getFilename).mkString("\n"))) == true) {
-              tmp.map( f => sftp.rm(remoteBasePath + "/" + cp + "/" + f.getFilename) )
+              tmp.foreach(f => sftp.rm(remoteBasePath + "/" + cp + "/" + f.getFilename) )
               sftp.rmdir(remoteBasePath + "/" + cp)
               return
             }
@@ -231,7 +232,7 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
       sftp.rm(remoteBasePath + "/" + cp)
     }
   }
-  def putfile(from: String, mtime: Long) {
+  def putfile(from: String, mtime: Long): Long = {
     val (cp, isdir) = checkIsDir(from)
     val rp = remoteBasePath + "/" + cp
     if (isdir) {
@@ -244,13 +245,19 @@ class SftpConnection(isLocal: Boolean, var uri: MyURI) extends GeneralConnection
       }
       checkit(rp)
       sftp.mkdir(rp)
-      sftp.setMtime(rp, (mtime/1000).toInt)
+      mtime // dirs don't need mtime
     } else {
       sftp.put(localBasePath + "/" + cp, rp, progressSftp)
       if (progressSftp.bytesTotal != progressSftp.bytesTransferred) { // interrupted!
         sftp.rm(rp) // delete partially transferred files
+        -1
       } else {
-        sftp.setMtime(rp, (mtime/1000).toInt)
+        if (cantSetDate) {
+          sftp.lstat(rp).getMTime.toLong * 1000
+        } else {
+          sftp.setMtime(rp, (mtime/1000).toInt)
+          mtime
+        }
       }
     }
   }

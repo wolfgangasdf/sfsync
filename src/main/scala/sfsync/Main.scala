@@ -1,5 +1,7 @@
 package sfsync
 
+import java.net.URI
+
 import sfsync.util.{LoggerBase, Logging}
 import sfsync.store._
 import sfsync.synchro._
@@ -22,6 +24,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.implicitConversions
 import akka.actor._
 import scala.collection.mutable.ArrayBuffer
+import scalafx.scene.control.MenuItem._
 
 import javafx.geometry. {Orientation=>jgo}
 import javafx.{stage => jfxs}
@@ -196,15 +199,24 @@ object Main extends JFXApp with Logging {
 
     splash.showProgress("initializing GUI...", 1)
 
-    //    val menu = new Menu("SFSync") {
-    //      items.add(new MenuItem("About")) // TODO
-    //      items.add(new MenuItem("Quit")) // TODO
-    //    }
-    //    val menuBar = new MenuBar {
-    //      useSystemMenuBar = true
-    //      minWidth = 100
-    //      menus.add(menu)
-    //    }
+    val menuBar = new MenuBar {
+      useSystemMenuBar = true
+      menus = List(
+        new Menu("SFSync") {
+          items += new MenuItem("About") {
+            onAction = (ae: ActionEvent) => {
+              import java.awt.Desktop
+              if (Desktop.isDesktopSupported) {
+                val desktop = Desktop.getDesktop
+                if (desktop.isSupported(Desktop.Action.BROWSE)) {
+                  desktop.browse(new URI("https://bitbucket.org/wolfgang/sfsynctest"))
+                }
+              }
+            }
+          }
+        }
+      )
+    }
 
     btSync = new Button("Synchronize") {
       onAction = (ae: ActionEvent) => {
@@ -264,8 +276,8 @@ object Main extends JFXApp with Logging {
     settingsView = new MainView(filesView)
 
     val maincontent = new VBox {
-      //      if (isMac) content += menuBar // TODO
-      children ++= List(toolBar, tabpane, statusBar)
+      //      if (isMac) content += menuBar
+      children ++= List(menuBar, toolBar, tabpane, statusBar)
     }
 
     splash.showProgress("showing GUI...", 1)
@@ -294,7 +306,7 @@ object Main extends JFXApp with Logging {
     // ini after UI shown
     runUI({
       debug("dp=" + Store.config.dividerPositions.toString)
-      if (Store.config.dividerPositions.length > 0)
+      if (Store.config.dividerPositions.nonEmpty)
         settingsView.sp.setDividerPositions(Store.config.dividerPositions: _*)
       else
         settingsView.sp.setDividerPositions(0.3, 0.6)
@@ -443,7 +455,7 @@ object Main extends JFXApp with Logging {
       }
     }
     //    val pb2text = new TextField { editable = false ; text = "xx" }
-    //    val pb2stack = new StackPane { children ++= List(pb2, pb2text) } // TODO for transfer rate etc...
+    //    val pb2stack = new StackPane { children ++= List(pb2, pb2text) } // TODO F for transfer rate etc...
     val bAbort = new Button("Abort") {
       prefHeight = 30; onAction = (ae: ActionEvent) => {
         onAbortClicked()
