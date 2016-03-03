@@ -382,19 +382,23 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
       if (swUIupdate.getTime > UIUpdateInterval || showit) {
         runUIwait {
           Cache.updateObservableBuffer(full = false)
-          // update status
           progress.update(iii.toDouble/tosync, s"Synchronize($iii/$tosync):\n  Path: $path\n  Size: " + relevantSize)
         }
         swUIupdate.restart()
-      } // update status
+      }
       try {
         se.action match {
           case A_MERGE => throw new Exception("merge not implemented yet!")
           case A_RMLOCAL | A_RMBOTH => local.deletefile(path, se.lTime); se.delete = true; se.relevant = false
           case A_RMREMOTE | A_RMBOTH => remote.deletefile(path, se.rTime); se.delete = true; se.relevant = false
-          case A_USELOCAL => val nrt=remote.putfile(path, se.lTime); se.rTime = se.lTime; se.rSize = se.lTime; se.cSize = se.lSize; se.lcTime = se.lTime; se.rcTime = nrt; se.relevant = false
-          case A_USEREMOTE => remote.getfile(path, se.rTime); se.lTime = se.rTime; se.lSize = se.rTime; se.cSize = se.rSize; se.rcTime = se.rTime; se.rcTime = se.rTime; se.relevant = false
-          case A_ISEQUAL => se.cSize = se.rSize; se.lcTime = se.lTime; se.lcTime = se.lTime; se.rcTime = se.rTime; se.relevant = false
+          case A_USELOCAL => val nrt=remote.putfile(path, se.lTime)
+            se.rTime = nrt; se.rSize = se.lSize
+            se.cSize = se.lSize; se.lcTime = se.lTime; se.rcTime = nrt; se.relevant = false
+          case A_USEREMOTE => remote.getfile(path, se.rTime)
+            se.lTime = se.rTime; se.lSize = se.rSize
+            se.cSize = se.rSize; se.rcTime = se.rTime; se.lcTime = se.rTime; se.relevant = false
+          case A_ISEQUAL => se.cSize = se.rSize; se.lcTime = se.lTime
+            se.rcTime = se.rTime; se.relevant = false
           case A_SKIP =>
           case A_CACHEONLY => se.delete = true
           case aa => throw new UnsupportedOperationException("unknown action: " + aa)
