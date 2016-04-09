@@ -1,16 +1,10 @@
 import sbt._
 import sbt.Keys._
-import sbtbuildinfo.Plugin._
+import sbtbuildinfo._
 
-//import no.vedaadata.sbtjavafx.JavaFXPlugin
-//import no.vedaadata.sbtjavafx.JavaFXPlugin.JFX
+import java.time.ZonedDateTime
 
 object Build extends Build {
-  lazy val myBuildInfoSettings = Seq(
-    sourceGenerators in Compile <+= buildInfo,
-    buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion),
-    buildInfoPackage := "sfsync"
-  )
   lazy val sfsync = Project(
     id = "sfsync",
     base = file("."),
@@ -29,7 +23,14 @@ object Build extends Build {
         "com.typesafe.akka" %% "akka-actor" % "2.4.0",
         "com.jcraft" % "jsch" % "0.1.53"
       )
-    ) ++ buildInfoSettings ++ myBuildInfoSettings
+    )
+  ).enablePlugins(BuildInfoPlugin).settings(
+    BuildInfoKeys.buildInfoKeys := Seq[BuildInfoKey](
+      name, version, scalaVersion, sbtVersion,
+      BuildInfoKey.action("buildTime") { ZonedDateTime.now.toString } // re-computed each time at compile
+    ),
+    BuildInfoKeys.buildInfoPackage := "sfsync",
+    BuildInfoKeys.buildInfoUsePackageAsPath := true
   )
 }
 
