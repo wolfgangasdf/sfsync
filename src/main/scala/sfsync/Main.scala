@@ -2,7 +2,7 @@ package sfsync
 
 import java.net.URI
 
-import sfsync.util.{LoggerBase, Logging}
+import sfsync.util.Logging
 import sfsync.store._
 import sfsync.synchro._
 import sfsync.Helpers._
@@ -128,36 +128,55 @@ class MainView(filesView: FilesView) extends Tab with Logging {
 }
 
 object Main extends JFXApp with Logging {
+  import java.io
+
+  // redirect console output, must happen on top of this object!
+  val oldOut = System.out
+  val oldErr = System.err
+  var logps: io.FileOutputStream = null
+  System.setOut(new io.PrintStream(new MyConsole(false), true))
+  System.setErr(new io.PrintStream(new MyConsole(true), true))
+
+  val logfile = createTempFile("sfsynclog",".txt")
+  logps = new io.FileOutputStream(logfile)
+
+  class MyConsole(errchan: Boolean) extends io.OutputStream {
+    override def write(b: Int): Unit = {
+      runUI { if (logView != null) if (logView.taLog != null) logView.taLog.appendText(b.toChar.toString) }
+      if (logps != null) logps.write(b)
+      (if (errchan) oldErr else oldOut).print(b.toChar.toString)
+    }
+  }
+
+  def createTempFile(prefix: String, suffix: String) = { // standard io.File.createTempFile points often to strange location
+  val tag = System.currentTimeMillis().toString
+    var dir = System.getProperty("java.io.tmpdir")
+    if (Helpers.isLinux || Helpers.isMac) if (new io.File("/tmp").isDirectory)
+      dir = "/tmp"
+    new io.File(dir + "/" + prefix + "-" + tag + suffix)
+  }
+
+
+
   val VERSION = BuildInfo.version
   val APPNAME = BuildInfo.name
   val resv = getClass.getResource("/sfsync/HGVERSION.txt")
-  val version = VERSION + (if (resv != null) " (" + io.Source.fromURL(resv).mkString.trim + ")" else "")
+  val version = VERSION + (if (resv != null) " (" + scala.io.Source.fromURL(resv).mkString.trim + ")" else "")
 
   def system = ActorSystem("sfsyncactors")
 
   var settingsView: MainView = null
   var filesView: FilesView = null
+  var logView: LogView = null
   var profile: Profile = null
 
-  debug("path sep=" + System.getProperty("file.separator"))
-
-  // logging but allow override by file
-  LoggerBase.configure(overrideConfigFile = false, logdebug = false, loginfo = false, logwarning = true, logerror = true, logconsole = true, "")
-
   var cw: FilesView = null
-
   var tmpse: SyncEntry = null
-
   var lbInfo: Label = null
-
   var btCompare: Button = null // to prevent suspicious forward reference in btSync
-
   var statusBar: ToolBar = null
-
   var statusLabel: Label = null
-
   var btSync: Button = null
-
   var tabpane: TabPane = null
 
   stage = new JFXApp.PrimaryStage {
@@ -274,6 +293,7 @@ object Main extends JFXApp with Logging {
 
     filesView = new FilesView
     settingsView = new MainView(filesView)
+    logView = new LogView
 
     val maincontent = new VBox {
       //      if (isMac) content += menuBar
@@ -294,7 +314,7 @@ object Main extends JFXApp with Logging {
       maincontent.prefHeight <== myStage.height
       maincontent.prefWidth <== myStage.width
       tabpane.prefHeight <== myStage.height - toolBar.height - statusBar.height - 21
-      tabpane.tabs = List(settingsView, filesView)
+      tabpane.tabs = List(settingsView, filesView, logView)
       statusBar.prefWidth <== myStage.width
 
       if (Store.config.currentServer.value > -1) {
@@ -312,7 +332,8 @@ object Main extends JFXApp with Logging {
         settingsView.sp.setDividerPositions(0.3, 0.6)
     })
     splash.showProgress("ready.", 1)
-
+    info("log file: " + logfile.getAbsolutePath)
+    debug("path sep=" + System.getProperty("file.separator"))
   }
 
   object Status {
@@ -545,9 +566,7 @@ class Splash extends Logging {
   def showProgress(text: String, increment: Int) {
 //    threadinfo("showprogr")
     progress += increment
-    debug("ho1")
     runUIwait {
-      debug("ho2")
       ta.text = text
       pb.progress = progress.toDouble/maxProgress
     }
