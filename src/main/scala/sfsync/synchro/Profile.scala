@@ -192,7 +192,7 @@ class Profile  (view: FilesView, server: Server, protocol: Protocol, subfolder: 
     } catch {
       case e: Exception =>
         runUIwait { progress.close() }
-        Main.dialogMessage(AlertType.Error, "Error", "Error init profile:\n", e.toString)
+        runUI { Main.dialogMessage(AlertType.Error, "Error", "Error init profile:\n", e.toString) }
         throw e
     }
   }

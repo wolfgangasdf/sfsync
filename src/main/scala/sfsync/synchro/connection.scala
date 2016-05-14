@@ -346,8 +346,13 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
     def getPassword = {
       debug(s"getPassword passcount = $getPassCount")
       getPassCount += 1
-      if (getPassCount < 2 && password != "") password
-      else runUIwait(Main.dialogInputString("SSH", "SSH password required. To store password: add to URI string, it will be encrypted", "Password:")).asInstanceOf[String]
+      val pwd = if (getPassCount < 2 && password != "")
+        password
+      else
+        runUIwait(Main.dialogInputString("SSH", "SSH password required. To store password: add to URI string, it will be encrypted", "Password:")).asInstanceOf[String]
+      if (pwd == "")
+        throw new Exception("Sftp login aborted.")
+      pwd
     }
     def promptYesNo(str: String) : Boolean = {
       runUIwait(Main.dialogOkCancel("SSH", "SSH subsystem question:", str)) == true
