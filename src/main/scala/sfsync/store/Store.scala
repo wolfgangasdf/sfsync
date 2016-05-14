@@ -34,9 +34,15 @@ object DBSettings extends Logging {
     dbdir = settpath + "/cache"
   } else throw new Exception("operating system not found")
 
+  val lockFile = new java.io.File(settpath + "/sfsync.lock")
+
   def dbpath(name: String) = dbdir + "/" + name
 
   def getSettingPath = settpath + "/sfsyncsettings" + ".txt"
+
+  def getLock = lockFile.createNewFile()
+
+  def releaseLock() = lockFile.delete()
 
   def getLines = {
     val fff = Paths.get(getSettingPath)

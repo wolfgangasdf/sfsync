@@ -186,9 +186,13 @@ object Main extends JFXApp with Logging {
   }
 
   stage.show()
-  val splash = new Splash
 
-  //  threadinfo("Main")
+  if (!DBSettings.getLock) {
+    runUI { dialogMessage(AlertType.Error, "SFSync Error", "Lock file exists", "Is another Sfsync instance running?<br>If not, remove " + DBSettings.lockFile.getAbsolutePath) }
+    System.exit(1)
+  }
+
+  val splash = new Splash
 
   // I need to return from this so that splash can be updated. initialize in other thread, use runUI{} if needed!
   Future {
@@ -361,6 +365,7 @@ object Main extends JFXApp with Logging {
     Store.config.dividerPositions = ArrayBuffer(settingsView.sp.dividerPositions: _*)
     Store.save()
     doCleanup()
+    DBSettings.releaseLock()
     sys.exit(0)
   }
 
@@ -428,7 +433,7 @@ object Main extends JFXApp with Logging {
 
   def dialogMessage(alertType: AlertType, titletext: String, header: String, htmlmsg: String) {
     new Dialog[Boolean] {
-      initOwner(stage)
+      if (stage.owner.nonEmpty) initOwner(stage)
       title = titletext
       headerText = header
       var sp2 = new ScrollPane { // optional html message
