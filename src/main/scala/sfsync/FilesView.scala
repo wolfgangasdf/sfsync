@@ -21,7 +21,7 @@ import javafx.{util => jfxu}
 import javafx.scene.{control => jfxsc}
 
 import diffmatchpatch.diff_match_patch
-import java.nio.file.{Path, Files}
+import java.nio.file.{Paths, Path, Files}
 import java.nio.charset.StandardCharsets
 import java.nio.ByteBuffer
 
@@ -141,11 +141,24 @@ class FilesView() extends Tab with Logging {
     )
   }
 
+  def revealFile(file: java.io.File): Unit = {
+    if (Helpers.isMac) {
+      Runtime.getRuntime.exec(Array("open", "-R", file.getPath))
+    } else if (Helpers.isWin) {
+      Runtime.getRuntime.exec("explorer.exe /select,"+file.getPath)
+    } else if (Helpers.isLinux) {
+      error("not supported OS, tell me how to do it!")
+    } else {
+      error("not supported OS, tell me how to do it!")
+    }
+  }
+
   object advActions extends Enumeration {
 //    type action = Value
     val debug = Value("Debug info")
     val asRemote = Value("Make local as remote")
     val asLocal = Value("Make remote as local")
+    val revealLocal = Value("Reveal local file")
   }
   val cbAdvanced = new ComboBox[String] {
     maxWidth = 200
@@ -163,6 +176,11 @@ class FilesView() extends Tab with Logging {
             profile.iniRemoteAsLocal()
             Cache.updateObservableBuffer(full = true)
             updateSyncButton()
+          case advActions.revealLocal =>
+            val se2 = tv.selectionModel().getSelectedItem
+            if (se2.se.lSize >= 0) {
+              revealFile(Paths.get(profile.local.remoteBasePath + "/" + se2.path).toFile)
+            }
         }
         value = null
       }
@@ -188,8 +206,8 @@ class FilesView() extends Tab with Logging {
             val diff = new diff_match_patch {
               Diff_Timeout = 0
             }
-            debug("lfc:\n" + lfc)
-            debug("rfc:\n" + rfc)
+            // debug("lfc:\n" + lfc)
+            // debug("rfc:\n" + rfc)
             val (d, msg) = if (se2.se.action == A_USELOCAL)
               (diff.diff_main(rfc, lfc), "Changes remote -> local:")
             else (diff.diff_main(lfc, rfc), "Changes local -> remote:")
