@@ -82,7 +82,6 @@ abstract class GeneralConnection(isLocal: Boolean, cantSetDate: Boolean) extends
   var remoteBasePath: String = ""
   var filterregex: Regex = new Regex(""".*""")
   val debugslow = false
-  @volatile var stopRequested = false
   def getfile(from: String, mtime: Long, to: String)
   def getfile(from: String, mtime: Long)
   def putfile(from: String, mtime: Long): Long // returns new mtime if cantSetDate
@@ -160,7 +159,6 @@ class LocalConnection(isLocal: Boolean, cantSetDate: Boolean) extends GeneralCon
       if (Files.isDirectory(cc) && strippedPath != "/") strippedPath += "/"
       val vf = new VirtualFile(strippedPath, Files.getLastModifiedTime(cc).toMillis, Files.size(cc))
       if ( !vf.fileName.matches(filterregexp)) {
-        if (stopRequested) return
         if (debugslow) Thread.sleep(100)
         action(vf)
         if (Files.isDirectory(cc) && goDeeper ) {
@@ -198,7 +196,7 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
     def count(bytes: Long): Boolean = {
       bytesTransferred += bytes
       onProgress(bytesTransferred.toDouble/bytesTotal)
-      !stopRequested // abort transfer if requested
+      true //!stopRequested // abort transfer if requested
     }
     def end() = {}
   }
@@ -307,7 +305,7 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
       for (obj <- xx ) { tmp += obj.asInstanceOf[ChannelSftp#LsEntry] } // doesn't work otherwise!
       val ord = new Ordering[ChannelSftp#LsEntry]() { def compare(l: ChannelSftp#LsEntry, r: ChannelSftp#LsEntry) = l.getFilename compare r.getFilename }
       for (obj <- tmp.sorted(ord) ) {
-        if (stopRequested) return
+        // if (stopRequested) return
         if (!obj.getFilename.equals(".") && !obj.getFilename.equals("..")) {
           val fullFilePath = folder + "/" + obj.getFilename
           val vf = VFfromSftp(fullFilePath, obj.getAttrs)

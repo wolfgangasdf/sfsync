@@ -411,7 +411,7 @@ object Main extends JFXApp with Logging {
       if (newv) {
         val ttask = new java.util.TimerTask {
           override def run(): Unit = {
-            if (taskList.nonEmpty) scalafx.application.Platform.runLater( new Runnable() { // TODO runUI
+            if (taskList.nonEmpty) scalafx.application.Platform.runLater( new Runnable() {
             def run() {
               var iii = 0
               while (iii < taskList.length) {
@@ -435,7 +435,7 @@ object Main extends JFXApp with Logging {
     }
 
     def runTask(atask: myTask): Unit = {
-      scalafx.application.Platform.runLater( new Runnable() { // TODO runUI
+      scalafx.application.Platform.runLater( new Runnable() {
       def run() {
         if (!al.showing.value) al.show()
         taskList.add(atask)
@@ -580,85 +580,6 @@ object Main extends JFXApp with Logging {
       dialogPane().buttonTypes = Seq(ButtonType.OK)
     }.showAndWait()
   }
-
-/*
-  class Progress(title: String) {
-    var onAbortClicked = () => {}
-    val dstage = new Stage(jfxs.StageStyle.UTILITY) {
-      initOwner(Main.stage)
-      initModality(jfxs.Modality.APPLICATION_MODAL)
-      onCloseRequest = (ae: WindowEvent) => {
-        ae.consume()
-      } // workaround to disable close
-      width = 500
-      height = 300
-    }
-    val ti = new TextArea {
-      text = title
-      editable = false
-      prefHeight = 30
-      style = "-fx-font-size: 20;"
-    }
-    val ta = new TextArea {
-      text = ""
-      editable = false
-      wrapText = true
-    }
-    val pb1 = new ProgressBar {
-      prefHeight = 20; tooltip = new Tooltip {
-        text = "Overall"
-      }
-    }
-    val pb2 = new ProgressBar {
-      prefHeight = 20; tooltip = new Tooltip {
-        text = "File"
-      }
-    }
-    //    val pb2text = new TextField { editable = false ; text = "xx" }
-    //    val pb2stack = new StackPane { children ++= List(pb2, pb2text) } // TODO F for transfer rate etc...
-    val bAbort = new Button("Abort") {
-      prefHeight = 30; onAction = (ae: ActionEvent) => {
-        onAbortClicked()
-      }
-    }
-    val cont = new VBox {
-      style = "-fx-background-color: lightblue;"
-      var sp = new ScrollPane {
-        content = ta
-        fitToWidth = true
-        fitToHeight = true
-        hbarPolicy = ScrollPane.ScrollBarPolicy.NEVER
-        vgrow = Priority.Always
-      }
-      children ++= List(ti, sp, bAbort, pb1, pb2)
-    }
-    dstage.scene = new Scene {
-      content = cont
-    }
-    cont.prefWidth <== dstage.scene.width
-    cont.prefHeight <== dstage.scene.height
-    pb1.prefWidth <== dstage.scene.width
-    pb2.prefWidth <== dstage.scene.width
-    //    pb2text.prefWidth <== dstage.scene.width
-    bAbort.prefWidth <== dstage.scene.width
-    cont.autosize()
-    dstage.show()
-
-    def update(progressValue: Double, s: String) {
-      ta.text = s
-      pb1.progress = progressValue
-    }
-
-    def updateProgressBar2(progressValue: Double, s: String = "") {
-      pb2.progress = progressValue
-      //      pb2text.text = s
-    }
-
-    def close() {
-      dstage.close()
-    }
-  }
-*/
 
 }
 // a scalafx splashscreen: implement from main SFX routine, then call showProgress() or close() from any thread

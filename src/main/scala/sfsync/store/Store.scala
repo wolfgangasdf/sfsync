@@ -354,7 +354,6 @@ class SyncEntry(var action: Int,
 // MUST be sorted like treemap: first, cache file is put here, then possibly new files added, which must be sorted.
 // need fast access by path (==key): hashmap. only solution: treemap.
 // must be synchronized: better ConcurrentSkipListMap as synchronizedSortedMap(TreeMap) locks whole thing
-// TODO: make ordering case insensitive?
 class MyTreeMap[K, V] extends java.util.concurrent.ConcurrentSkipListMap[K, V] {
   // old with treemap: this is 10x faster than foreach, can do it.remove(), return false to stop (or true/Unit for continue)
   def iterate(fun: ( java.util.Iterator[java.util.Map.Entry[K, V]], K, V ) => Any, reversed: Boolean = false) = {

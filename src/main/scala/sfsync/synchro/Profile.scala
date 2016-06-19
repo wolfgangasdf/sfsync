@@ -126,12 +126,6 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
   var UIUpdateInterval = 0.5
   var profileInitialized = false
 
-  /* how to abort? set 3 vars to true:
-  local.stopRequested and remote.stopRequested: running transfers are aborted and partial files deleted
-  stopProfileRequested: check at end of each loop, throw ProfileAbortedException if so. take care of cleanup in finally{}!
-   */
-  @volatile var stopProfileRequested = false // TODO remove all this?
-
   class ProfileAbortedException(message: String = null, cause: Throwable = null) extends RuntimeException(message, cause)
 
   val taskIni = new myTask { override def call(): Unit = {
@@ -194,7 +188,7 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
     })
     debug("sw: resetting table: " + sw.getTimeRestart)
 
-    updateProgr(50, 100, "find files loca and remote...")
+    updateProgr(50, 100, "Find files local and remote...")
     val swUIupdate = new StopWatch
 
     def acLocRem(vf: VirtualFile, isloc: Boolean, updact: (VirtualFile) => Unit): Unit = {
@@ -239,13 +233,10 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
     MyWorker.runTask(taskListLocal)
     MyWorker.runTask(taskListRemote)
 
-    // TODO: this does not work with i8160white.... very strange
-
     while (!(taskListLocal.isDone && taskListRemote.isDone)) { // ignore exceptions / errors!
       Thread.sleep(100)
     }
-//    Helpers.runUI { debug("tll: " + taskListLocal.getState) }
-//    Helpers.runUI { debug("tlr: " + taskListRemote.getState) }
+
     debug("sw: finding files: " + sw.getTimeRestart)
 
     // compare entries
@@ -289,11 +280,11 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
         updateProgr(iii.toDouble, tosync, msg)
       }
 
-//      try {
         se.action match {
           case A_MERGE => throw new Exception("merge not implemented yet!")
-          case A_RMLOCAL | A_RMBOTH => local.deletefile(path, se.lTime); se.delete = true; se.relevant = false
-          case A_RMREMOTE | A_RMBOTH => remote.deletefile(path, se.rTime); se.delete = true; se.relevant = false
+          case A_RMLOCAL => local.deletefile(path, se.lTime); se.delete = true; se.relevant = false
+          case A_RMREMOTE => remote.deletefile(path, se.rTime); se.delete = true; se.relevant = false
+          case A_RMBOTH => local.deletefile(path, se.lTime); remote.deletefile(path, se.rTime); se.delete = true; se.relevant = false
           case A_USELOCAL => val nrt = remote.putfile(path, se.lTime)
             se.rTime = nrt
             se.rSize = se.lSize
@@ -316,18 +307,8 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
           case A_CACHEONLY => se.delete = true
           case aa => throw new UnsupportedOperationException("unknown action: " + aa)
         }
-//      } catch {
-//        case ir: InterruptedException => thr
-//        case e: Exception =>
-//          error("sync exception:", e)
-//          se.action = A_SYNCERROR
-//          se.delete = false
-//          syncLog += (e + "[" + path + "]" + "\n")
-//      }
-//      if (stopProfileRequested) throw new ProfileAbortedException("stopreq")
     }
 
-//    try {
       for (state <- List(1, 2)) {
         // delete and add dirs must be done in reverse order!
         debug("syncing state = " + state)
@@ -348,19 +329,6 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
           if (se.delete) it.remove()
         })
       } // for state
-//    } catch {
-//      case abex: ProfileAbortedException =>
-//        debug("ProfileAbortedException!!! " + abex)
-//      case ex: Exception => error("Unexpected other exception:" + ex)
-//    } finally {
-//      sw.stopPrintTime("TTTTTTTTT synchronized in ")
-//
-//      set(syncLog)
-//      if (syncLog != "") {
-//        throw new Exception("Errors during synchronization\n(mind that excluded files are not shown):\n" + syncLog)
-//      }
-//
-//    }
   } }
 
   // init action to make local as remote
@@ -391,16 +359,6 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
     })
   }
 
-//  // initiate stopping of profile actions and cleanup.
-//  def abortProfile() {
-//    debug("abortProfile!")
-//    local.stopRequested = true
-//    remote.stopRequested = true
-//    stopProfileRequested = true
-//    // TODO F: make sure that stopped, then save cache! also call cleanup here?
-//    Cache.saveCache(server.id.getValueSafe)
-//  }
-//
   // cleanup (transfers must be stopped before)
   val taskCleanup = new myTask { override def call(): Unit = {
     updateTitle("Cleanup profile...")
