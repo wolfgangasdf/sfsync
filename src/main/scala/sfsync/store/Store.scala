@@ -110,7 +110,7 @@ class Config {
 
 class ListableThing extends Ordered[ListableThing] {
   var name: StringProperty = StringProperty("<new>")
-  def compare(that: ListableThing): Int = this.name.compareTo(that.name)
+  def compare(that: ListableThing): Int = this.name.getValueSafe.compareTo(that.name.getValueSafe)
 }
 
 class MyList[T] extends ArrayBuffer[T] {
@@ -129,7 +129,7 @@ class Server extends ListableThing {
   var currentProtocol: IntegerProperty = -1
   var subfolders = new sfxc.ObservableBuffer[SubFolder]
   var currentSubFolder: IntegerProperty = -1
-  override def toString: String = name // used for listview
+  override def toString: String = name.getValueSafe // used for listview
 }
 
 class Protocol extends ListableThing {
@@ -139,14 +139,14 @@ class Protocol extends ListableThing {
   var protocolbasefolder: StringProperty = ""
   var executeBefore: StringProperty = ""
   var executeAfter: StringProperty = ""
-  override def toString: String = name
+  override def toString: String = name.getValueSafe
 }
 
 class SubFolder extends ListableThing {
   implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
   implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
   var subfolders = new sfxc.ObservableBuffer[String]()
-  override def toString: String = name
+  override def toString: String = name.getValueSafe
 }
 
 
@@ -259,9 +259,8 @@ object Store extends Logging {
 
 }
 
-// TODO F: make observable somehow?
 class SyncEntry2(var path: String, var se: SyncEntry) {
-  override def toString = {s"[path=TODO action=${se.action} lTime=${se.lTime} lSize=${se.lSize} rTime=${se.rTime} rSize=${se.rSize} lcTime=${se.lcTime} rcTime=${se.rcTime} cSize=${se.cSize} rel=${se.relevant}"}
+  override def toString = {s"[path=$path action=[${CF.amap(se.action)}] lTime=${se.lTime} lSize=${se.lSize} rTime=${se.rTime} rSize=${se.rSize} lcTime=${se.lcTime} rcTime=${se.rcTime} cSize=${se.cSize} rel=${se.relevant}"}
   def toStringNice = {
     s"""
      |Path: TODO
@@ -344,21 +343,20 @@ class SyncEntry(var action: Int,
       else if ( isReqC && lTime > lcTime) action = A_USELOCAL // fremote unchanged, local newer
       else action = A_UNKNOWN // both changed and all other strange things that might occur
     }
-    //  debug("CF: " + toString)
     assert(action != -9)
-    //debug("iniaction: " + this.toString)
     this
   }
 
-  override def toString = s"[action=$action lTime=$lTime lSize=$lSize rTime=$rTime rSize=$rSize lcTime=$lcTime rcTime=$rcTime cSize=$cSize rel=$relevant"
+  override def toString = s"[action=[${CF.amap(action)}] lTime=$lTime lSize=$lSize rTime=$rTime rSize=$rSize lcTime=$lcTime rcTime=$rcTime cSize=$cSize rel=$relevant"
 
 }
 
 // MUST be sorted like treemap: first, cache file is put here, then possibly new files added, which must be sorted.
-// TODO F: case insensitive? would look nicer...
 // need fast access by path (==key): hashmap. only solution: treemap.
-class MyTreeMap[K, V] extends java.util.TreeMap[K, V] {
-  // this is 10x faster than foreach, can do it.remove(), return false to stop (or true/Unit for continue)
+// must be synchronized: better ConcurrentSkipListMap as synchronizedSortedMap(TreeMap) locks whole thing
+// TODO: make ordering case insensitive?
+class MyTreeMap[K, V] extends java.util.concurrent.ConcurrentSkipListMap[K, V] {
+  // old with treemap: this is 10x faster than foreach, can do it.remove(), return false to stop (or true/Unit for continue)
   def iterate(fun: ( java.util.Iterator[java.util.Map.Entry[K, V]], K, V ) => Any, reversed: Boolean = false) = {
     val it = if (reversed)
       this.descendingMap().entrySet().iterator()
@@ -375,6 +373,15 @@ class MyTreeMap[K, V] extends java.util.TreeMap[K, V] {
     }
   }
 }
+
+//class Asdfds extends com.sun.javafx.scene.control.ReadOnlyUnbackedObservableList {
+//  override def get(i: Int): Nothing = ???
+//
+//  override def size(): Int = ???
+//}
+//class MyObsBuffer[T] extends sfxc.ObservableBuffer[T] {
+//
+//}
 
 // this holds the main database of files. also takes care of GUI observable list
 object Cache extends Logging {
@@ -438,7 +445,7 @@ object Cache extends Logging {
       info(s"Don't load cache, wrong cache version $cacheVersion <> $CACHEVERSION")
     }
     br.close()
-    updateObservableBuffer(full = true)
+    updateObservableBuffer()
     info("cache database loaded!")
   }
 
@@ -467,40 +474,20 @@ object Cache extends Logging {
 
   // for listview
   var filterActions: List[Int] = ALLACTIONS
-  val onlyRelevant = true
-  /*
-  the cacheChanges thing is too slow for local stuff... probably measure how fast it is?
-   */
-  val cacheChanges = new ArrayBuffer[String]()
-  def queueCacheChange(path: String): Unit = {
-//    cacheChanges += path
-  }
 
-  def updateObservableBuffer(full: Boolean = false): Unit = {
-    if (full)
-      Cache.initializeSyncEntries()
-//    else // TODO ignore filteractions here?
-//      cacheChanges.foreach(cc => {
-//        observableListSleep = true
-//        observableList.find(se2 => se2.path == cc).get.se = cache.get(cc)
-//        observableListSleep = false
-//      })
-    cacheChanges.clear()
-  }
-
-  // for listview
-  def initializeSyncEntries() {
-    debug("ini sync entries: filteraction=" + filterActions.mkString(","))
+  def updateObservableBuffer() {
+    debug("update obs buffer...")
     observableListSleep = true
     observableList.clear()
 
     // fill obslist
     cache.iterate( (it, path, se) => {
-      if ((!onlyRelevant || se.relevant) && filterActions.contains(se.action)) {
+      if (se.relevant && filterActions.contains(se.action)) {
         observableList += new SyncEntry2(path, se)
       } else true
     })
     observableListSleep = false
+    debug("update obs buffer done!")
   }
 
   def canSync: Boolean = {

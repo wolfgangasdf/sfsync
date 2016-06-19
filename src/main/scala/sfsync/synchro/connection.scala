@@ -8,7 +8,6 @@ import scala.util.matching.Regex
 import scala.collection.mutable._
 import scala.Predef._
 import scala.collection.JavaConversions._
-import akka.actor.ActorRef
 
 import com.jcraft.jsch
 import com.jcraft.jsch.{SftpProgressMonitor, SftpATTRS, SftpException, ChannelSftp}
@@ -82,13 +81,14 @@ abstract class GeneralConnection(isLocal: Boolean, cantSetDate: Boolean) extends
   var localBasePath: String = ""
   var remoteBasePath: String = ""
   var filterregex: Regex = new Regex(""".*""")
+  val debugslow = false
   @volatile var stopRequested = false
   def getfile(from: String, mtime: Long, to: String)
   def getfile(from: String, mtime: Long)
   def putfile(from: String, mtime: Long): Long // returns new mtime if cantSetDate
   def mkdirrec(absolutePath: String)
   def deletefile(what: String, mtime: Long)
-  def list(where: String, filterregexp: String, receiver: ActorRef, recursive: Boolean, viaActor: Boolean): ArrayBuffer[VirtualFile]
+  def list(subfolder: String, filterregexp: String, action: (VirtualFile) => Unit, recursive: Boolean)
 
   var onProgress = (progressVal: Double) => {}
 
@@ -147,9 +147,8 @@ class LocalConnection(isLocal: Boolean, cantSetDate: Boolean) extends GeneralCon
   }
 
   // include the subfolder but root "/" is not allowed!
-  def list(subfolder: String, filterregexp: String, receiver: ActorRef, recursive: Boolean, viaActor: Boolean) = {
+  def list(subfolder: String, filterregexp: String, action: (VirtualFile) => Unit, recursive: Boolean) {
     debug(s"listrec(rbp=$remoteBasePath sf=$subfolder rec=$recursive) in thread ${Thread.currentThread().getId}")
-    val reslist = new ArrayBuffer[VirtualFile]
     // scalax.io is horribly slow, there is an issue filed
     def parseContent(cc: Path, goDeeper: Boolean) {
       // on mac 10.8 with oracle java 7, filenames are encoded with strange 'decomposed unicode'. grr
@@ -162,7 +161,8 @@ class LocalConnection(isLocal: Boolean, cantSetDate: Boolean) extends GeneralCon
       val vf = new VirtualFile(strippedPath, Files.getLastModifiedTime(cc).toMillis, Files.size(cc))
       if ( !vf.fileName.matches(filterregexp)) {
         if (stopRequested) return
-        if (viaActor) receiver ! addFile(vf, isLocal) else reslist += vf
+        if (debugslow) Thread.sleep(100)
+        action(vf)
         if (Files.isDirectory(cc) && goDeeper ) {
           val dir = Files.newDirectoryStream(cc)
           for (cc1 <- dir) parseContent(cc1, goDeeper = recursive)
@@ -176,7 +176,6 @@ class LocalConnection(isLocal: Boolean, cantSetDate: Boolean) extends GeneralCon
       parseContent(sp, goDeeper = true)
     }
     debug(s"listrec DONE (rbp=$remoteBasePath sf=$subfolder rec=$recursive) in thread ${Thread.currentThread().getId}")
-    if (viaActor) {receiver ! 'done ; null} else reslist
   }
 
   def mkdirrec(absolutePath: String) = {
@@ -288,13 +287,11 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
       case e: SftpException if e.id == ChannelSftp.SSH_FX_NO_SUCH_FILE => debug(e)
       case e: Throwable => throw e
     }
-    debug("sftpexists return: " + resls)
     resls
   }
 
-  def list(subfolder: String, filterregexp: String, receiver: ActorRef, recursive: Boolean, viaActor: Boolean) = {
+  def list(subfolder: String, filterregexp: String, action: (VirtualFile) => Unit, recursive: Boolean) {
     debug(s"listrecsftp(rbp=$remoteBasePath sf=$subfolder rec=$recursive) in thread ${Thread.currentThread().getId}")
-    val reslist = new ArrayBuffer[VirtualFile]
     def VFfromSftp(fullFilePath: String, attrs: SftpATTRS) = {
       new VirtualFile {
         path= fullFilePath.substring(remoteBasePath.length)
@@ -305,7 +302,6 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
       }
     }
     def parseContent(folder: String) {
-      debug("parseContent: " + folder)
       val xx = sftp.ls(folder)
       val tmp = new ListBuffer[ChannelSftp#LsEntry]
       for (obj <- xx ) { tmp += obj.asInstanceOf[ChannelSftp#LsEntry] } // doesn't work otherwise!
@@ -316,7 +312,7 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
           val fullFilePath = folder + "/" + obj.getFilename
           val vf = VFfromSftp(fullFilePath, obj.getAttrs)
           if ( !vf.fileName.matches(filterregexp) ) {
-            if (viaActor) receiver ! addFile(vf, isLocal) else reslist += vf
+            action(vf)
             if (obj.getAttrs.isDir && recursive ) {
               parseContent(fullFilePath)
             }
@@ -331,14 +327,13 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
     if (sftpsp != null) { // not nice: duplicate code (above)
       val vf = VFfromSftp(sp, sftpsp) // not nice: duplicate code (above)
       if ( !vf.fileName.matches(filterregexp) ) {
-        if (viaActor) receiver ! addFile(vf, isLocal) else reslist += vf
+        action(vf)
         if (sftpsp.isDir) {
           parseContent(sp)
         }
       }
     }
     debug("parsing done")
-    if (viaActor) { receiver ! 'done ; null } else reslist
   }
 
   class MyUserInfo(val user: String, val password: String) extends jsch.UserInfo with jsch.UIKeyboardInteractive {

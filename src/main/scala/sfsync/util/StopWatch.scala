@@ -4,6 +4,12 @@ package sfsync.util
 class StopWatch {
   var deltaSecs: Double = 0
   private var startNanos = System.nanoTime
+  def doit(interval: Double): Boolean = {
+    if (getTime > interval) {
+      restart()
+      true
+    } else false
+  }
   def getTime = (System.nanoTime - startNanos)/1e9
   def getTimeRestart = {
     val x = getTime

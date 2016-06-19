@@ -4,7 +4,6 @@ import sfsync.synchro._
 import sfsync.synchro.Actions._
 import sfsync.store.{SyncEntry2, Cache, Store}
 import sfsync.util.Logging
-import sfsync.Helpers._
 
 import scala.language.{implicitConversions, reflectiveCalls, postfixOps}
 import scalafx.collections.ObservableBuffer
@@ -98,7 +97,7 @@ class FilesView() extends Tab with Logging {
   val colStatus = new TableColumn[SyncEntry2, String]("Status") {
     prefWidth=50
     cellValueFactory = (xx) => {
-      StringProperty(xx.value.se.status)
+      StringProperty(xx.value.se.status.getValueSafe)
     }
   }
   colStatus.setCellFactory(new jfxu.Callback[jfxsc.TableColumn[SyncEntry2, String],jfxsc.TableCell[SyncEntry2, String]] {
@@ -118,12 +117,12 @@ class FilesView() extends Tab with Logging {
   val colDetailsLocal = new TableColumn[SyncEntry2, String]("Local") {
     prefWidth=200
     cellValueFactory = (xx) => {
-      StringProperty(xx.value.se.detailsLocal)
+      StringProperty(xx.value.se.detailsLocal.getValueSafe)
     }
   }
   val colDetailsRemote = new TableColumn[SyncEntry2, String]("Remote") {
     prefWidth=200
-    cellValueFactory = (xx) => { StringProperty(xx.value.se.detailsRemote) }
+    cellValueFactory = (xx) => { StringProperty(xx.value.se.detailsRemote.getValueSafe) }
   }
 
   var tv = new TableView[SyncEntry2](Cache.observableList) { // only string-listview is properly updated!
@@ -170,11 +169,11 @@ class FilesView() extends Tab with Logging {
           case advActions.debug => debug("SE: " + tv.selectionModel().getSelectedItem)
           case advActions.asRemote =>
             profile.iniLocalAsRemote()
-            Cache.updateObservableBuffer(full = true)
+            Cache.updateObservableBuffer()
             updateSyncButton()
           case advActions.asLocal =>
             profile.iniRemoteAsLocal()
-            Cache.updateObservableBuffer(full = true)
+            Cache.updateObservableBuffer()
             updateSyncButton()
           case advActions.revealLocal =>
             val se2 = tv.selectionModel().getSelectedItem
@@ -256,34 +255,30 @@ class FilesView() extends Tab with Logging {
     canSync
   }
 
-  var enableActions = false
-
   def updateActionButtons() {
     debug("update action buttons")
     List(btRmLocal, btUseLocal, btMerge, btSkip, btRmBoth, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
-    if (enableActions) {
-      var allEqual = true
-      var allowAction = true
-      var legal = true // all have same file exist status
-      var existCheck: (Boolean, Boolean) = null // (alllocalexists, allremoteexists)
-      for (se2 <- tv.selectionModel().getSelectedItems) {
-        if (existCheck == null)
-          existCheck = (se2.se.lSize != -1, se2.se.rSize != -1)
-        else
-          if (existCheck != (se2.se.lSize != -1, se2.se.rSize != -1)) legal = false
-        if (!se2.se.isEqual) allEqual = false
-        if (se2.se.action == A_UNCHECKED || se2.se.action == A_CACHEONLY) allowAction = false
-      }
-      if (allowAction) {
-        btSkip.setDisable(false)
-        if (legal) {
-          if (allEqual) {
-            if (existCheck == (true,true)) btRmBoth.setDisable(false)
-          } else {
-            if (existCheck == (true,true)) List(btUseLocal,btUseRemote,btMerge,btRmBoth).foreach(bb=>bb.setDisable(false))
-            else if (existCheck == (true,false)) List(btUseLocal,btRmLocal).foreach(bb => bb.setDisable(false))
-            else if (existCheck == (false,true)) List(btUseRemote,btRmRemote).foreach(bb => bb.setDisable(false))
-          }
+    var allEqual = true
+    var allowAction = true
+    var legal = true // all have same file exist status
+    var existCheck: (Boolean, Boolean) = null // (alllocalexists, allremoteexists)
+    for (se2 <- tv.selectionModel().getSelectedItems) {
+      if (existCheck == null)
+        existCheck = (se2.se.lSize != -1, se2.se.rSize != -1)
+      else
+        if (existCheck != (se2.se.lSize != -1, se2.se.rSize != -1)) legal = false
+      if (!se2.se.isEqual) allEqual = false
+      if (se2.se.action == A_UNCHECKED || se2.se.action == A_CACHEONLY) allowAction = false
+    }
+    if (allowAction) {
+      btSkip.setDisable(false)
+      if (legal) {
+        if (allEqual) {
+          if (existCheck == (true,true)) btRmBoth.setDisable(false)
+        } else {
+          if (existCheck == (true,true)) List(btUseLocal,btUseRemote,btMerge,btRmBoth).foreach(bb=>bb.setDisable(false))
+          else if (existCheck == (true,false)) List(btUseLocal,btRmLocal).foreach(bb => bb.setDisable(false))
+          else if (existCheck == (false,true)) List(btUseRemote,btRmRemote).foreach(bb => bb.setDisable(false))
         }
       }
     }
@@ -300,9 +295,9 @@ class FilesView() extends Tab with Logging {
       Store.config.currentFilter.value = cFilter.selectionModel().getSelectedIndex
       Cache.filterActions = getFilter
       debug("setting filter to " + getFilter.mkString(","))
-      Cache.updateObservableBuffer(full = true)
+      Cache.updateObservableBuffer()
     }
-    selectionModel().select(Store.config.currentFilter)
+    selectionModel().select(Store.config.currentFilter.value)
     Cache.filterActions = getFilter2(filterList.get(Store.config.currentFilter.value))
   }
 

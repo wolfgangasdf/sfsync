@@ -9,6 +9,8 @@ import sfsync.Helpers._
 
 import scalafx.application.JFXApp
 import scalafx.Includes._
+import scalafx.collections.ObservableBuffer
+import scalafx.concurrent.WorkerStateEvent
 import scalafx.scene._
 import scalafx.scene.control.Alert.AlertType
 import scalafx.stage._
@@ -22,7 +24,6 @@ import scala.language.reflectiveCalls
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.implicitConversions
-import akka.actor._
 import scala.collection.mutable.ArrayBuffer
 import scalafx.scene.control.MenuItem._
 
@@ -30,6 +31,7 @@ import javafx.geometry. {Orientation=>jgo}
 import javafx.{stage => jfxs}
 import java.nio.charset.Charset
 import java.util.concurrent.FutureTask
+
 
 object Helpers {
 
@@ -82,12 +84,6 @@ object Helpers {
       f
     }
   }
-
-  import scalafx.beans.property._
-  implicit def StringPropertyToString(sp: StringProperty): String = sp.value
-  implicit def IntegerPropertyToInt(sp: IntegerProperty): Int = sp.value
-//  implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
-//  implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
 
   // this only works for serializable objects (no javafx properties), would be useful for copy server/proto/set!
 //  def deepCopy[A](a: A)(implicit m: reflect.Manifest[A]): A =
@@ -163,8 +159,6 @@ object Main extends JFXApp with Logging {
   val resv = getClass.getResource("/sfsync/HGVERSION.txt")
   val version = VERSION + (if (resv != null) " (" + scala.io.Source.fromURL(resv).mkString.trim + ")" else "")
 
-  def system = ActorSystem("sfsyncactors")
-
   var settingsView: MainView = null
   var filesView: FilesView = null
   var logView: LogView = null
@@ -203,7 +197,6 @@ object Main extends JFXApp with Logging {
   }
 
   def initit(myStage: Stage) {
-    //    threadinfo("initit")
     splash.showProgress("running checks...", 1)
     Checks.CheckComparedFile()
     splash.showProgress("startup...", 1)
@@ -243,14 +236,9 @@ object Main extends JFXApp with Logging {
 
     btSync = new Button("Synchronize") {
       onAction = (ae: ActionEvent) => {
-        runUI {
-          btCompare.setDisable(true)
-          btSync.setDisable(true)
-        }
-        Future {
-          profile.synchronize()
-        }
-        unit()
+        btCompare.setDisable(true)
+        btSync.setDisable(true)
+        runSynchronize()
       }
     }
     btCompare = new Button("Compare") {
@@ -274,12 +262,6 @@ object Main extends JFXApp with Logging {
         btSync,
         new Button("test") {
           onAction = (ae: ActionEvent) => {
-            val progress = new Progress("test") {
-              onAbortClicked = () => {
-                close()
-              }
-            }
-            progress.update(0.3, "aaaadfjklsdfjsldjgldfjgldkfjgldsjfg sdlfkgj sdlfgj sdlfgj lsdfj glskdfj glkdsjf glsdj fglksd")
           }
         },
         lbInfo
@@ -344,16 +326,10 @@ object Main extends JFXApp with Logging {
     implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
 
     var status: StringProperty = StringProperty("?")
-    var local = StringProperty("?")
-    var remote = StringProperty("?")
-    List(status, local, remote).map(x => x.onChange(
-      statusLabel.text = "Local:" + local.value + "  Remote: " + remote.value + "  | " + status.value
-    ))
+    statusLabel.text <== status
 
     def clear() {
       status = ""
-      local = ""
-      remote = ""
     }
   }
 
@@ -378,29 +354,186 @@ object Main extends JFXApp with Logging {
     }
   }
 
+  object MyWorker {
+    val taskList = new ObservableBuffer[myTask]()
+    val taskListView = new ListView[myTask] {
+      items = taskList
+      cellFactory = {lv =>
+        new ListCell[myTask] {
+          item.onChange({
+            if (item.value != null) {
+              val title = new Label {
+                text <== item.value.titleProperty
+                maxWidth = Double.MaxValue
+                hgrow = Priority.Always
+              }
+              val message = new Label {
+                text <== item.value.messageProperty
+                style = "-fx-font-size: 10"
+              }
+              val progress = new ProgressBar {
+                prefWidth = 150
+                progress <== item.value.progressProperty
+              }
+              val hb = new HBox {
+                children ++= Seq(title, progress)
+              }
+              val vb = new VBox {
+                children ++= Seq(hb, message)
+                fillWidth = true
+              }
+              graphic = vb
+            } else {
+              graphic = null
+            }
+          })
+        }
+      }
+    }
+    val al = new Dialog[javafx.scene.control.ButtonType] {
+      initOwner(Main.stage)
+      title = "Progress"
+      resizable = true
+      dialogPane.value.content = new VBox { children ++= Seq(new Label("Tasks:"), taskListView) }
+      dialogPane.value.getButtonTypes += ButtonType.Cancel
+      dialogPane.value.setPrefSize(480, 320)
+    }
+
+    al.onCloseRequest = (de: DialogEvent) => {
+      if (taskList.nonEmpty) {
+        taskList.foreach(t => if (t.isRunning) t.cancel())
+        println("cancelled all tasks!")
+      }
+    }
+
+    var backgroundTimer: java.util.Timer = null // just to clean up finished tasks
+    al.showing.onChange{ (_, oldv, newv) =>
+      if (newv) {
+        val ttask = new java.util.TimerTask {
+          override def run(): Unit = {
+            if (taskList.nonEmpty) scalafx.application.Platform.runLater( new Runnable() { // TODO runUI
+            def run() {
+              var iii = 0
+              while (iii < taskList.length) {
+                if (taskList.get(iii).isDone || taskList.get(iii).isCancelled)
+                  taskList.remove(iii)
+                else
+                  iii += 1
+              }
+              if (taskList.isEmpty) {
+                al.close()
+              }
+            }
+            })
+          }
+        }
+        backgroundTimer = new java.util.Timer()
+        backgroundTimer.schedule(ttask, 0, 500)
+      } else {
+        backgroundTimer.cancel()
+      }
+    }
+
+    def runTask(atask: myTask): Unit = {
+      scalafx.application.Platform.runLater( new Runnable() { // TODO runUI
+      def run() {
+        if (!al.showing.value) al.show()
+        taskList.add(atask)
+        println("added task " + atask)
+        val th = new Thread(atask)
+        th.setDaemon(true)
+        th.start()
+      }
+      })
+    }
+  }
+
+  abstract class myTask extends javafx.concurrent.Task[Any] {
+    def updateProgr(workDone: Double, max: Double, msg: String): Unit = {
+      updateMessage(msg)
+      updateProgress(workDone, max)
+    }
+  }
+
+  def handleFailed(task: myTask) = {
+    runUI {
+      dialogMessage(AlertType.Error, "Error", task.getTitle, task.getException.toString)
+      task.getException.printStackTrace()
+      Cache.updateObservableBuffer()
+      doCleanup()
+    }
+  }
+  def handleCancelled() = {
+    runUI {
+      Cache.updateObservableBuffer()
+      doCleanup()
+    }
+  }
+
+  def runSynchronize() {
+    runUIwait {
+      Main.Status.clear()
+    }
+    profile.taskSynchronize.onSucceeded = (wse: WorkerStateEvent) => {
+      Main.Status.status.value = "Synchronization finished!"
+      MyWorker.runTask(profile.taskCleanup)
+      runUI {
+        tabpane.getSelectionModel.select(0)
+        doCleanup()
+      }
+    }
+    profile.taskSynchronize.onFailed = (wse: WorkerStateEvent) => handleFailed(profile.taskSynchronize)
+    profile.taskSynchronize.onCancelled = () => handleCancelled()
+    MyWorker.runTask(profile.taskSynchronize)
+  }
+
   def runCompare() = {
     doCleanup()
     val sane = settingsView.serverView.server != null && settingsView.serverView.server.localFolder.value != "" &&
       settingsView.protocolView.protocol.protocoluri.value != "" && settingsView.subfolderView.subfolder.subfolders.nonEmpty
     if (sane) {
-      profile = new Profile(filesView, settingsView.serverView.server, settingsView.protocolView.protocol, settingsView.subfolderView.subfolder)
+      profile = new Profile(settingsView.serverView.server, settingsView.protocolView.protocol, settingsView.subfolderView.subfolder)
       lbInfo.text.set("  Current profile:  " + settingsView.serverView.server.toString + " | " + settingsView.subfolderView.subfolder.toString)
       filesView.profile = profile
       tabpane.selectionModel().select(filesView)
-      Future {
-        // this is key, do in new thread!
-        try {
-          profile.init()
-          profile.compare()
-        } catch {
-          case e: Exception =>
-            runUIwait(dialogMessage(AlertType.Error, "Error", "Exception during compare", "Exception: " + e + "\n" + e.getMessage))
-            e.printStackTrace()
-            runUI {
-              doCleanup()
+      filesView.updateSyncButton(allow = false)
+      val ctask = new myTask {
+        override def call(): Unit = {
+          updateTitle("A Compare files")
+          updateProgr(0, 100, "Initialize local and remote...")
+          profile.taskIni.onSucceeded = (wse: WorkerStateEvent) => {
+            updateProgr(50, 100, "Run comparison...")
+
+            profile.taskCompFiles.onSucceeded = (wse: WorkerStateEvent) => {
+              debug("comp: succeeded")
+              val haveChanges = profile.taskCompFiles.get.asInstanceOf[Boolean]
+              Main.btCompare.setDisable(false)
+              debug("comp: succeededB")
+              Cache.updateObservableBuffer()
+              debug("comp: succeededC")
+              debug("havechanges=" + haveChanges)
+              val canSync = filesView.updateSyncButton(allow = true)
+              if (!haveChanges && canSync) {
+                Main.Status.status.value = "Finished compare, no changes found. Synchronizing..."
+                runSynchronize()
+              } else {
+                Main.Status.status.value = "Finished compare"
+                filesView.updateSyncButton(allow = true)
+              }
             }
+            profile.taskCompFiles.onFailed = () => handleFailed(profile.taskCompFiles)
+            profile.taskCompFiles.onCancelled = () => handleCancelled()
+            MyWorker.runTask(profile.taskCompFiles)
+          }
+          profile.taskIni.onFailed = () => handleFailed(profile.taskIni)
+          MyWorker.runTask(profile.taskIni)
+
+          updateProgr(100, 100, "ended!")
         }
       }
+      ctask.onCancelled
+      MyWorker.runTask(ctask)
+
     } else {
       dialogMessage(AlertType.Error, "Error", "Error initializing compare", "Correct sync settings and try again!")
     }
@@ -448,6 +581,7 @@ object Main extends JFXApp with Logging {
     }.showAndWait()
   }
 
+/*
   class Progress(title: String) {
     var onAbortClicked = () => {}
     val dstage = new Stage(jfxs.StageStyle.UTILITY) {
@@ -524,6 +658,7 @@ object Main extends JFXApp with Logging {
       dstage.close()
     }
   }
+*/
 
 }
 // a scalafx splashscreen: implement from main SFX routine, then call showProgress() or close() from any thread

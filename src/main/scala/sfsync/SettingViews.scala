@@ -1,11 +1,13 @@
 package sfsync
 
+import sfsync.Main.MyWorker
 import sfsync.util._
 import sfsync.store._
 import sfsync.Helpers._
-import sfsync.synchro.{Profile, MyURI}
+import sfsync.synchro.{VirtualFile, Profile, MyURI}
 
 import scala.collection.JavaConversions._
+import scala.collection.mutable.ArrayBuffer
 import scalafx.Includes._
 import scalafx.scene._
 import scalafx.stage._
@@ -44,7 +46,7 @@ class MyListView[T <: ListableThing](
   minWidth = 250
   maxWidth = 250
 
-  def sortit() { obsBuffer.sort((x,y) => x.name.compareTo(y.name)<0) }
+  def sortit() { obsBuffer.sort((x,y) => x.name.getValueSafe.compareTo(y.name.getValueSafe)<0) }
 
   sortit()
 
@@ -120,7 +122,7 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
     if (toolTip != "") tooltip = new Tooltip { text = toolTip }
     text.onChange({
       if (filter != "") {
-        if (!text.matches(filter)) {
+        if (!text.getValueSafe.matches(filter)) {
           style = "-fx-background-color: red;"
         } else {
           style = ""//-fx-background-color: red;"
@@ -215,17 +217,17 @@ abstract class ServerView(val config: Config) extends GridPane with Logging {
       canDropFile = true
     ) { tf.text <==> server.localFolder }
     var bClearCache = new Button("Clear cache") {
-      onAction = (ae: ActionEvent) => { Cache.clearCacheFile(server.id) }
+      onAction = (ae: ActionEvent) => { Cache.clearCacheFile(server.id.getValueSafe) }
       tooltip = "Clears the cache database for selected sync location"
     }
     val clist = List(tfLocalFolder,cbCantSetDate,tfFilter,tfID,bClearCache)
     children = clist
     spacing = 5
   }
-  var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer, () => serverChanged()) {
+  var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer.value, () => serverChanged()) {
     override def beforeDelete(what: Server) = {
       if (Main.dialogOkCancel("Delete server", "Delete server (only settings & cached data)", "Really delete server " + what)) {
-        Cache.clearCacheFile(what.id)
+        Cache.clearCacheFile(what.id.getValueSafe)
         true
       } else false
     }
@@ -286,9 +288,9 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
 
   val ADDTOFOLDERSMODE = 1
   val SELECTMODE = 2
-  val profile = new Profile(view, server, protocol, null)
+  val profile = new Profile(server, protocol, null)
   debug("init profile...")
-  profile.init()
+  MyWorker.runTask(profile.taskIni)
   var folders: ObservableBuffer[String] = null
 
   debug("init profile done")
@@ -331,7 +333,8 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
           val fixedPath = Normalizer.normalize(path, Normalizer.Form.NFC)
           val strippedPath: String = if (fixedPath == rootPath) "/" else fixedPath.substring(rootPath.length - 1)
           val subfolderpath = strippedPath.replaceAll("^/","").replaceAll("/$","")
-          val list = myConn.list(subfolderpath, server.filterRegexp, null, recursive = false, viaActor = false)
+          val list = new ArrayBuffer[VirtualFile]
+          myConn.list(subfolderpath, server.filterRegexp.getValueSafe, (vf) => list.append(vf), recursive = false)
           list.foreach(vf => {
             val newPath = (rootPath + vf.path).replaceAllLiterally("//","/")
             val newFpti = new FilePathTreeItem(newPath, vf.fileName)
@@ -462,9 +465,9 @@ class SubFolderView(val server: Server) extends GridPane {
     def PathToSubdir(file: java.io.File) = {
       var ressf = ""
       val realfile = SVHelpers.getDroppedFile(file)
-      debug("ptsd: " + realfile.getCanonicalPath + " " + realfile.exists() + " " + realfile.getPath.startsWith(server.localFolder))
-      if (realfile.exists && realfile.isDirectory && realfile.getPath.startsWith(server.localFolder)) {
-        var sd = realfile.getPath.substring(server.localFolder.length)
+      debug("ptsd: " + realfile.getCanonicalPath + " " + realfile.exists() + " " + realfile.getPath.startsWith(server.localFolder.getValueSafe))
+      if (realfile.exists && realfile.isDirectory && realfile.getPath.startsWith(server.localFolder.getValueSafe)) {
+        var sd = realfile.getPath.substring(server.localFolder.getValueSafe.length)
         if (sd.startsWith("/")) sd = sd.substring(1)
         ressf = sd
       }
