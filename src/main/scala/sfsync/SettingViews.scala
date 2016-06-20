@@ -415,7 +415,7 @@ class SubFolderView(val server: Server) extends GridPane {
     tooltip = "Adds a subset that will synchronize all files"
     onAction = (ae: ActionEvent) => {
       val sf = new SubFolder {
-        name = "All files"
+        name.value = "All files"
         subfolders += ""
       }
       server.subfolders += sf

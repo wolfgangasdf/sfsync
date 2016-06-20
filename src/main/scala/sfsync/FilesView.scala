@@ -7,7 +7,6 @@ import sfsync.util.Logging
 import sfsync.util.Helpers
 import sfsync.util.Helpers._
 
-import scala.language.{implicitConversions, reflectiveCalls, postfixOps}
 import scalafx.collections.ObservableBuffer
 import scalafx.scene.control.Alert.AlertType
 import scalafx.scene.layout._

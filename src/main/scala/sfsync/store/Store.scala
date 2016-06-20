@@ -11,11 +11,8 @@ import scalafx.collections.ObservableBuffer._
 import scalafx.{collections => sfxc}
 import scalafx.beans.property._
 import scala.collection.mutable.ArrayBuffer
-import scala.language.implicitConversions
-import scala.language.{reflectiveCalls, postfixOps}
 
 import scala.collection.JavaConversions._
-//import scala.collection.JavaConverters._
 
 import java.nio.file._
 
@@ -95,21 +92,19 @@ class JavaCryptoEncryption(algorithmName: String) {
 }
 
 class Config {
-  // implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
-  implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
   var servers = new sfxc.ObservableBuffer[Server]
-  var currentServer: IntegerProperty = -1
-  var currentFilter: IntegerProperty = 0
-  var width: IntegerProperty = 800
-  var height: IntegerProperty = 600
-  var x: IntegerProperty = 100
-  var y: IntegerProperty = 100
+  var currentServer = IntegerProperty(-1)
+  var currentFilter = IntegerProperty(0)
+  var width = IntegerProperty(800)
+  var height = IntegerProperty(600)
+  var x = IntegerProperty (100)
+  var y = IntegerProperty(100)
   var dividerPositions = new ArrayBuffer[Double]
   var cryptoSecret = ""
 }
 
 class ListableThing extends Ordered[ListableThing] {
-  var name: StringProperty = StringProperty("<new>")
+  var name = StringProperty("<new>")
   def compare(that: ListableThing): Int = this.name.getValueSafe.compareTo(that.name.getValueSafe)
 }
 
@@ -118,33 +113,26 @@ class MyList[T] extends ArrayBuffer[T] {
 }
 
 class Server extends ListableThing {
-  implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
-  implicit def BoolToBooleanProperty(b: Boolean): BooleanProperty = BooleanProperty(b)
-  implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
-  var id: StringProperty = new java.util.Date().getTime.toString
-  var cantSetDate: BooleanProperty = false
-  var localFolder: StringProperty = ""
-  var filterRegexp: StringProperty = ""
+  var id = StringProperty(new java.util.Date().getTime.toString)
+  var cantSetDate = BooleanProperty(false)
+  var localFolder = StringProperty("")
+  var filterRegexp = StringProperty("")
   var protocols = new sfxc.ObservableBuffer[Protocol]
-  var currentProtocol: IntegerProperty = -1
+  var currentProtocol = IntegerProperty(-1)
   var subfolders = new sfxc.ObservableBuffer[SubFolder]
-  var currentSubFolder: IntegerProperty = -1
+  var currentSubFolder = IntegerProperty(-1)
   override def toString: String = name.getValueSafe // used for listview
 }
 
 class Protocol extends ListableThing {
-  implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
-  implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
-  var protocoluri: StringProperty = "file:///"
-  var protocolbasefolder: StringProperty = ""
-  var executeBefore: StringProperty = ""
-  var executeAfter: StringProperty = ""
+  var protocoluri = StringProperty("file:///")
+  var protocolbasefolder = StringProperty("")
+  var executeBefore = StringProperty("")
+  var executeAfter = StringProperty("")
   override def toString: String = name.getValueSafe
 }
 
 class SubFolder extends ListableThing {
-  implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
-  implicit def IntegerToIntegerProperty(i: Int): IntegerProperty = IntegerProperty(i)
   var subfolders = new sfxc.ObservableBuffer[String]()
   override def toString: String = name.getValueSafe
 }
@@ -219,7 +207,7 @@ object Store extends Logging {
           case "currentFilter" => config.currentFilter.value = sett(1).toInt
           case "cryptoSecret" => config.cryptoSecret = sett(1)
           case "server" =>
-            lastserver = new Server { name = sett(1) }
+            lastserver = new Server { name.value = sett(1) }
             config.servers += lastserver
           case "localfolder" => lastserver.localFolder.value = sett(1)
           case "cantsetdate" => lastserver.cantSetDate.value = sett(1).toBoolean
@@ -227,7 +215,7 @@ object Store extends Logging {
           case "id" => lastserver.id.value = sett(1)
           case "protocolcurr" => lastserver.currentProtocol.value = sett(1).toInt
           case "protocol" =>
-            lastprotocol = new Protocol { name = sett(1) }
+            lastprotocol = new Protocol { name.value = sett(1) }
             lastserver.protocols += lastprotocol
           case "protocoluri" => lastprotocol.protocoluri.value = sett(1)
           case "protocolbasefolder" => lastprotocol.protocolbasefolder.value = sett(1)
@@ -235,7 +223,7 @@ object Store extends Logging {
           case "protocolexafter" => lastprotocol.executeAfter.value = sett(1)
           case "subfoldercurr" => lastserver.currentSubFolder.value = sett(1).toInt
           case "subfolder" =>
-            lastsubfolder = new SubFolder { name = sett(1) }
+            lastsubfolder = new SubFolder { name.value = sett(1) }
             lastserver.subfolders += lastsubfolder
           case "subfolderfolder" => lastsubfolder.subfolders.add(sett(1))
           case _ => warn("unknown tag in config file: <" + sett.head + ">")

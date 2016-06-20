@@ -157,7 +157,7 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
     updateTitle("Synchronize")
     updateProgr(0, 100, "startup...")
 
-//    var syncLog = ""
+    var syncLog = ""
     val swUIupdate = new StopWatch
     var iii = 0
     Cache.cache.iterate((it, path, se) => if (se.relevant) iii += 1)
@@ -182,11 +182,7 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
         updateProgr(iii.toDouble, tosync, msg)
       }
 
-      // it would be nice if some transfers fail (e.g., wrong permissions) that all others are done in any case, and A_SYNCERROR is set.
-      // but this is problematic. many thrown exceptions make jave unusable slow. better fail directly :-(
-      // problem is stacktrace: http://stackoverflow.com/a/569118
-      // the sftpexceptions (which are most relevant here) are slow. no way to disable this globally via Runtime.getRuntime()
-//      try {
+      try {
         if (Helpers.failat == 5) throw new UnsupportedOperationException("fail 5")
         se.action match {
           case A_MERGE => throw new UnsupportedOperationException("Merge not implemented yet!")
@@ -202,13 +198,16 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
           case A_CACHEONLY => se.delete = true
           case aa => throw new UnsupportedOperationException("unknown action: " + aa)
         }
-//      } catch {
-//        case e: Exception =>
-//          error("sync exception:", e)
-//          se.action = A_SYNCERROR
-//          se.delete = false
-//          syncLog += (e + "[" + path + "]" + "\n")
-//      }
+      } catch {
+        case e: Exception =>
+          error("sync exception:", e)
+          se.action = A_SYNCERROR
+          se.delete = false
+          syncLog += (e + "[" + path + "]" + "\n")
+          updateMessage("Failed: " + path + ": " + e)
+          // many exceptions are very slow, problem is stacktrace: http://stackoverflow.com/a/569118. Impossible to disable ST via Runtime.getRuntime()
+          Thread.sleep(600) // to keep sfsync responsive...
+      }
     }
 
     for (state <- List(1, 2)) {
@@ -231,7 +230,7 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
         if (se.delete) it.remove()
       })
     }
-//    if (syncLog != "") throw new Exception("Exception(s) during synchronize:\n" + syncLog)
+    if (syncLog != "") throw new Exception("Exception(s) during synchronize:\n" + syncLog)
   } }
 
   // init action to make local as remote

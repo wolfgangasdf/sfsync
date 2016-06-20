@@ -18,10 +18,8 @@ import scalafx.scene.control._
 import scalafx.event.ActionEvent
 import scalafx.geometry.Pos
 import scalafx.beans.property.StringProperty
-import scala.language.reflectiveCalls
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.language.implicitConversions
 import scala.collection.mutable.ArrayBuffer
 import scalafx.scene.control.MenuItem._
 
@@ -247,13 +245,11 @@ object Main extends JFXApp with Logging {
   }
 
   object Status {
-    implicit def StringToStringProperty(s: String): StringProperty = StringProperty(s)
-
-    var status: StringProperty = StringProperty("?")
+    var status: StringProperty = StringProperty("")
     statusLabel.text <== status
 
     def clear() {
-      status = ""
+      status.value = ""
     }
   }
 
@@ -280,7 +276,8 @@ object Main extends JFXApp with Logging {
 
 
   def handleFailed(task: myTask) = {
-    runUI {
+    runUIwait {
+      Main.Status.status.value = "Failed!"
       dialogMessage(AlertType.Error, "Error", task.getTitle, task.getException.toString)
       task.getException.printStackTrace()
       Cache.updateObservableBuffer()
@@ -288,15 +285,17 @@ object Main extends JFXApp with Logging {
     }
   }
   def handleCancelled() = {
-    runUI {
+    runUIwait {
+      Main.Status.status.value = "Cancelled!"
       Cache.updateObservableBuffer()
+      tabpane.selectionModel().select(settingsView)
       doCleanup()
     }
   }
 
   def runSynchronize() {
     runUIwait {
-      Main.Status.clear()
+      Main.Status.status.value = "Synchronize..."
     }
     profile.taskSynchronize.onSucceeded = (wse: WorkerStateEvent) => {
       Main.Status.status.value = "Synchronization finished!"
@@ -306,12 +305,13 @@ object Main extends JFXApp with Logging {
         doCleanup()
       }
     }
-    profile.taskSynchronize.onFailed = (wse: WorkerStateEvent) => handleFailed(profile.taskSynchronize)
+    profile.taskSynchronize.onFailed = () => handleFailed(profile.taskSynchronize)
     profile.taskSynchronize.onCancelled = () => handleCancelled()
     MyWorker.runTask(profile.taskSynchronize)
   }
 
   def runCompare() = {
+    Main.Status.status.value = "Compare..."
     doCleanup()
     val sane = settingsView.serverView.server != null && settingsView.serverView.server.localFolder.value != "" &&
       settingsView.protocolView.protocol.protocoluri.value != "" && settingsView.subfolderView.subfolder.subfolders.nonEmpty
@@ -324,10 +324,10 @@ object Main extends JFXApp with Logging {
         override def call(): Unit = {
           updateTitle("A Compare files")
           updateProgr(0, 100, "Initialize local and remote...")
-          profile.taskIni.onSucceeded = (wse: WorkerStateEvent) => {
+          profile.taskIni.onSucceeded = () => {
             updateProgr(50, 100, "Run comparison...")
 
-            profile.taskCompFiles.onSucceeded = (wse: WorkerStateEvent) => {
+            profile.taskCompFiles.onSucceeded = () => {
               val haveChanges = profile.taskCompFiles.get.asInstanceOf[Boolean]
               Main.btCompare.setDisable(false)
               Cache.updateObservableBuffer()
@@ -347,6 +347,7 @@ object Main extends JFXApp with Logging {
             MyWorker.runTask(profile.taskCompFiles)
           }
           profile.taskIni.onFailed = () => handleFailed(profile.taskIni)
+          profile.taskIni.onCancelled = () => handleCancelled()
           MyWorker.runTask(profile.taskIni)
 
           updateProgr(100, 100, "ended!")
