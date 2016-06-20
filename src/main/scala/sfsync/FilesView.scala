@@ -4,6 +4,8 @@ import sfsync.synchro._
 import sfsync.synchro.Actions._
 import sfsync.store.{SyncEntry2, Cache, Store}
 import sfsync.util.Logging
+import sfsync.util.Helpers
+import sfsync.util.Helpers._
 
 import scala.language.{implicitConversions, reflectiveCalls, postfixOps}
 import scalafx.collections.ObservableBuffer
@@ -212,7 +214,7 @@ class FilesView() extends Tab with Logging {
             else (diff.diff_main(lfc, rfc), "Changes local -> remote:")
             diff.diff_cleanupSemantic(d)
             val res = diff.diff_prettyHtml(d)
-            Main.dialogMessage(AlertType.Information, "Quick diff", msg, res)
+            dialogMessage(AlertType.Information, "Quick diff", msg, res)
           }
         }
       }

@@ -1,7 +1,7 @@
 package sfsync.store
 
 import sfsync.store.Tools._
-import sfsync.Helpers._
+import sfsync.util.Helpers._
 import sfsync.CF
 import sfsync.synchro.Actions._
 import sfsync.util.Logging

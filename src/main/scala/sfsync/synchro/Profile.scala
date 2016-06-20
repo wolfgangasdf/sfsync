@@ -1,128 +1,27 @@
 package sfsync.synchro
 
 import sfsync.CF
-import sfsync.Main.{MyWorker, myTask}
+import sfsync.util.Helpers.{MyWorker, myTask}
 import sfsync.synchro.Actions._
 import sfsync.store._
-import sfsync.util.{Logging, StopWatch}
+import sfsync.util.{Helpers, Logging, StopWatch}
+import sfsync.util.Helpers._
 
 import scalafx.Includes._
 import scala.collection.mutable.ListBuffer
 import scala.language.{postfixOps, reflectiveCalls}
+
+import javafx.{concurrent => jfxc}
 
 class TransferProtocol (
   var uri: String,
   var basefolder: String
 )
 
-object Actions {
-  val A_UNCHECKED = -99
-  val A_UNKNOWN = -1
-  val A_ISEQUAL = 0
-  val A_USELOCAL = 1
-  val A_USEREMOTE = 2
-  val A_MERGE = 3
-  val A_RMLOCAL = 4
-  val A_RMREMOTE = 5
-  val A_CACHEONLY = 6
-  val A_RMBOTH = 7
-  val A_SYNCERROR = 8
-  val A_SKIP = 9
-  val ALLACTIONS = List(-99,-1,0,1,2,3,4,5,6,7,8,9)
-}
-
-case class addFile(vf: VirtualFile, islocal: Boolean)
-
-object CompareStuff extends Logging {
-  def getParentFolder(path: String) = {
-    path.split("/").dropRight(1).mkString("/") + "/"
-  }
-  // compare, update database entries only.
-  def compareSyncEntries(): Boolean = {
-    val swse = new StopWatch
-    // q contains all entries to be checked
-
-    // to avoid first full sync: mark all folders that are subfolders of already synced folder
-    // update hasCachedParent for all folders not in cache and check if it has parent folder that has been synced before in current set
-    Cache.cache.iterate((it, path, se) => {
-      if (se.relevant && se.isDir) {
-        var tmpf = path
-        var haveCachedParentDir = false
-        var doit = true
-        while (!haveCachedParentDir && doit) {
-          tmpf = getParentFolder(tmpf)
-          if (tmpf != "/") {
-            if (Cache.cache.containsKey(tmpf))
-              if (Cache.cache.get(tmpf).cSize != -1) haveCachedParentDir = true
-          } else {
-            doit = false
-          }
-        }
-        se.hasCachedParent = haveCachedParentDir
-        se.compareSetAction(newcache = !haveCachedParentDir) // compare
-      }
-    })
-    debug("TTT a took = " + swse.getTimeRestart)
-
-    // iterate over all folders that are cacheed
-    Cache.cache.iterate((it, path, se) => {
-      if (se.relevant && se.isDir && se.cSize != -1) {
-        se.hasCachedParent = true
-        se.compareSetAction(newcache = false) // compare
-      }
-    })
-    debug("TTT b took = " + swse.getTimeRestart)
-
-    // iterate over the rest: all files.
-    Cache.cache.iterate((it, path, se) => {
-      if (se.relevant && !se.isDir) {
-        if (se.cSize == -1) { // only get parent folder for unknown files, faster!
-        val parent = getParentFolder(path)
-          if (!Cache.cache.get(parent).hasCachedParent) {
-            se.compareSetAction(newcache = true) // test
-          } else {
-            se.compareSetAction(newcache = false)
-          }
-        } else {
-          se.compareSetAction(newcache = false)
-        }
-      }
-    })
-    debug("TTT c took = " + swse.getTimeRestart)
-
-    // iterate over all folders that will be deleted: check that other side is not modified below
-    Cache.cache.iterate((it, path, se) => {
-      if (se.relevant && se.isDir && List(A_RMLOCAL, A_RMREMOTE).contains(se.action)) {
-        var fishy = false
-        Cache.cache.iterate((it2, path2, se2) => {
-          if (se.relevant && path2.startsWith(path) && se2.action != se.action) {
-            fishy = true
-          }
-        })
-        if (fishy) {
-          Cache.cache.iterate((it2, path2, se2) => {
-            if (se.relevant && path2.startsWith(path)) {
-              se2.action = A_UNKNOWN
-            }
-          })
-        }
-      }
-    })
-    debug("TTT d took = " + swse.getTimeRestart)
-
-    // return true if changes
-    var res = false
-    Cache.cache.iterate((it, path, se) => if (se.relevant && se.action != A_ISEQUAL) res = true)
-    debug("TTT e took = " + swse.getTimeRestart)
-    res
-  }
-}
-
 class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends Logging {
   var cache: ListBuffer[VirtualFile] = null
   var local: GeneralConnection = null
   var remote: GeneralConnection = null
-  var syncLog = ""
   var UIUpdateInterval = 0.5
   var profileInitialized = false
 
@@ -153,6 +52,7 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
       case "file" => new LocalConnection(false, server.cantSetDate.value)
       case _ => throw new RuntimeException("wrong protocol: " + uri.protocol)
     }
+    if (Helpers.failat == 1) throw new UnsupportedOperationException("fail 1")
     remote.localBasePath = server.localFolder.value
     remote.remoteBasePath = protocol.protocolbasefolder.getValueSafe
     profileInitialized = true
@@ -176,12 +76,7 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
       var addit = cacheall
       if (!cacheall) for (sf <- subfolder.subfolders) if (path.startsWith("/" + sf + "/")) addit = true
       if (addit) {
-        se.action = A_UNCHECKED
-        se.lSize = -1
-        se.lTime = -1
-        se.rSize = -1
-        se.rTime = -1
-        se.relevant = true
+        se.action = A_UNCHECKED; se.lSize = -1; se.lTime = -1; se.rSize = -1; se.rTime = -1; se.relevant = true
       } else {
         se.relevant = false
       }
@@ -211,25 +106,22 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
         }
       )
     }
-    val taskListLocal = new myTask {
-      override def call(): Unit = {
-        updateTitle("Find local files")
-        subfolder.subfolders.foreach(local.list(_, server.filterRegexp.getValueSafe, vf => acLocRem(vf, isloc = true, vf => updateMessage(s"found ${vf.path}")), recursive = true))
-      }
-    }
-    val taskListRemote = new myTask {
-      override def call(): Unit = {
-        updateTitle("Find remote files")
-        subfolder.subfolders.foreach(remote.list(_, server.filterRegexp.getValueSafe, vf => acLocRem(vf, isloc = false, vf => updateMessage(s"found ${vf.path}")), recursive = true))
-        debug("tlr: end")
-      }
-    }
+    val taskListLocal = new myTask { override def call(): Unit = {
+      updateTitle("Find local files")
+      subfolder.subfolders.foreach(local.list(_, server.filterRegexp.getValueSafe, vf => acLocRem(vf, isloc = true, vf => updateMessage(s"found ${vf.path}")), recursive = true))
+    } }
+    val taskListRemote = new myTask { override def call(): Unit = {
+      updateTitle("Find remote files")
+      subfolder.subfolders.foreach(remote.list(_, server.filterRegexp.getValueSafe, vf => acLocRem(vf, isloc = false, vf => updateMessage(s"found ${vf.path}")), recursive = true))
+    } }
+
     taskListLocal.onCancelled = () => { debug(" local cancelled!") }
     taskListRemote.onCancelled = () => { debug(" rem cancelled!") }
     taskListLocal.onSucceeded = () => { debug(" local succ!") }
     taskListRemote.onSucceeded = () => { debug(" rem succ!") }
-    taskListLocal.onFailed = () => { debug(" local failed!") }
+    taskListLocal.onFailed = () => { error(" local failed!") }
     taskListRemote.onFailed = () => { debug(" rem failed!") }
+
     MyWorker.runTask(taskListLocal)
     MyWorker.runTask(taskListRemote)
 
@@ -239,11 +131,21 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
 
     debug("sw: finding files: " + sw.getTimeRestart)
 
+    val res = runUIwait {
+      debug("state after list: " + taskListLocal.getState + "  remote:" + taskListRemote.getState)
+      if (taskListLocal.getState == jfxc.Worker.State.FAILED) taskListLocal.getException
+      else if (taskListRemote.getState == jfxc.Worker.State.FAILED) taskListRemote.getException
+      else if (taskListLocal.getState == jfxc.Worker.State.CANCELLED) new InterruptedException("Cancelled local task")
+      else if (taskListRemote.getState == jfxc.Worker.State.CANCELLED) new InterruptedException("Cancelled remote task")
+      else null
+    }
+    if (res != null) throw res.asInstanceOf[Exception]
+
     // compare entries
     updateProgr(76, 100, "comparing...")
     sw.restart()
     info("*********************** compare sync entries")
-    val haveChanges = CompareStuff.compareSyncEntries()
+    val haveChanges = Comparison.compareSyncEntries()
     debug("havechanges1: " + haveChanges)
 
     debug("sw: comparing: " + sw.getTimeRestart)
@@ -255,7 +157,7 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
     updateTitle("Synchronize")
     updateProgr(0, 100, "startup...")
 
-    val sw = new StopWatch
+//    var syncLog = ""
     val swUIupdate = new StopWatch
     var iii = 0
     Cache.cache.iterate((it, path, se) => if (se.relevant) iii += 1)
@@ -280,55 +182,56 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
         updateProgr(iii.toDouble, tosync, msg)
       }
 
+      // it would be nice if some transfers fail (e.g., wrong permissions) that all others are done in any case, and A_SYNCERROR is set.
+      // but this is problematic. many thrown exceptions make jave unusable slow. better fail directly :-(
+      // problem is stacktrace: http://stackoverflow.com/a/569118
+      // the sftpexceptions (which are most relevant here) are slow. no way to disable this globally via Runtime.getRuntime()
+//      try {
+        if (Helpers.failat == 5) throw new UnsupportedOperationException("fail 5")
         se.action match {
-          case A_MERGE => throw new Exception("merge not implemented yet!")
+          case A_MERGE => throw new UnsupportedOperationException("Merge not implemented yet!")
           case A_RMLOCAL => local.deletefile(path, se.lTime); se.delete = true; se.relevant = false
           case A_RMREMOTE => remote.deletefile(path, se.rTime); se.delete = true; se.relevant = false
           case A_RMBOTH => local.deletefile(path, se.lTime); remote.deletefile(path, se.rTime); se.delete = true; se.relevant = false
           case A_USELOCAL => val nrt = remote.putfile(path, se.lTime)
-            se.rTime = nrt
-            se.rSize = se.lSize
-            se.cSize = se.lSize
-            se.lcTime = se.lTime
-            se.rcTime = nrt
-            se.relevant = false
+            se.rTime = nrt; se.rSize = se.lSize; se.cSize = se.lSize; se.lcTime = se.lTime; se.rcTime = nrt; se.relevant = false
           case A_USEREMOTE => remote.getfile(path, se.rTime)
-            se.lTime = se.rTime
-            se.lSize = se.rSize
-            se.cSize = se.rSize
-            se.rcTime = se.rTime
-            se.lcTime = se.rTime
-            se.relevant = false
-          case A_ISEQUAL => se.cSize = se.rSize
-            se.lcTime = se.lTime
-            se.rcTime = se.rTime
-            se.relevant = false
+            se.lTime = se.rTime; se.lSize = se.rSize; se.cSize = se.rSize; se.rcTime = se.rTime; se.lcTime = se.rTime; se.relevant = false
+          case A_ISEQUAL => se.cSize = se.rSize; se.lcTime = se.lTime; se.rcTime = se.rTime; se.relevant = false
           case A_SKIP =>
           case A_CACHEONLY => se.delete = true
           case aa => throw new UnsupportedOperationException("unknown action: " + aa)
         }
+//      } catch {
+//        case e: Exception =>
+//          error("sync exception:", e)
+//          se.action = A_SYNCERROR
+//          se.delete = false
+//          syncLog += (e + "[" + path + "]" + "\n")
+//      }
     }
 
-      for (state <- List(1, 2)) {
-        // delete and add dirs must be done in reverse order!
-        debug("syncing state = " + state)
-        state match {
-          case 1 => // delete
-            Cache.cache.iterate((it, path, se) => {
-              if (se.relevant && List(A_RMBOTH, A_RMLOCAL, A_RMREMOTE).contains(se.action)) {
-                dosync(path, se)
-              }
-            }, reversed = true)
-          case _ => // put/get and others
-            Cache.cache.iterate((it, path, se) => {
-              if (se.relevant) dosync(path, se)
-            })
-        }
-        // update cache: remove removed/cacheonly files
-        Cache.cache.iterate((it, path, se) => {
-          if (se.delete) it.remove()
-        })
-      } // for state
+    for (state <- List(1, 2)) {
+      // delete and add dirs must be done in reverse order!
+      debug("syncing state = " + state)
+      state match {
+        case 1 => // delete
+          Cache.cache.iterate((it, path, se) => {
+            if (se.relevant && List(A_RMBOTH, A_RMLOCAL, A_RMREMOTE).contains(se.action)) {
+              dosync(path, se)
+            }
+          }, reversed = true)
+        case _ => // put/get and others
+          Cache.cache.iterate((it, path, se) => {
+            if (se.relevant) dosync(path, se)
+          })
+      }
+      // update cache: remove removed/cacheonly files
+      Cache.cache.iterate((it, path, se) => {
+        if (se.delete) it.remove()
+      })
+    }
+//    if (syncLog != "") throw new Exception("Exception(s) during synchronize:\n" + syncLog)
   } }
 
   // init action to make local as remote

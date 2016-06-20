@@ -5,11 +5,10 @@ import java.net.URI
 import sfsync.util.Logging
 import sfsync.store._
 import sfsync.synchro._
-import sfsync.Helpers._
+import sfsync.util.Helpers._
 
 import scalafx.application.JFXApp
 import scalafx.Includes._
-import scalafx.collections.ObservableBuffer
 import scalafx.concurrent.WorkerStateEvent
 import scalafx.scene._
 import scalafx.scene.control.Alert.AlertType
@@ -18,7 +17,6 @@ import scalafx.scene.layout._
 import scalafx.scene.control._
 import scalafx.event.ActionEvent
 import scalafx.geometry.Pos
-import scalafx.scene.web.WebView
 import scalafx.beans.property.StringProperty
 import scala.language.reflectiveCalls
 import scala.concurrent.Future
@@ -29,72 +27,12 @@ import scalafx.scene.control.MenuItem._
 
 import javafx.geometry. {Orientation=>jgo}
 import javafx.{stage => jfxs}
-import java.nio.charset.Charset
-import java.util.concurrent.FutureTask
 
-
-object Helpers {
-
-  val filecharset = Charset.forName("UTF-8")
-
-  val insetsstd = scalafx.geometry.Insets(5)
-
-  val directoryFilter = if (isWin) ".:/.*" else "/.*"
-
-  def toJavaPathSeparator(in: String) = {
-    if (isWin) in.replaceAll("""\\""", "/")
-    else in
-  }
-
-  def isMac = System.getProperty("os.name").toLowerCase.contains("mac")
-  def isLinux = System.getProperty("os.name").toLowerCase.contains("nix")
-  def isWin = System.getProperty("os.name").toLowerCase.contains("win")
-
-  def toHexString(s: String, encoding: String) = {
-    s.getBytes(encoding).map("%02x " format _).mkString
-  }
-
-  def unit() {}
-
-  def runUI( f: => Unit ) {
-    if (!scalafx.application.Platform.isFxApplicationThread) {
-      scalafx.application.Platform.runLater( new Runnable() {
-        def run() {
-          f
-        }
-      })
-    } else {
-      f
-    }
-  }
-
-  def runUIwait( f: => Any) : Any = {
-    if (!scalafx.application.Platform.isFxApplicationThread) {
-      @volatile var stat: Any = null
-      val runnable = new Runnable() {
-        def run() {
-          stat = f
-        }
-      }
-      val future = new FutureTask[Any](runnable, null)
-      scalafx.application.Platform.runLater( future )
-      future.get()
-      stat
-    } else {
-      f
-    }
-  }
-
-  // this only works for serializable objects (no javafx properties), would be useful for copy server/proto/set!
-//  def deepCopy[A](a: A)(implicit m: reflect.Manifest[A]): A =
-//    scala.util.Marshal.load[A](scala.util.Marshal.dump(a))
-}
 
 class MainView(filesView: FilesView) extends Tab with Logging {
   this.text = "Settings"
   closable = false
 
-  var firstStart = true
   var serverView = new ServerView(Store.config) {
     def onServerChange() {
       val tmpdp =  ArrayBuffer(sp.dividerPositions: _*)
@@ -144,16 +82,6 @@ object Main extends JFXApp with Logging {
     }
   }
 
-  def createTempFile(prefix: String, suffix: String) = { // standard io.File.createTempFile points often to strange location
-  val tag = System.currentTimeMillis().toString
-    var dir = System.getProperty("java.io.tmpdir")
-    if (Helpers.isLinux || Helpers.isMac) if (new io.File("/tmp").isDirectory)
-      dir = "/tmp"
-    new io.File(dir + "/" + prefix + "-" + tag + suffix)
-  }
-
-
-
   val VERSION = BuildInfo.version
   val APPNAME = BuildInfo.name
   val resv = getClass.getResource("/sfsync/HGVERSION.txt")
@@ -190,16 +118,14 @@ object Main extends JFXApp with Logging {
 
   // I need to return from this so that splash can be updated. initialize in other thread, use runUI{} if needed!
   Future {
-    splash.showProgress("startup...", 1)
     initit(stage)
     Thread.sleep(1500)
     splash.close()
   }
 
   def initit(myStage: Stage) {
-    splash.showProgress("running checks...", 1)
     Checks.CheckComparedFile()
-    splash.showProgress("startup...", 1)
+
     info("sfsync version = " + version)
     info("java.version = " + System.getProperty("java.version"))
     info("scala version = " + scala.util.Properties.versionString)
@@ -212,8 +138,6 @@ object Main extends JFXApp with Logging {
         warn("!!!!!!!!!!! set LC_CTYPE variable for correct foreign character handling!")
       }
     }
-
-    splash.showProgress("initializing GUI...", 1)
 
     val menuBar = new MenuBar {
       useSystemMenuBar = true
@@ -286,7 +210,7 @@ object Main extends JFXApp with Logging {
       children ++= List(menuBar, toolBar, tabpane, statusBar)
     }
 
-    splash.showProgress("showing GUI...", 1)
+    // showing GUI...
     runUI {
       myStage.title = "SFSync"
       myStage.x = Store.config.x.toDouble
@@ -317,7 +241,7 @@ object Main extends JFXApp with Logging {
       else
         settingsView.sp.setDividerPositions(0.3, 0.6)
     })
-    splash.showProgress("ready.", 1)
+
     info("log file: " + logfile.getAbsolutePath)
     debug("path sep=" + System.getProperty("file.separator"))
   }
@@ -354,106 +278,6 @@ object Main extends JFXApp with Logging {
     }
   }
 
-  object MyWorker {
-    val taskList = new ObservableBuffer[myTask]()
-    val taskListView = new ListView[myTask] {
-      items = taskList
-      cellFactory = {lv =>
-        new ListCell[myTask] {
-          item.onChange({
-            if (item.value != null) {
-              val title = new Label {
-                text <== item.value.titleProperty
-                maxWidth = Double.MaxValue
-                hgrow = Priority.Always
-              }
-              val message = new Label {
-                text <== item.value.messageProperty
-                style = "-fx-font-size: 10"
-              }
-              val progress = new ProgressBar {
-                prefWidth = 150
-                progress <== item.value.progressProperty
-              }
-              val hb = new HBox {
-                children ++= Seq(title, progress)
-              }
-              val vb = new VBox {
-                children ++= Seq(hb, message)
-                fillWidth = true
-              }
-              graphic = vb
-            } else {
-              graphic = null
-            }
-          })
-        }
-      }
-    }
-    val al = new Dialog[javafx.scene.control.ButtonType] {
-      initOwner(Main.stage)
-      title = "Progress"
-      resizable = true
-      dialogPane.value.content = new VBox { children ++= Seq(new Label("Tasks:"), taskListView) }
-      dialogPane.value.getButtonTypes += ButtonType.Cancel
-      dialogPane.value.setPrefSize(480, 320)
-    }
-
-    al.onCloseRequest = (de: DialogEvent) => {
-      if (taskList.nonEmpty) {
-        taskList.foreach(t => if (t.isRunning) t.cancel())
-        println("cancelled all tasks!")
-      }
-    }
-
-    var backgroundTimer: java.util.Timer = null // just to clean up finished tasks
-    al.showing.onChange{ (_, oldv, newv) =>
-      if (newv) {
-        val ttask = new java.util.TimerTask {
-          override def run(): Unit = {
-            if (taskList.nonEmpty) scalafx.application.Platform.runLater( new Runnable() {
-            def run() {
-              var iii = 0
-              while (iii < taskList.length) {
-                if (taskList.get(iii).isDone || taskList.get(iii).isCancelled)
-                  taskList.remove(iii)
-                else
-                  iii += 1
-              }
-              if (taskList.isEmpty) {
-                al.close()
-              }
-            }
-            })
-          }
-        }
-        backgroundTimer = new java.util.Timer()
-        backgroundTimer.schedule(ttask, 0, 500)
-      } else {
-        backgroundTimer.cancel()
-      }
-    }
-
-    def runTask(atask: myTask): Unit = {
-      scalafx.application.Platform.runLater( new Runnable() {
-      def run() {
-        if (!al.showing.value) al.show()
-        taskList.add(atask)
-        println("added task " + atask)
-        val th = new Thread(atask)
-        th.setDaemon(true)
-        th.start()
-      }
-      })
-    }
-  }
-
-  abstract class myTask extends javafx.concurrent.Task[Any] {
-    def updateProgr(workDone: Double, max: Double, msg: String): Unit = {
-      updateMessage(msg)
-      updateProgress(workDone, max)
-    }
-  }
 
   def handleFailed(task: myTask) = {
     runUI {
@@ -495,7 +319,6 @@ object Main extends JFXApp with Logging {
       profile = new Profile(settingsView.serverView.server, settingsView.protocolView.protocol, settingsView.subfolderView.subfolder)
       lbInfo.text.set("  Current profile:  " + settingsView.serverView.server.toString + " | " + settingsView.subfolderView.subfolder.toString)
       filesView.profile = profile
-      tabpane.selectionModel().select(filesView)
       filesView.updateSyncButton(allow = false)
       val ctask = new myTask {
         override def call(): Unit = {
@@ -505,12 +328,9 @@ object Main extends JFXApp with Logging {
             updateProgr(50, 100, "Run comparison...")
 
             profile.taskCompFiles.onSucceeded = (wse: WorkerStateEvent) => {
-              debug("comp: succeeded")
               val haveChanges = profile.taskCompFiles.get.asInstanceOf[Boolean]
               Main.btCompare.setDisable(false)
-              debug("comp: succeededB")
               Cache.updateObservableBuffer()
-              debug("comp: succeededC")
               debug("havechanges=" + haveChanges)
               val canSync = filesView.updateSyncButton(allow = true)
               if (!haveChanges && canSync) {
@@ -518,6 +338,7 @@ object Main extends JFXApp with Logging {
                 runSynchronize()
               } else {
                 Main.Status.status.value = "Finished compare"
+                tabpane.selectionModel().select(filesView)
                 filesView.updateSyncButton(allow = true)
               }
             }
@@ -540,47 +361,6 @@ object Main extends JFXApp with Logging {
     sane
   }
 
-  def dialogOkCancel(titletext: String, header: String, content: String): Boolean = {
-    new Alert(AlertType.Confirmation) {
-      initOwner(stage)
-      title = titletext
-      headerText = header
-      contentText = content
-    }.showAndWait() match {
-      case Some(ButtonType.OK) => true
-      case _ => false
-    }
-  }
-
-  def dialogInputString(titletext: String, header: String, content: String): String = {
-    new TextInputDialog() {
-      initOwner(stage)
-      title = titletext
-      headerText = header
-      contentText = content
-    }.showAndWait() match {
-      case Some(s) => s
-      case _ => ""
-    }
-  }
-
-  def dialogMessage(alertType: AlertType, titletext: String, header: String, htmlmsg: String) {
-    new Dialog[Boolean] {
-      if (stage.owner.nonEmpty) initOwner(stage)
-      title = titletext
-      headerText = header
-      var sp2 = new ScrollPane { // optional html message
-        content = new WebView {
-          engine.loadContent(htmlmsg)
-        }
-        fitToWidth = true
-        fitToHeight = true
-      }
-      dialogPane().content = sp2
-      dialogPane().buttonTypes = Seq(ButtonType.OK)
-    }.showAndWait()
-  }
-
 }
 // a scalafx splashscreen: implement from main SFX routine, then call showProgress() or close() from any thread
 class Splash extends Logging {
@@ -601,37 +381,16 @@ class Splash extends Logging {
     alignment = Pos.Center
     editable = false
   }
-  val ta = new TextArea {
-    text = ""
-    prefHeight = 35
-    editable = false
-    wrapText = true
-  }
-  val pb = new ProgressBar {
-    prefHeight = 15
-    tooltip = new Tooltip { text = "Progress" }
-  }
-  val cont = new VBox {
-    children ++= List(logo,ta,pb)
-  }
+  val cont = logo
+
   sstage.scene = new Scene {
     content = cont
   }
   cont.prefWidth <== sstage.scene.width
   cont.prefHeight <== sstage.scene.height
-  pb.prefWidth <== cont.width
   cont.autosize()
   sstage.show()
   sstage.toFront()
-
-  def showProgress(text: String, increment: Int) {
-//    threadinfo("showprogr")
-    progress += increment
-    runUIwait {
-      ta.text = text
-      pb.progress = progress.toDouble/maxProgress
-    }
-  }
 
   def close() {
     if (progress != maxProgress) {

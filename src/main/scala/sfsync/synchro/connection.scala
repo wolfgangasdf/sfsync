@@ -1,24 +1,21 @@
 package sfsync.synchro
 
-import sfsync.Main
-import sfsync.store.Tools
-import sfsync.util.Logging
-
-import scala.util.matching.Regex
-import scala.collection.mutable._
-import scala.Predef._
-import scala.collection.JavaConversions._
+import java.nio.file.{Files, Path, Paths, StandardCopyOption}
+import java.nio.file.attribute.FileTime
 
 import com.jcraft.jsch
-import com.jcraft.jsch.{SftpProgressMonitor, SftpATTRS, SftpException, ChannelSftp}
-import java.text.Normalizer
-import java.nio.file._
-import java.nio.file.attribute.FileTime
+import com.jcraft.jsch.{ChannelSftp, SftpATTRS, SftpException, SftpProgressMonitor}
+import sfsync.store.Tools
+import sfsync.util.{Helpers, Logging}
+import sfsync.util.Helpers._
+
+import scala.Predef._
+import scala.collection.JavaConversions._
+import scala.collection.mutable._
+import scala.util.matching.Regex
 
 class cachedFile(path: String, modTime: Long, size: Long) {
 }
-
-import sfsync.Helpers._
 
 class MyURI(var protocol: String, var username: String, var password: String, var host: String, var port: String) {
   val regexinet = new Regex("""(\S+)://(\S+)@(\S+):(\S+)""")
@@ -110,7 +107,7 @@ class LocalConnection(isLocal: Boolean, cantSetDate: Boolean) extends GeneralCon
     } catch {
       case ee: java.nio.file.DirectoryNotEmptyException =>
         val dir = Files.newDirectoryStream(fp).toList
-        if (runUIwait(Main.dialogOkCancel("Warning", s"Directory \n $cp \n not empty, DELETE ALL?", "Content:\n" + dir.map(a => a.toFile.getName).mkString("\n"))) == true) {
+        if (runUIwait(dialogOkCancel("Warning", s"Directory \n $cp \n not empty, DELETE ALL?", "Content:\n" + dir.map(a => a.toFile.getName).mkString("\n"))) == true) {
           dir.foreach(f => Files.delete(f) )
           Files.delete(fp)
           return
@@ -153,8 +150,9 @@ class LocalConnection(isLocal: Boolean, cantSetDate: Boolean) extends GeneralCon
       // on mac 10.8 with oracle java 7, filenames are encoded with strange 'decomposed unicode'. grr
       // this is in addition to the bug that LC_CTYPE is not set. grrr
       // don't use cc.getPath directly!!
+      if (Helpers.failat == 4) throw new UnsupportedOperationException("fail 4")
       val javaPath = toJavaPathSeparator(cc.toString)
-      val fixedPath = Normalizer.normalize(javaPath, Normalizer.Form.NFC)
+      val fixedPath = java.text.Normalizer.normalize(javaPath, java.text.Normalizer.Form.NFC)
       var strippedPath: String = if (fixedPath == remoteBasePath) "/" else fixedPath.substring(remoteBasePath.length)
       if (Files.isDirectory(cc) && strippedPath != "/") strippedPath += "/"
       val vf = new VirtualFile(strippedPath, Files.getLastModifiedTime(cc).toMillis, Files.size(cc))
@@ -217,7 +215,7 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
                 case s => tmp += lse
               }
             }
-            if (runUIwait(Main.dialogOkCancel("Warning", s"Directory \n $cp \n not empty, DELETE ALL?", "Content:\n" + tmp.map(a => a.getFilename).mkString("\n"))) == true) {
+            if (runUIwait(dialogOkCancel("Warning", s"Directory \n $cp \n not empty, DELETE ALL?", "Content:\n" + tmp.map(a => a.getFilename).mkString("\n"))) == true) {
               tmp.foreach(f => sftp.rm(remoteBasePath + "/" + cp + "/" + f.getFilename) )
               sftp.rmdir(remoteBasePath + "/" + cp)
               return
@@ -300,6 +298,7 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
       }
     }
     def parseContent(folder: String) {
+      if (Helpers.failat == 3) throw new UnsupportedOperationException("fail 3")
       val xx = sftp.ls(folder)
       val tmp = new ListBuffer[ChannelSftp#LsEntry]
       for (obj <- xx ) { tmp += obj.asInstanceOf[ChannelSftp#LsEntry] } // doesn't work otherwise!
@@ -342,13 +341,13 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
       val pwd = if (getPassCount < 2 && password != "")
         password
       else
-        runUIwait(Main.dialogInputString("SSH", "SSH password required. To store password: add to URI string, it will be encrypted", "Password:")).asInstanceOf[String]
+        runUIwait(dialogInputString("SSH", "SSH password required. To store password: add to URI string, it will be encrypted", "Password:")).asInstanceOf[String]
       if (pwd == "")
         throw new Exception("Sftp login aborted.")
       pwd
     }
     def promptYesNo(str: String) : Boolean = {
-      runUIwait(Main.dialogOkCancel("SSH", "SSH subsystem question:", str)) == true
+      runUIwait(dialogOkCancel("SSH", "SSH subsystem question:", str)) == true
     }
 
     def promptKeyboardInteractive(destination: String, name: String, instruction: String, prompt: Array[String], echo: Array[Boolean]): Array[String] = null
@@ -417,6 +416,7 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
   if (!sftp.isConnected) {
     throw new Exception("sftp not connected!")
   }
+  if (Helpers.failat == 2) throw new UnsupportedOperationException("fail 2")
 
   override def cleanUp() {
     super.cleanUp()

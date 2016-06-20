@@ -1,9 +1,9 @@
 package sfsync
 
-import sfsync.Main.MyWorker
+import sfsync.util.Helpers.MyWorker
 import sfsync.util._
 import sfsync.store._
-import sfsync.Helpers._
+import sfsync.util.Helpers._
 import sfsync.synchro.{VirtualFile, Profile, MyURI}
 
 import scala.collection.JavaConversions._
@@ -226,7 +226,7 @@ abstract class ServerView(val config: Config) extends GridPane with Logging {
   }
   var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer.value, () => serverChanged()) {
     override def beforeDelete(what: Server) = {
-      if (Main.dialogOkCancel("Delete server", "Delete server (only settings & cached data)", "Really delete server " + what)) {
+      if (dialogOkCancel("Delete server", "Delete server (only settings & cached data)", "Really delete server " + what)) {
         Cache.clearCacheFile(what.id.getValueSafe)
         true
       } else false

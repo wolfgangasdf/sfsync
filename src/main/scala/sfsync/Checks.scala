@@ -1,7 +1,7 @@
 package sfsync
 
 import sfsync.synchro.Actions._
-import sfsync.synchro.CompareStuff
+import sfsync.synchro.Comparison
 import sfsync.store.{SyncEntry, Cache}
 
 import scala.collection.mutable.ArrayBuffer
@@ -106,7 +106,7 @@ object Checks {
 //    println("**** initial:")
 //    Cache.dumpAll()
 
-    CompareStuff.compareSyncEntries()
+    Comparison.compareSyncEntries()
 
     // check if ok
     println("**** checks:")
