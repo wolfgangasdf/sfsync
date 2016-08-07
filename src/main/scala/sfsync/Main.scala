@@ -50,8 +50,8 @@ class MainView(filesView: FilesView) extends Tab with Logging {
 
     }
   }
-  var protocolView : ProtocolView = null
-  var subfolderView : SubFolderView = null
+  var protocolView : ProtocolView = _
+  var subfolderView : SubFolderView = _
   val sp = new SplitPane
   sp.orientation = jgo.VERTICAL
   sp.items += (serverView, new BorderPane(), new BorderPane())
@@ -65,7 +65,7 @@ object Main extends JFXApp with Logging {
   // redirect console output, must happen on top of this object!
   val oldOut = System.out
   val oldErr = System.err
-  var logps: io.FileOutputStream = null
+  var logps: io.FileOutputStream = _
   System.setOut(new io.PrintStream(new MyConsole(false), true))
   System.setErr(new io.PrintStream(new MyConsole(true), true))
 
@@ -85,19 +85,19 @@ object Main extends JFXApp with Logging {
   val resv = getClass.getResource("/sfsync/HGVERSION.txt")
   val version = VERSION + (if (resv != null) " (" + scala.io.Source.fromURL(resv).mkString.trim + ")" else "")
 
-  var settingsView: MainView = null
-  var filesView: FilesView = null
-  var logView: LogView = null
-  var profile: Profile = null
+  var settingsView: MainView = _
+  var filesView: FilesView = _
+  var logView: LogView = _
+  var profile: Profile = _
 
-  var cw: FilesView = null
-  var tmpse: SyncEntry = null
-  var lbInfo: Label = null
-  var btCompare: Button = null // to prevent suspicious forward reference in btSync
-  var statusBar: ToolBar = null
-  var statusLabel: Label = null
-  var btSync: Button = null
-  var tabpane: TabPane = null
+  var cw: FilesView = _
+  var tmpse: SyncEntry = _
+  var lbInfo: Label = _
+  var btCompare: Button = _ // to prevent suspicious forward reference in btSync
+  var statusBar: ToolBar = _
+  var statusLabel: Label = _
+  var btSync: Button = _
+  var tabpane: TabPane = _
 
   stage = new JFXApp.PrimaryStage {
     title = "xxx"
@@ -353,7 +353,6 @@ object Main extends JFXApp with Logging {
           updateProgr(100, 100, "ended!")
         }
       }
-      ctask.onCancelled
       MyWorker.runTask(ctask)
 
     } else {

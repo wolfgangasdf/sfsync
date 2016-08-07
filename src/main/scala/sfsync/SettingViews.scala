@@ -4,7 +4,7 @@ import sfsync.util.Helpers.MyWorker
 import sfsync.util._
 import sfsync.store._
 import sfsync.util.Helpers._
-import sfsync.synchro.{VirtualFile, Profile, MyURI}
+import sfsync.synchro.{GeneralConnection, MyURI, Profile, VirtualFile}
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
@@ -20,7 +20,6 @@ import scalafx.beans.property.StringProperty
 import scalafx.util.StringConverter
 import scalafx.geometry.Pos
 import scalafx.collections.ObservableBuffer
-
 import java.net.URLDecoder
 import java.text.Normalizer
 import javafx.{event => jfxe}
@@ -174,7 +173,7 @@ abstract class ServerView(val config: Config) extends GridPane with Logging {
   gridLinesVisible = false
   def onServerChange()
   var server = new Server
-  var sdv: ServerDetailView = null
+  var sdv: ServerDetailView = _
   def serverChanged() {
     debug("serverChanged!")
     val idx = lvs.lvs.getSelectionModel.getSelectedIndices.head
@@ -242,8 +241,8 @@ class ProtocolView(val server: Server) extends GridPane with Logging {
   margin = insetsstd
   alignment = Pos.CenterRight
   gridLinesVisible = false
-  var protocol: Protocol = null
-  var pdv: ProtocolDetailView = null
+  var protocol: Protocol = _
+  var pdv: ProtocolDetailView = _
   def protocolChanged() {
     val idx = lvp.lvs.getSelectionModel.getSelectedIndex
     if (idx > -1) {
@@ -289,15 +288,13 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
   val ADDTOFOLDERSMODE = 1
   val SELECTMODE = 2
   val profile = new Profile(server, protocol, null)
-  debug("init profile...")
-  MyWorker.runTask(profile.taskIni)
-  var folders: ObservableBuffer[String] = null
+  var myConn: GeneralConnection = _
 
-  debug("init profile done")
 
-  val myConn = if (localremote) profile.local else profile.remote
+  var folders: ObservableBuffer[String] = _
+  var folder = new StringProperty("")
+
   var rootPath = "/" // subfolders (for conn.list) are named "subf/subsubf" while the paths are "/subf/subsubf/" ... confusing
-  val rootNode = new FilePathTreeItem(rootPath, "root")
 
   val dstage = new Stage(jfxs.StageStyle.UTILITY) {
     initOwner(Main.stage)
@@ -311,9 +308,9 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
     showIt(ADDTOFOLDERSMODE, msg)
   }
 
-  def showSelect(msg: String) : String = {
-    val res = showIt(SELECTMODE, msg)
-    res
+  def showSelect(msg: String, foldersProperty: StringProperty) {
+    folder = foldersProperty
+    showIt(SELECTMODE, msg)
   }
 
   class FilePathTreeItem(var path: String, var filename: String) extends jfxsc.TreeItem[String](filename) {
@@ -345,62 +342,69 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
     })
 
   }
-  private def showIt(mtype: Int, msg: String) : String  = {
-    var res = ""
+  private def showIt(mtype: Int, msg: String) {
     var tv: TreeView[String] = null
-    val btAddToFolders = new Button("Add selected") {
-      onAction = (ae: ActionEvent) => {
-        for (si <- tv.selectionModel().selectedItems) {
-          val sif = si.asInstanceOf[FilePathTreeItem]
-          if (sif.isDir) folders.add(sif.path.replaceAll("^/", "").replaceAll("/$", ""))
-        }
-        print("")
-      }
-    }
-    val btSelect = new Button("Select") {
-      onAction = (ae: ActionEvent) => {
-        val si = tv.selectionModel().selectedItems.head.asInstanceOf[FilePathTreeItem]
-        res=si.path.replaceAll("^/","").replaceAll("/$","")
-        dstage.close()
-      }
-    }
-    tv = new TreeView[String](rootNode) {
-      editable = false
-      selectionModel().selectionMode = mtype match {
-        case ADDTOFOLDERSMODE => SelectionMode.MULTIPLE
-        case SELECTMODE => SelectionMode.SINGLE
-      }
-    }
-    rootNode.expanded = true
-    val cont = new BorderPane {
-      style = "-fx-background-color: lightblue;"
-      top = new Label(msg)
-      center = tv
-      bottom = new HBox {
-        margin = insetsstd
-        spacing = 5
-        alignment = Pos.Center
-        children = List(
-          mtype match {
-            case ADDTOFOLDERSMODE => btAddToFolders
-            case SELECTMODE => btSelect
-          },
-          new Button("Close") {
-            onAction = (ae: ActionEvent) => { res=""; dstage.close() }
+
+    profile.taskIni.onSucceeded = () => {
+      runUIwait {
+        myConn = if (localremote) profile.local else profile.remote
+
+        val rootNode = new FilePathTreeItem(rootPath, "root")
+
+        val btAddToFolders = new Button("Add selected") {
+          onAction = (ae: ActionEvent) => {
+            for (si <- tv.selectionModel().selectedItems) {
+              val sif = si.asInstanceOf[FilePathTreeItem]
+              if (sif.isDir) folders.add(sif.path.replaceAll("^/", "").replaceAll("/$", ""))
+            }
+            print("")
           }
-        )
+        }
+        val btSelect = new Button("Select") {
+          onAction = (ae: ActionEvent) => {
+            val si = tv.selectionModel().selectedItems.head.asInstanceOf[FilePathTreeItem]
+            folder.value = si.path.replaceAll("^/","").replaceAll("/$","")
+            dstage.close()
+          }
+        }
+        tv = new TreeView[String](rootNode) {
+          editable = false
+          selectionModel().selectionMode = mtype match {
+            case ADDTOFOLDERSMODE => SelectionMode.MULTIPLE
+            case SELECTMODE => SelectionMode.SINGLE
+          }
+        }
+        rootNode.expanded = true
+        val cont = new BorderPane {
+          style = "-fx-background-color: lightblue;"
+          top = new Label(msg)
+          center = tv
+          bottom = new HBox {
+            margin = insetsstd
+            spacing = 5
+            alignment = Pos.Center
+            children = List(
+              mtype match {
+                case ADDTOFOLDERSMODE => btAddToFolders
+                case SELECTMODE => btSelect
+              },
+              new Button("Close") {
+                onAction = (ae: ActionEvent) => { dstage.close() }
+              }
+            )
+          }
+        }
+        dstage.scene = new Scene {
+          content = cont
+        }
+        cont.prefWidth <== dstage.scene.width
+        cont.prefHeight <== dstage.scene.height
+
+        dstage.showAndWait()
       }
     }
-    dstage.scene = new Scene {
-      content = cont
-    }
-    cont.prefWidth <== dstage.scene.width
-    cont.prefHeight <== dstage.scene.height
-
-    dstage.showAndWait()
-    res
+    MyWorker.runTask(profile.taskIni)
   }
-
 }
 
 class SubFolderView(val server: Server) extends GridPane {
@@ -408,7 +412,7 @@ class SubFolderView(val server: Server) extends GridPane {
   margin = insetsstd
   alignment = Pos.CenterRight
   gridLinesVisible = false
-  var subfolder: SubFolder= null
+  var subfolder: SubFolder= _
   var lvp = new MyListView[SubFolder](() => new SubFolder,server.subfolders, server.currentSubFolder.value, () => subfolderChanged())
   import scalafx.scene.control.Button._
   lvp.buttons.children += new Button("Add <Allfiles>") {
@@ -433,7 +437,7 @@ class SubFolderView(val server: Server) extends GridPane {
   }, 0, 0)
   add(lvp, 0, 1)
 
-  var sfdv: SubFolderDetailView = null
+  var sfdv: SubFolderDetailView = _
   def subfolderChanged() {
     val idx = lvp.lvs.getSelectionModel.getSelectedIndex
     if (idx > -1) {

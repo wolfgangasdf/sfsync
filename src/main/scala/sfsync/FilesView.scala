@@ -68,7 +68,7 @@ class FilesView() extends Tab with Logging {
   text = "Files"
   closable = false
 
-  var profile: Profile = null
+  var profile: Profile = _
   private var syncEnabled = false
 
   val colPath = new TableColumn[SyncEntry2, String]("Path") {

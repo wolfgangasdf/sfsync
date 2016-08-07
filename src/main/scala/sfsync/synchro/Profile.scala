@@ -19,9 +19,9 @@ class TransferProtocol (
 )
 
 class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends Logging {
-  var cache: ListBuffer[VirtualFile] = null
-  var local: GeneralConnection = null
-  var remote: GeneralConnection = null
+  var cache: ListBuffer[VirtualFile] = _
+  var local: GeneralConnection = _
+  var remote: GeneralConnection = _
   var UIUpdateInterval = 0.5
   var profileInitialized = false
 

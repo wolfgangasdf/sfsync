@@ -139,7 +139,7 @@ class SubFolder extends ListableThing {
 
 
 object Store extends Logging {
-  var config : Config = null
+  var config : Config = _
 
   def save() {
     info("-----------save " + config)
@@ -373,7 +373,7 @@ class MyTreeMap[K, V] extends java.util.concurrent.ConcurrentSkipListMap[K, V] {
 // this holds the main database of files. also takes care of GUI observable list
 object Cache extends Logging {
   val CACHEVERSION = "V1"
-  var cache: MyTreeMap[String, SyncEntry] = null
+  var cache: MyTreeMap[String, SyncEntry] = _
   var observableListSleep = false
   var observableList = new sfxc.ObservableBuffer[SyncEntry2]()
   observableList.onChange( // automatically update treemap from UI changes

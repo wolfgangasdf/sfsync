@@ -169,7 +169,7 @@ object Helpers {
       }
     }
 
-    var backgroundTimer: java.util.Timer = null // just to clean up finished tasks
+    var backgroundTimer: java.util.Timer = _ // just to clean up finished tasks
     al.showing.onChange{ (_, oldv, newv) =>
       if (newv) {
         val ttask = new java.util.TimerTask {
