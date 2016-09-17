@@ -410,6 +410,7 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
 
   var ui = new MyUserInfo(uri.username, password)
   session.setUserInfo(ui)
+//  session.setConfig("kex", "diffie-hellman-group1-sha1") // for cm13 testing... no way
   session.connect()
   val sftp = session.openChannel("sftp").asInstanceOf[jsch.ChannelSftp]
   sftp.connect(5000)

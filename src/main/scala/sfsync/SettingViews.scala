@@ -138,7 +138,7 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
       }
       onDragOver = (event: input.DragEvent) => {
         if (event.dragboard.hasFiles) {
-          if (event.dragboard.getFiles.length == 1) event.acceptTransferModes(scalafx.scene.input.TransferMode.COPY)
+          if (event.dragboard.getFiles.length == 1) event.acceptTransferModes(scalafx.scene.input.TransferMode.Copy)
         } else {
           event.consume()
         }
@@ -345,6 +345,13 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
   private def showIt(mtype: Int, msg: String) {
     var tv: TreeView[String] = null
 
+    profile.taskIni.onFailed = () => {
+      debug("failed!!!!!" + profile.taskIni.getException)
+      throw profile.taskIni.getException
+    }
+    profile.taskIni.onCancelled = () => {
+      debug("cancelled!!!!!")
+    }
     profile.taskIni.onSucceeded = () => {
       runUIwait {
         myConn = if (localremote) profile.local else profile.remote
@@ -370,8 +377,8 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
         tv = new TreeView[String](rootNode) {
           editable = false
           selectionModel().selectionMode = mtype match {
-            case ADDTOFOLDERSMODE => SelectionMode.MULTIPLE
-            case SELECTMODE => SelectionMode.SINGLE
+            case ADDTOFOLDERSMODE => SelectionMode.Multiple
+            case SELECTMODE => SelectionMode.Single
           }
         }
         rootNode.expanded = true
@@ -397,8 +404,8 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
         dstage.scene = new Scene {
           content = cont
         }
-        cont.prefWidth <== dstage.scene.width
-        cont.prefHeight <== dstage.scene.height
+        cont.prefWidth <== dstage.getScene.width
+        cont.prefHeight <== dstage.getScene.height
 
         dstage.showAndWait()
       }
@@ -492,7 +499,7 @@ class SubFolderView(val server: Server) extends GridPane {
       }
       onDragOver = (event: input.DragEvent) => {
         if (event.dragboard.hasFiles) {
-          event.acceptTransferModes(scalafx.scene.input.TransferMode.COPY)
+          event.acceptTransferModes(scalafx.scene.input.TransferMode.Copy)
         } else {
           event.consume()
         }

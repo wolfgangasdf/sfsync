@@ -16,11 +16,11 @@ object Build extends Build {
       name := "SFSync",
       organization := "sfsync",
       version := "0.9-SNAPSHOT",
-      scalaVersion := "2.11.7",
+      scalaVersion := "2.11.8",
       scalacOptions ++= Seq("-feature", "-unchecked", "-deprecation", "-encoding", "UTF-8"),
       libraryDependencies ++= Seq(
-        "org.scalafx" %% "scalafx" % "8.0.60-R9",
-        "com.jcraft" % "jsch" % "0.1.53"
+        "org.scalafx" %% "scalafx" % "8.0.92-R10",
+        "com.jcraft" % "jsch" % "0.1.54"
       )
     )
   ).enablePlugins(BuildInfoPlugin).settings(

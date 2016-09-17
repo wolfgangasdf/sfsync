@@ -377,7 +377,7 @@ object Cache extends Logging {
   var observableListSleep = false
   var observableList = new sfxc.ObservableBuffer[SyncEntry2]()
   observableList.onChange( // automatically update treemap from UI changes
-    (source: ObservableBuffer[SyncEntry2], changes: Seq[Change]) => {
+    (source: ObservableBuffer[SyncEntry2], changes: Seq[Change[SyncEntry2]]) => {
       if (!observableListSleep) changes.foreach {
         case Update(from, to) => observableList.subList(from, to).foreach(se2 => {
           debug("changed se2: " + se2.toStringNice)

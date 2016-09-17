@@ -386,8 +386,8 @@ class Splash extends Logging {
   sstage.scene = new Scene {
     content = cont
   }
-  cont.prefWidth <== sstage.scene.width
-  cont.prefHeight <== sstage.scene.height
+  cont.prefWidth <== sstage.getScene.width
+  cont.prefHeight <== sstage.getScene.height
   cont.autosize()
   sstage.show()
   sstage.toFront()
