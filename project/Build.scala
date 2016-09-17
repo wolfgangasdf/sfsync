@@ -20,7 +20,8 @@ object Build extends Build {
       scalacOptions ++= Seq("-feature", "-unchecked", "-deprecation", "-encoding", "UTF-8"),
       libraryDependencies ++= Seq(
         "org.scalafx" %% "scalafx" % "8.0.92-R10",
-        "com.jcraft" % "jsch" % "0.1.54"
+        "com.hierynomus" % "sshj" % "0.17.2",
+        "org.slf4j" % "slf4j-simple" % "1.7.21"
       )
     )
   ).enablePlugins(BuildInfoPlugin).settings(
