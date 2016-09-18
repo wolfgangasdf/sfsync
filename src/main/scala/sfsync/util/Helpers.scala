@@ -44,6 +44,18 @@ object Helpers {
     s.getBytes(encoding).map("%02x " format _).mkString
   }
 
+  def tokMGTPE(d: Double) = {
+    var num = d
+    var ext = ""
+    val expo = math.min((Math.log(d) / Math.log(1000)).floor.toInt, 6)
+    if (expo > 0) {
+      ext = "kMGTPE" (expo - 1).toString
+      num = d / math.pow(1000, expo)
+    }
+    val res = "%.1f%s".format(num, ext)
+    res
+  }
+
   def unit() {}
 
   def runUI( f: => Unit ) {

@@ -97,7 +97,7 @@ abstract class GeneralConnection(isLocal: Boolean, cantSetDate: Boolean) extends
   def deletefile(what: String, mtime: Long)
   def list(subfolder: String, filterregexp: String, action: (VirtualFile) => Unit, recursive: Boolean)
 
-  var onProgress = (progressVal: Double) => {}
+  var onProgress = (progressVal: Double, bytePerSecond: Double) => {}
 
   // return dir (most likely NOT absolute path but subfolder!) without trailing /
   def checkIsDir(path: String) = {
@@ -195,7 +195,9 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
 
   class MyTransferListener(var relPath: String = "") extends TransferListener {
     var bytesTransferred: Long = 0
+    var lastBytesTransferred: Long = 0
     var bytesTotal: Long = 0
+    var lastTime: Long = 0
 
     override def directory(name: String): TransferListener = {
       new MyTransferListener(relPath + name + "/")
@@ -204,11 +206,19 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
     override def file(name: String, size: Long): Listener = {
       bytesTotal = size
       bytesTransferred = 0
+      lastBytesTransferred = 0
+      lastTime = System.nanoTime
       new StreamCopier.Listener() {
         def reportProgress(transferred: Long) {
           bytesTransferred = transferred
           if (interrupted.get) throw new InterruptedException("sftp connection interrupted")
-          onProgress(bytesTransferred.toDouble/bytesTotal)
+          val tnow = System.nanoTime
+          if ((tnow - lastTime) / 1.0e9 > 0.5) {
+            val byps = (bytesTransferred - lastBytesTransferred) / ((tnow - lastTime) / 1.0e9)
+            lastTime = tnow
+            lastBytesTransferred = bytesTransferred
+            onProgress(bytesTransferred.toDouble/bytesTotal, byps)
+          }
         }
       }
     }

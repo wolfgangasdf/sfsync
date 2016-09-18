@@ -173,9 +173,9 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
       if (relevantSize > 10000) showit = true
 
       var msg = ""
-      remote.onProgress = (progressVal: Double) => {
+      remote.onProgress = (progressVal: Double, bytesPerSecond: Double) => {
         val pv = (100 * progressVal).toInt
-        updateMessage(s" [${CF.amap(se.action)}]: $path...$pv%")
+        updateMessage(s" [${CF.amap(se.action)}]: $path...$pv% (${Helpers.tokMGTPE(bytesPerSecond)}B/s)")
       }
 
       if (showit || swUIupdate.doit(UIUpdateInterval)) {
