@@ -33,6 +33,9 @@ object DBSettings extends Logging {
 
   val lockFile = new java.io.File(settpath + "/sfsync.lock")
 
+  val knownHostsFile = new java.io.File(settpath + "/known_hosts")
+  knownHostsFile.createNewFile()
+
   def dbpath(name: String) = dbdir + "/" + name
 
   def getSettingPath = settpath + "/sfsyncsettings" + ".txt"

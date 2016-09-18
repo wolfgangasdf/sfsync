@@ -259,11 +259,11 @@ class ProtocolView(val server: Server) extends GridPane with Logging {
     var tfBaseFolder = new MyTextField("Base folder: ", null,
       toolTip = "Remote base directory such as '/remotebasedir'",
       filter = directoryFilter, canDropFile = true) { tf.text <==> protocol.protocolbasefolder }
-    var tfURI = new MyTextField("Protocol URI: ", null, "file:/// or sftp://user@host:port", "(file:///)|(sftp://\\S+@\\S+:\\S+)") {
+    var tfURI = new MyTextField("Protocol URI: ", null, "file:/// or sftp://user[:password]@host:port", "(file:///)|(sftp://\\S+@\\S+:\\S+)") {
       tf.onAction = (ae: ActionEvent) => {
         val uri = new MyURI()
         if (uri.parseString(tf.text.value)) {
-          if (!uri.password.startsWith("##")) {
+          if (uri.password != "" && !uri.password.startsWith("##")) {
             info("encrypt password...")
             val crypto = new JavaCryptoEncryption("DES")
             uri.password = "##" + crypto.encrypt(uri.password)

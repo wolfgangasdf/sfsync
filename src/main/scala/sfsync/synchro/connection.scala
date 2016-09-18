@@ -1,19 +1,23 @@
 package sfsync.synchro
 
 import java.io.IOException
-import java.nio.file.{Files, Path, Paths, StandardCopyOption}
 import java.nio.file.attribute.FileTime
+import java.nio.file.{Files, Path, Paths, StandardCopyOption}
+import java.security.PublicKey
 import java.util.concurrent.atomic.AtomicBoolean
 
-import net.schmizz.sshj.common.StreamCopier
+import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.common.StreamCopier.Listener
+import net.schmizz.sshj.common.{KeyType, SecurityUtils, StreamCopier}
 import net.schmizz.sshj.sftp.Response.StatusCode
 import net.schmizz.sshj.sftp.{FileAttributes, FileMode, RemoteResourceInfo, SFTPException}
+import net.schmizz.sshj.transport.verification.OpenSSHKnownHosts
+import net.schmizz.sshj.transport.verification.OpenSSHKnownHosts.HostEntry
+import net.schmizz.sshj.userauth.UserAuthException
 import net.schmizz.sshj.xfer.TransferListener
-import net.schmizz.sshj.SSHClient
-import sfsync.store.Tools
-import sfsync.util.{Helpers, Logging}
+import sfsync.store.{DBSettings, Tools}
 import sfsync.util.Helpers._
+import sfsync.util.{Helpers, Logging}
 
 import scala.Predef._
 import scala.collection.JavaConversions._
@@ -198,7 +202,6 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
     }
 
     override def file(name: String, size: Long): Listener = {
-      val path: String = relPath + name
       bytesTotal = size
       bytesTransferred = 0
       new StreamCopier.Listener() {
@@ -225,7 +228,7 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
       } catch {
         case ioe: IOException => // unfortunately only "Failure" ; checking for content would be slow
           val xx = sftpc.ls(remoteBasePath + "/" + cp)
-          if (xx.nonEmpty) { // TODO test this well!
+          if (xx.nonEmpty) {
             val tmp = new ListBuffer[RemoteResourceInfo]
             for (obj <- xx ) {
               val lse = obj.asInstanceOf[RemoteResourceInfo]
@@ -362,58 +365,57 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
     debug("parsing done")
   }
 
-//  class MyUserInfo(val user: String, val password: String) extends jsch.UserInfo with jsch.UIKeyboardInteractive {
-//    var getPassCount = 0
-//    def getPassword = {
-//      debug(s"getPassword passcount = $getPassCount")
-//      getPassCount += 1
-//      val pwd = if (getPassCount < 2 && password != "")
-//        password
-//      else
-//        runUIwait(dialogInputString("SSH", "SSH password required. To store password: add to URI string, it will be encrypted", "Password:")).asInstanceOf[String]
-//      if (pwd == "")
-//        throw new Exception("Sftp login aborted.")
-//      pwd
-//    }
-//    def promptYesNo(str: String) : Boolean = {
-//      runUIwait(dialogOkCancel("SSH", "SSH subsystem question:", str)) == true
-//    }
-//
-//    def promptKeyboardInteractive(destination: String, name: String, instruction: String, prompt: Array[String], echo: Array[Boolean]): Array[String] = null
-//
-//    def getPassphrase: String = ""
-//
-//    def promptPassword(message: String): Boolean = { debug("prompt pwd") ; true }
-//
-//    def promptPassphrase(message: String): Boolean = { debug("prompt pwd") ; true }
-//
-//    def showMessage(message: String) {
-//      debug("SSH message: " + message)
-//      //runUIwait(Dialog.showMessage(message))
-//    }
-//  }
-//
-
   // init
 
   System.setProperty(org.slf4j.impl.SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "WARN")
 
+  // see ConsoleKnownHostsVerifier
+  class MyHostKeyVerifier extends OpenSSHKnownHosts(DBSettings.knownHostsFile) {
+    override def hostKeyUnverifiableAction(hostname: String, key: PublicKey): Boolean = {
+      if (runUIwait(dialogOkCancel("SFTP server verification", s"Can't verify public key of server $hostname",
+        s"Fingerprint:\n${SecurityUtils.getFingerprint(key)}\nPress OK to connect and add to SFSync's known_hosts.")).asInstanceOf[Boolean]) {
+        entries.add(new OpenSSHKnownHosts.SimpleEntry(null, hostname, KeyType.fromKey(key), key))
+        write()
+        true
+      } else false
+    }
+
+    override def hostKeyChangedAction(entry: HostEntry, hostname: String, key: PublicKey): Boolean = {
+      if (runUIwait(dialogOkCancel("SFTP server verification", s"Host key of server $hostname has changed!",
+        s"Fingerprint:\n${SecurityUtils.getFingerprint(key)}\nPress OK if you are 100% sure if this change was intended.")).asInstanceOf[Boolean]) {
+        entries.remove(entry)
+        entries.add(new OpenSSHKnownHosts.SimpleEntry(null, hostname, KeyType.fromKey(key), key))
+        write()
+        true
+      } else false
+    }
+  }
+
   val ssh = new SSHClient()
-  ssh.loadKnownHosts()
-
-  var prvkeypath = ""
-
+  ssh.addHostKeyVerifier(new MyHostKeyVerifier)
   ssh.connect(uri.host, uri.port.toInt)
 
   var password = uri.password
-  if (password != "") {
-    if (password.startsWith("##")) { // decode password
-      password = Tools.crypto.decrypt(password.substring(2))
-    }
-    ssh.authPassword(uri.username, password)
-  } else {
+  if (password.startsWith("##"))
+    password = Tools.crypto.decrypt(password.substring(2)) // decode password
+
+  try {
     ssh.authPublickey(uri.username)
+  } catch {
+    case e: UserAuthException =>
+      info("Public key auth failed: " + e)
+      info("auth methods: " + ssh.getUserAuth.getAllowedMethods.mkString(","))
+      if (ssh.getUserAuth.getAllowedMethods.exists(_ == "keyboard-interactive")) {
+        if (password == "") {
+          val res = runUIwait(dialogInputString("SSH", s"Public key auth failed, require password. \nNote: to store the password: add to URI string, it will be encrypted", "Password:")).asInstanceOf[String]
+          if (res != "") password = res
+        }
+        if (password != "") {
+          ssh.authPassword(uri.username, password)
+        } else throw new UserAuthException("No password")
+      }
   }
+
   val sftpc = ssh.newSFTPClient
   val sftpt = sftpc.getFileTransfer
 
