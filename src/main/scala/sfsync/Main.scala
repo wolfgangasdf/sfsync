@@ -306,7 +306,11 @@ object Main extends JFXApp with Logging {
       }
     }
     profile.taskSynchronize.onFailed = () => handleFailed(profile.taskSynchronize)
-    profile.taskSynchronize.onCancelled = () => handleCancelled()
+    profile.taskSynchronize.onCancelled = () => {
+      profile.local.interrupted.set(true)
+      profile.remote.interrupted.set(true)
+      handleCancelled()
+    }
     MyWorker.runTask(profile.taskSynchronize)
   }
 

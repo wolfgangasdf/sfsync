@@ -18,6 +18,7 @@ It uses the following paradigm:
 * The log file `sfsynclog-<date>.txt` is in `/tmp` or in java.io.tmpdir
 * SFSync has an option keep separate remote file date/timestamp/mtime for servers that can't modify file time (android & SSHelper without root etc.)
 * sftp: use publickey or password-based authentification
+* sftp: symbolic links (symlinks) are not 'followed'
 
 ## Status ##
 File synchronization is a delicate thing. However, if you keep the Files list-view on the default setting "changes", only files are modified that you see in the list. You can review everything before pressing `Synchronize`.

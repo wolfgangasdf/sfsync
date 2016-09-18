@@ -154,6 +154,7 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
   } }
 
   val taskSynchronize = new myTask { override def call(): Unit = {
+    info("*********************** synchronize")
     updateTitle("Synchronize")
     updateProgr(0, 100, "startup...")
 
@@ -199,6 +200,7 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
           case aa => throw new UnsupportedOperationException("unknown action: " + aa)
         }
       } catch {
+        case e: InterruptedException => throw e
         case e: Exception =>
           error("sync exception:", e)
           se.action = A_SYNCERROR
@@ -216,12 +218,14 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
       state match {
         case 1 => // delete
           Cache.cache.iterate((it, path, se) => {
+            if (local.interrupted.get || remote.interrupted.get) throw new InterruptedException("profile: connections interrupted")
             if (se.relevant && List(A_RMBOTH, A_RMLOCAL, A_RMREMOTE).contains(se.action)) {
               dosync(path, se)
             }
           }, reversed = true)
         case _ => // put/get and others
           Cache.cache.iterate((it, path, se) => {
+            if (local.interrupted.get || remote.interrupted.get) throw new InterruptedException("profile: connections interrupted")
             if (se.relevant) dosync(path, se)
           })
       }

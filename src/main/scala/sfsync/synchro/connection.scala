@@ -3,6 +3,7 @@ package sfsync.synchro
 import java.io.IOException
 import java.nio.file.{Files, Path, Paths, StandardCopyOption}
 import java.nio.file.attribute.FileTime
+import java.util.concurrent.atomic.AtomicBoolean
 
 import net.schmizz.sshj.common.StreamCopier
 import net.schmizz.sshj.common.StreamCopier.Listener
@@ -10,7 +11,6 @@ import net.schmizz.sshj.sftp.Response.StatusCode
 import net.schmizz.sshj.sftp.{FileAttributes, FileMode, RemoteResourceInfo, SFTPException}
 import net.schmizz.sshj.xfer.TransferListener
 import net.schmizz.sshj.SSHClient
-
 import sfsync.store.Tools
 import sfsync.util.{Helpers, Logging}
 import sfsync.util.Helpers._
@@ -85,6 +85,7 @@ abstract class GeneralConnection(isLocal: Boolean, cantSetDate: Boolean) extends
   var remoteBasePath: String = ""
   var filterregex: Regex = new Regex(""".*""")
   val debugslow = false
+  val interrupted = new AtomicBoolean(false)
   def getfile(from: String, mtime: Long, to: String)
   def getfile(from: String, mtime: Long)
   def putfile(from: String, mtime: Long): Long // returns new mtime if cantSetDate
@@ -199,13 +200,19 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
     override def file(name: String, size: Long): Listener = {
       val path: String = relPath + name
       bytesTotal = size
+      bytesTransferred = 0
       new StreamCopier.Listener() {
         def reportProgress(transferred: Long) {
           bytesTransferred = transferred
+          if (interrupted.get) throw new InterruptedException("sftp connection interrupted")
           onProgress(bytesTransferred.toDouble/bytesTotal)
         }
       }
     }
+  }
+
+  def isDirectoryx(fa: FileAttributes) = {
+    (fa.getType.toMask & FileMode.Type.DIRECTORY.toMask) > 0
   }
 
   var transferListener: MyTransferListener = _
@@ -253,16 +260,23 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
       sftpc.mkdir(rp)
       mtime // dirs don't need mtime
     } else {
-      sftpt.upload(localBasePath + "/" + cp, rp)
-      if (transferListener.bytesTotal != transferListener.bytesTransferred) { // interrupted!
-        sftpc.rm(rp) // delete partially transferred files
-        -1
+      try {
+        sftpt.upload(localBasePath + "/" + cp, rp)
+      } catch {
+        case e: Exception =>
+          debug(s"putfile: exception: $e")
+          if (transferListener.bytesTransferred > 0) { // file may be corrupted, but don't delete if nothing transferred
+            // prevent delete of root-owned files if user in group admin, sftp rm seems to "override permissions"
+            sftpc.rm(rp)
+          }
+          throw e
+      }
+      if (transferListener.bytesTotal != transferListener.bytesTransferred)
+        throw new IllegalStateException(s"filesize mismatch: ${transferListener.bytesTotal} <> ${transferListener.bytesTransferred}")
+      if (cantSetDate) {
+        sftpc.mtime(rp) * 1000
       } else {
-        if (cantSetDate) {
-          sftpc.mtime(rp) * 1000
-        } else {
-          mtime
-        }
+        mtime
       }
     }
   }
@@ -272,12 +286,20 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
       Files.createDirectories(Paths.get(to)) // simply create parents if necessary, avoids separate check
       Files.setLastModifiedTime(Paths.get(to), FileTime.fromMillis(mtime))
     } else {
-      sftpt.download(remoteBasePath + "/" + cp, to)
-      if (transferListener.bytesTotal != transferListener.bytesTransferred) { // interrupted!
-        Files.delete(Paths.get(to)) // delete partially transferred files
-      } else {
-        Files.setLastModifiedTime(Paths.get(to), FileTime.fromMillis(mtime))
+      try {
+        sftpt.download(remoteBasePath + "/" + cp, to)
+      } catch {
+        case e: Exception =>
+          debug("getfile: exception " + e)
+          if (transferListener.bytesTransferred > 0) // file may be corrupted, but don't delete if nothing transferred
+            Files.delete(Paths.get(to)) // file may be corrupted
+
+          throw e
       }
+      if (transferListener.bytesTotal != transferListener.bytesTransferred)
+        throw new IllegalStateException(s"filesize mismatch: ${transferListener.bytesTotal} <> ${transferListener.bytesTransferred}")
+
+      Files.setLastModifiedTime(Paths.get(to), FileTime.fromMillis(mtime))
     }
   }
   def getfile(from: String, mtime: Long) {
@@ -304,7 +326,7 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
         path= fullFilePath.substring(remoteBasePath.length)
         modTime = attrs.getMtime * 1000
         size = attrs.getSize
-        if (attrs.getMode.getType == FileMode.Type.DIRECTORY && path != "/") path += "/"
+        if (isDirectoryx(attrs) && path != "/") path += "/"
       }
     }
     def parseContent(folder: String) {
@@ -317,7 +339,7 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
           val vf = VFfromSftp(rri.getPath, rri.getAttributes)
           if ( !vf.fileName.matches(filterregexp) ) {
             action(vf)
-            if (rri.isDirectory && recursive ) {
+            if (isDirectoryx(rri.getAttributes) && recursive ) {
               parseContent(rri.getPath)
             }
           }
@@ -332,7 +354,7 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
       val vf = VFfromSftp(sp, sftpsp) // not nice: duplicate code (above)
       if ( !vf.fileName.matches(filterregexp) ) {
         action(vf)
-        if (sftpsp.getMode.getType == FileMode.Type.DIRECTORY) {
+        if (isDirectoryx(sftpsp)) {
           parseContent(sp)
         }
       }
