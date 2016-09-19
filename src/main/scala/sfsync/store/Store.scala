@@ -130,6 +130,8 @@ class Server extends ListableThing {
 class Protocol extends ListableThing {
   var protocoluri = StringProperty("file:///")
   var protocolbasefolder = StringProperty("")
+  var remGroupWrite = BooleanProperty(false)
+  var remOthersWrite = BooleanProperty(false)
   var executeBefore = StringProperty("")
   var executeAfter = StringProperty("")
   override def toString: String = name.getValueSafe
@@ -173,6 +175,8 @@ object Store extends Logging {
         saveVal("protocol", proto.name)
         saveVal("protocoluri", proto.protocoluri)
         saveVal("protocolbasefolder", proto.protocolbasefolder)
+        saveVal("protocolremgroupwrite", proto.remGroupWrite)
+        saveVal("protocolremotherswrite", proto.remOthersWrite)
         saveVal("protocolexbefore", proto.executeBefore)
         saveVal("protocolexafter", proto.executeAfter)
       }
@@ -222,6 +226,8 @@ object Store extends Logging {
             lastserver.protocols += lastprotocol
           case "protocoluri" => lastprotocol.protocoluri.value = sett(1)
           case "protocolbasefolder" => lastprotocol.protocolbasefolder.value = sett(1)
+          case "protocolremgroupwrite" => lastprotocol.remGroupWrite.value = sett(1).toBoolean
+          case "protocolremotherswrite" => lastprotocol.remOthersWrite.value = sett(1).toBoolean
           case "protocolexbefore" => lastprotocol.executeBefore.value = sett(1)
           case "protocolexafter" => lastprotocol.executeAfter.value = sett(1)
           case "subfoldercurr" => lastserver.currentSubFolder.value = sett(1).toInt

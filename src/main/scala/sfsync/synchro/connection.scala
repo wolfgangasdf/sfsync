@@ -14,8 +14,8 @@ import net.schmizz.sshj.sftp.{FileAttributes, FileMode, RemoteResourceInfo, SFTP
 import net.schmizz.sshj.transport.verification.OpenSSHKnownHosts
 import net.schmizz.sshj.transport.verification.OpenSSHKnownHosts.HostEntry
 import net.schmizz.sshj.userauth.UserAuthException
-import net.schmizz.sshj.xfer.TransferListener
-import sfsync.store.{DBSettings, Tools}
+import net.schmizz.sshj.xfer.{FilePermission, FileSystemFile, TransferListener}
+import sfsync.store.{DBSettings, Protocol, Tools}
 import sfsync.util.Helpers._
 import sfsync.util.{Helpers, Logging}
 
@@ -84,7 +84,7 @@ class VirtualFile(var path: String, var modTime: Long, var size: Long) extends O
   def compare(that: VirtualFile): Int = path.compare(that.path)
 }
 
-abstract class GeneralConnection(isLocal: Boolean, cantSetDate: Boolean) extends Logging {
+abstract class GeneralConnection(protocol: Protocol, isLocal: Boolean, cantSetDate: Boolean) extends Logging {
   var localBasePath: String = ""
   var remoteBasePath: String = ""
   var filterregex: Regex = new Regex(""".*""")
@@ -108,7 +108,7 @@ abstract class GeneralConnection(isLocal: Boolean, cantSetDate: Boolean) extends
   def cleanUp() = {}
 }
 
-class LocalConnection(isLocal: Boolean, cantSetDate: Boolean) extends GeneralConnection(isLocal, cantSetDate) {
+class LocalConnection(protocol: Protocol, isLocal: Boolean, cantSetDate: Boolean) extends GeneralConnection(protocol, isLocal, cantSetDate) {
 
   def deletefile(what: String, mtime: Long) {
     val (cp, _) = checkIsDir(what)
@@ -191,7 +191,7 @@ class LocalConnection(isLocal: Boolean, cantSetDate: Boolean) extends GeneralCon
 }
 
 
-class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) extends GeneralConnection(isLocal, cantSetDate) {
+class SftpConnection(protocol: Protocol, isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) extends GeneralConnection(protocol, isLocal, cantSetDate) {
 
   class MyTransferListener(var relPath: String = "") extends TransferListener {
     var bytesTransferred: Long = 0
@@ -261,6 +261,17 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
   def putfile(from: String, mtime: Long): Long = {
     val (cp, isdir) = checkIsDir(from)
     val rp = remoteBasePath + "/" + cp
+
+    def setPerms(): Unit = {
+      val lf = new FileSystemFile(localBasePath + "/" + cp)
+      val fab = new FileAttributes.Builder
+      val perms = FilePermission.fromMask(lf.getPermissions)
+      if (protocol.remGroupWrite.value) perms.add(FilePermission.GRP_W) else perms.remove(FilePermission.GRP_W)
+      if (protocol.remOthersWrite.value) perms.add(FilePermission.OTH_W) else perms.remove(FilePermission.OTH_W)
+      fab.withPermissions(perms)
+      sftpc.setattr(rp, fab.build())
+    }
+
     if (isdir) {
       def checkit(p: String) { // recursively create parents
         val parent = Paths.get(p).getParent.toString
@@ -271,10 +282,12 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
       }
       checkit(rp)
       sftpc.mkdir(rp)
+      setPerms()
       mtime // dirs don't need mtime
     } else {
       try {
         sftpt.upload(localBasePath + "/" + cp, rp)
+        setPerms()
       } catch {
         case e: Exception =>
           debug(s"putfile: exception: $e")
@@ -415,7 +428,7 @@ class SftpConnection(isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) ext
     case e: UserAuthException =>
       info("Public key auth failed: " + e)
       info("auth methods: " + ssh.getUserAuth.getAllowedMethods.mkString(","))
-      if (ssh.getUserAuth.getAllowedMethods.exists(_ == "keyboard-interactive")) {
+      if (ssh.getUserAuth.getAllowedMethods.exists(s => s == "keyboard-interactive" || s == "password" )) {
         if (password == "") {
           val res = runUIwait(dialogInputString("SSH", s"Public key auth failed, require password. \nNote: to store the password: add to URI string, it will be encrypted", "Password:")).asInstanceOf[String]
           if (res != "") password = res

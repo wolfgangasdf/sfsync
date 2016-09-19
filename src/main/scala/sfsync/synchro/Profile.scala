@@ -40,7 +40,7 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
       }
     }
 
-    local = new LocalConnection(true, false) {
+    local = new LocalConnection(protocol, true, false) {
       remoteBasePath = server.localFolder.value
     }
     val uri = MyURI(protocol.protocoluri.value)
@@ -48,8 +48,8 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
     updateProgr(50, 100, "initialize remote connection...")
 
     remote = uri.protocol match {
-      case "sftp" => new SftpConnection(false, server.cantSetDate.value, uri)
-      case "file" => new LocalConnection(false, server.cantSetDate.value)
+      case "sftp" => new SftpConnection(protocol, false, server.cantSetDate.value, uri)
+      case "file" => new LocalConnection(protocol, false, server.cantSetDate.value)
       case _ => throw new RuntimeException("wrong protocol: " + uri.protocol)
     }
     if (Helpers.failat == 1) throw new UnsupportedOperationException("fail 1")

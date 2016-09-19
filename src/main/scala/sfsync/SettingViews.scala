@@ -170,7 +170,6 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
 abstract class ServerView(val config: Config) extends GridPane with Logging {
   margin = insetsstd
   prefHeight = 130
-  gridLinesVisible = false
   def onServerChange()
   var server = new Server
   var sdv: ServerDetailView = _
@@ -201,6 +200,7 @@ abstract class ServerView(val config: Config) extends GridPane with Logging {
 
   class ServerDetailView extends VBox {
     margin = insetsstd
+    spacing = 5
     alignment = Pos.CenterRight
     val tfID = new MyTextField("Cache ID: ",null, "just leave it") { tf.text <==> server.id }
     val cbCantSetDate = new CheckBox("Server can't set date (Android)") {
@@ -221,7 +221,6 @@ abstract class ServerView(val config: Config) extends GridPane with Logging {
     }
     val clist = List(tfLocalFolder,cbCantSetDate,tfFilter,tfID,bClearCache)
     children = clist
-    spacing = 5
   }
   var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer.value, () => serverChanged()) {
     override def beforeDelete(what: Server) = {
@@ -256,6 +255,7 @@ class ProtocolView(val server: Server) extends GridPane with Logging {
   }
   class ProtocolDetailView extends VBox with Logging {
     margin = insetsstd
+    spacing = 5
     var tfBaseFolder = new MyTextField("Base folder: ", null,
       toolTip = "Remote base directory such as '/remotebasedir'",
       filter = directoryFilter, canDropFile = true) { tf.text <==> protocol.protocolbasefolder }
@@ -273,9 +273,17 @@ class ProtocolView(val server: Server) extends GridPane with Logging {
       }
       tf.text <==> protocol.protocoluri
     }
+    val cbSetGroupWrite = new CheckBox("Group write (remote)") {
+      tooltip = "Sets the group write flag to this on remote server"
+      selected <==> protocol.remGroupWrite
+    }
+    val cbSetOthersWrite = new CheckBox("Others write (remote)") {
+      tooltip = "Sets the others write flag to this on remote server"
+      selected <==> protocol.remOthersWrite
+    }
     var tfExBefore = new MyTextField("Execute before: ", null, "use '#' to separate args") { tf.text <==> protocol.executeBefore }
     var tfExAfter = new MyTextField("Execute after: ", null, "use '#' to separate args") { tf.text <==> protocol.executeAfter }
-    children = List(tfURI, tfBaseFolder, tfExBefore, tfExAfter)
+    children = List(tfURI, tfBaseFolder, new HBox { children = List(cbSetGroupWrite, cbSetOthersWrite) }, tfExBefore, tfExAfter)
   }
   var lvp = new MyListView[Protocol](() => new Protocol, server.protocols, server.currentProtocol.value, () => protocolChanged())
   lvp.margin = insetsstd
@@ -459,6 +467,7 @@ class SubFolderView(val server: Server) extends GridPane {
   }
   class SubFolderDetailView extends VBox with Logging {
     margin = insetsstd
+    spacing = 5
     def fcSubfolder(basedir: String, inisf: String) = {
       var ressf: String = ""
       val fileChooser = new DirectoryChooser
