@@ -30,13 +30,14 @@ import javafx.{stage => jfxs}
 class MainView(filesView: FilesView) extends Tab with Logging {
   this.text = "Settings"
   closable = false
+  val mainView = this
 
   var serverView = new ServerView(Store.config) {
     def onServerChange() {
       val tmpdp =  ArrayBuffer(sp.dividerPositions: _*)
       protocolView = new ProtocolView(server)
       protocolView.prefWidth <== this.width - 10
-      subfolderView = new SubFolderView(server)
+      subfolderView = new SubFolderView(mainView, server)
       subfolderView.prefWidth <== this.width - 10
       sp.items(1) = protocolView
       sp.items(2) = subfolderView

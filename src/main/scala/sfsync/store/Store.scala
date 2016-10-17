@@ -22,7 +22,7 @@ object DBSettings extends Logging {
   var dbdir = ""
   if (isMac) {
     settpath = System.getProperty("user.home") + "/Library/Application Support/SFSync"
-    dbdir = System.getProperty("user.home") + "/Library/Caches/SFSync"
+    dbdir = settpath + "/cache"
   } else if (isLinux) {
     settpath = System.getProperty("user.home") + "/.sfsync"
     dbdir = settpath + "/cache"
@@ -130,6 +130,7 @@ class Server extends ListableThing {
 class Protocol extends ListableThing {
   var protocoluri = StringProperty("file:///")
   var protocolbasefolder = StringProperty("")
+  var doSetPermissions = BooleanProperty(false)
   var remGroupWrite = BooleanProperty(false)
   var remOthersWrite = BooleanProperty(false)
   var executeBefore = StringProperty("")
@@ -175,6 +176,7 @@ object Store extends Logging {
         saveVal("protocol", proto.name)
         saveVal("protocoluri", proto.protocoluri)
         saveVal("protocolbasefolder", proto.protocolbasefolder)
+        saveVal("protocoldosetpermissions", proto.doSetPermissions)
         saveVal("protocolremgroupwrite", proto.remGroupWrite)
         saveVal("protocolremotherswrite", proto.remOthersWrite)
         saveVal("protocolexbefore", proto.executeBefore)
@@ -226,6 +228,7 @@ object Store extends Logging {
             lastserver.protocols += lastprotocol
           case "protocoluri" => lastprotocol.protocoluri.value = sett(1)
           case "protocolbasefolder" => lastprotocol.protocolbasefolder.value = sett(1)
+          case "protocoldosetpermissions" => lastprotocol.doSetPermissions.value = sett(1).toBoolean
           case "protocolremgroupwrite" => lastprotocol.remGroupWrite.value = sett(1).toBoolean
           case "protocolremotherswrite" => lastprotocol.remOthersWrite.value = sett(1).toBoolean
           case "protocolexbefore" => lastprotocol.executeBefore.value = sett(1)
@@ -386,7 +389,7 @@ object Cache extends Logging {
   var observableListSleep = false
   var observableList = new sfxc.ObservableBuffer[SyncEntry2]()
   observableList.onChange( // automatically update treemap from UI changes
-    (source: ObservableBuffer[SyncEntry2], changes: Seq[Change[SyncEntry2]]) => {
+    (_: ObservableBuffer[SyncEntry2], changes: Seq[Change[SyncEntry2]]) => {
       if (!observableListSleep) changes.foreach {
         case Update(from, to) => observableList.subList(from, to).foreach(se2 => {
           debug("changed se2: " + se2.toStringNice)
@@ -398,7 +401,7 @@ object Cache extends Logging {
   )
 
   def dumpAll() = {
-    cache.iterate( (it, path, se) => println(path + ": " + se.toString))
+    cache.iterate( (_, path, se) => println(path + ": " + se.toString))
   }
 
   def getCacheFilename(name: String) = {
@@ -477,7 +480,7 @@ object Cache extends Logging {
     observableList.clear()
 
     // fill obslist
-    cache.iterate( (it, path, se) => {
+    cache.iterate( (_, path, se) => {
       if (se.relevant && filterActions.contains(se.action)) {
         observableList += new SyncEntry2(path, se)
       } else true
@@ -487,7 +490,7 @@ object Cache extends Logging {
   }
 
   def canSync: Boolean = {
-    for ( (path, se:SyncEntry) <- cache) {
+    for ( (_, se:SyncEntry) <- cache) {
       if (se.relevant && se.action == A_UNKNOWN) return false
     }
     true

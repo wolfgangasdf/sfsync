@@ -70,7 +70,7 @@ class MyListView[T <: ListableThing](
   })
 
 
-  lvs.getSelectionModel.getSelectedIndices.onChange( (aaa,bbb) => {
+  lvs.getSelectionModel.getSelectedIndices.onChange( (_, _) => {
     val newidx = lvs.getSelectionModel.getSelectedIndex
     if (oldidx != newidx) { // onChange is called 4 times if entry edited (looses selection)
       oldidx = newidx
@@ -83,7 +83,7 @@ class MyListView[T <: ListableThing](
   val buttons = new HBox {
     children = List(
       new Button("add") {
-        onAction = (ae: ActionEvent) => {
+        onAction = (_: ActionEvent) => {
           val newi = factory()
           obsBuffer += newi
           sortit()
@@ -94,7 +94,7 @@ class MyListView[T <: ListableThing](
         }
       },
       new Button("delete") {
-        onAction = (ae: ActionEvent) => {
+        onAction = (_: ActionEvent) => {
           val idx = lvs.selectionModel().getSelectedIndex
           if (idx >= 0) {
             if (beforeDelete(obsBuffer(idx))) {
@@ -158,7 +158,7 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
 
   if (onButtonClick != null) {
     val butt = new Button("Dir...") {
-      onAction = (ae: ActionEvent) => {
+      onAction = (_: ActionEvent) => {
         onButtonClick()
         unit()
       }
@@ -216,7 +216,7 @@ abstract class ServerView(val config: Config) extends GridPane with Logging {
       canDropFile = true
     ) { tf.text <==> server.localFolder }
     var bClearCache = new Button("Clear cache") {
-      onAction = (ae: ActionEvent) => { Cache.clearCacheFile(server.id.getValueSafe) }
+      onAction = (_: ActionEvent) => { Cache.clearCacheFile(server.id.getValueSafe) }
       tooltip = "Clears the cache database for selected sync location"
     }
     val clist = List(tfLocalFolder,cbCantSetDate,tfFilter,tfID,bClearCache)
@@ -260,7 +260,7 @@ class ProtocolView(val server: Server) extends GridPane with Logging {
       toolTip = "Remote base directory such as '/remotebasedir'",
       filter = directoryFilter, canDropFile = true) { tf.text <==> protocol.protocolbasefolder }
     var tfURI = new MyTextField("Protocol URI: ", null, "file:/// or sftp://user[:password]@host:port", "(file:///)|(sftp://\\S+@\\S+:\\S+)") {
-      tf.onAction = (ae: ActionEvent) => {
+      tf.onAction = (_: ActionEvent) => {
         val uri = new MyURI()
         if (uri.parseString(tf.text.value)) {
           if (uri.password != "" && !uri.password.startsWith("##")) {
@@ -273,6 +273,10 @@ class ProtocolView(val server: Server) extends GridPane with Logging {
       }
       tf.text <==> protocol.protocoluri
     }
+    val cbDoSetPermissions = new CheckBox("Set permissions (remote)") {
+      tooltip = "Set permissions on files/directories on remote server?"
+      selected <==> protocol.doSetPermissions
+    }
     val cbSetGroupWrite = new CheckBox("Group write (remote)") {
       tooltip = "Sets the group write flag to this on remote server"
       selected <==> protocol.remGroupWrite
@@ -283,7 +287,7 @@ class ProtocolView(val server: Server) extends GridPane with Logging {
     }
     var tfExBefore = new MyTextField("Execute before: ", null, "use '#' to separate args") { tf.text <==> protocol.executeBefore }
     var tfExAfter = new MyTextField("Execute after: ", null, "use '#' to separate args") { tf.text <==> protocol.executeAfter }
-    children = List(tfURI, tfBaseFolder, new HBox { children = List(cbSetGroupWrite, cbSetOthersWrite) }, tfExBefore, tfExAfter)
+    children = List(tfURI, tfBaseFolder, new HBox { children = List(cbDoSetPermissions, cbSetGroupWrite, cbSetOthersWrite) }, tfExBefore, tfExAfter)
   }
   var lvp = new MyListView[Protocol](() => new Protocol, server.protocols, server.currentProtocol.value, () => protocolChanged())
   lvp.margin = insetsstd
@@ -291,7 +295,7 @@ class ProtocolView(val server: Server) extends GridPane with Logging {
   add(lvp, 0, 1)
 }
 
-class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localremote: Boolean) extends Logging {
+class MyFileChooser(server: Server, protocol: Protocol, localremote: Boolean) extends Logging {
 
   val ADDTOFOLDERSMODE = 1
   val SELECTMODE = 2
@@ -367,7 +371,7 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
         val rootNode = new FilePathTreeItem(rootPath, "root")
 
         val btAddToFolders = new Button("Add selected") {
-          onAction = (ae: ActionEvent) => {
+          onAction = (_: ActionEvent) => {
             for (si <- tv.selectionModel().selectedItems) {
               val sif = si.asInstanceOf[FilePathTreeItem]
               if (sif.isDir) folders.add(sif.path.replaceAll("^/", "").replaceAll("/$", ""))
@@ -376,7 +380,7 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
           }
         }
         val btSelect = new Button("Select") {
-          onAction = (ae: ActionEvent) => {
+          onAction = (_: ActionEvent) => {
             val si = tv.selectionModel().selectedItems.head.asInstanceOf[FilePathTreeItem]
             folder.value = si.path.replaceAll("^/","").replaceAll("/$","")
             dstage.close()
@@ -404,7 +408,7 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
                 case SELECTMODE => btSelect
               },
               new Button("Close") {
-                onAction = (ae: ActionEvent) => { dstage.close() }
+                onAction = (_: ActionEvent) => { dstage.close() }
               }
             )
           }
@@ -422,7 +426,7 @@ class MyFileChooser(view: FilesView, server: Server, protocol: Protocol, localre
   }
 }
 
-class SubFolderView(val server: Server) extends GridPane {
+class SubFolderView(val mainView: MainView, val server: Server) extends GridPane {
   prefHeight = 150
   margin = insetsstd
   alignment = Pos.CenterRight
@@ -432,7 +436,7 @@ class SubFolderView(val server: Server) extends GridPane {
   import scalafx.scene.control.Button._
   lvp.buttons.children += new Button("Add <Allfiles>") {
     tooltip = "Adds a subset that will synchronize all files"
-    onAction = (ae: ActionEvent) => {
+    onAction = (_: ActionEvent) => {
       val sf = new SubFolder {
         name.value = "All files"
         subfolders += ""
@@ -518,19 +522,19 @@ class SubFolderView(val server: Server) extends GridPane {
     var controls = new HBox {
       children = List(
         new Button("Add (local)") {
-          onAction = (ae: ActionEvent) => {
-            val dc = new MyFileChooser(Main.filesView, Main.settingsView.serverView.server, Main.settingsView.protocolView.protocol, true)
+          onAction = (_: ActionEvent) => {
+            val dc = new MyFileChooser(server, mainView.protocolView.protocol, true)
             dc.showAddToFolders("Select local folder:", subfolder.subfolders)
           }
         },
         new Button("Add (remote)") {
-          onAction = (ae: ActionEvent) => {
-            val dc = new MyFileChooser(Main.filesView, Main.settingsView.serverView.server, Main.settingsView.protocolView.protocol, false)
+          onAction = (_: ActionEvent) => {
+            val dc = new MyFileChooser(server, mainView.protocolView.protocol, false)
             dc.showAddToFolders("Select remote folder:", subfolder.subfolders)
           }
         },
         new Button("Delete") {
-          onAction = (ae: ActionEvent) => {
+          onAction = (_: ActionEvent) => {
             lvs.getItems.remove(lvs.selectionModel().getSelectedItem) // multi selection disabled
             unit()
           }

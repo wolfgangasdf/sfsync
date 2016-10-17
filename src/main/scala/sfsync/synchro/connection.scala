@@ -116,7 +116,7 @@ class LocalConnection(protocol: Protocol, isLocal: Boolean, cantSetDate: Boolean
     try {
       Files.delete(fp)
     } catch {
-      case ee: java.nio.file.DirectoryNotEmptyException =>
+      case _: java.nio.file.DirectoryNotEmptyException =>
         val dir = Files.newDirectoryStream(fp).toList
         if (runUIwait(dialogOkCancel("Warning", s"Directory \n $cp \n not empty, DELETE ALL?", "Content:\n" + dir.map(a => a.toFile.getName).mkString("\n"))) == true) {
           dir.foreach(f => Files.delete(f) )
@@ -236,7 +236,7 @@ class SftpConnection(protocol: Protocol, isLocal: Boolean, cantSetDate: Boolean,
       try {
         sftpc.rmdir(remoteBasePath + "/" + cp)
       } catch {
-        case ioe: IOException => // unfortunately only "Failure" ; checking for content would be slow
+        case _: IOException => // unfortunately only "Failure" ; checking for content would be slow
           val xx = sftpc.ls(remoteBasePath + "/" + cp)
           if (xx.nonEmpty) {
             val tmp = new ListBuffer[RemoteResourceInfo]
@@ -244,7 +244,7 @@ class SftpConnection(protocol: Protocol, isLocal: Boolean, cantSetDate: Boolean,
               val lse = obj.asInstanceOf[RemoteResourceInfo]
               lse.getName match {
                 case "." | ".." =>
-                case s => tmp += lse
+                case _ => tmp += lse
               }
             }
             if (runUIwait(dialogOkCancel("Warning", s"Directory \n $cp \n not empty, DELETE ALL?", "Content:\n" + tmp.map(a => a.getName).mkString("\n"))) == true) {
@@ -282,12 +282,12 @@ class SftpConnection(protocol: Protocol, isLocal: Boolean, cantSetDate: Boolean,
       }
       checkit(rp)
       sftpc.mkdir(rp)
-      setPerms()
+      if (protocol.doSetPermissions.value) setPerms()
       mtime // dirs don't need mtime
     } else {
       try {
         sftpt.upload(localBasePath + "/" + cp, rp)
-        setPerms()
+        if (protocol.doSetPermissions.value) setPerms()
       } catch {
         case e: Exception =>
           debug(s"putfile: exception: $e")
@@ -444,6 +444,8 @@ class SftpConnection(protocol: Protocol, isLocal: Boolean, cantSetDate: Boolean,
 
   transferListener = new MyTransferListener()
   sftpt.setTransferListener(transferListener)
+
+  sftpt.setPreserveAttributes(false) // don't set permissions remote! Either by user or not at all.
 
   if (Helpers.failat == 2) throw new UnsupportedOperationException("fail 2")
 

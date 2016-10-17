@@ -70,9 +70,9 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
     var cacheall = false
     for (sf <- subfolder.subfolders) if (sf == "") cacheall = true
     // remove cache orphans (happens if user doesn't click synchronize
-    Cache.cache.iterate((it, path, se) => if (se.cSize == -1) it.remove())
+    Cache.cache.iterate((it, _, se) => if (se.cSize == -1) it.remove())
     // ini files
-    Cache.cache.iterate((it, path, se) => {
+    Cache.cache.iterate((_, path, se) => {
       var addit = cacheall
       if (!cacheall) for (sf <- subfolder.subfolders) if (path.startsWith("/" + sf + "/")) addit = true
       if (addit) {
@@ -161,9 +161,10 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
     var syncLog = ""
     val swUIupdate = new StopWatch
     var iii = 0
-    Cache.cache.iterate((it, path, se) => if (se.relevant) iii += 1)
+    Cache.cache.iterate((_, _, se) => if (se.relevant) iii += 1)
     val tosync = iii
     iii = 0
+    var ignoreErrors = false
 
     def dosync(path: String, se: SyncEntry) = {
       iii += 1
@@ -202,11 +203,18 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
       } catch {
         case e: InterruptedException => throw e
         case e: Exception =>
+          // TODO on first sync exception, ask user if to stop, continue, or continue ignoring errors
           error("sync exception:", e)
           se.action = A_SYNCERROR
           se.delete = false
           syncLog += (e + "[" + path + "]" + "\n")
           updateMessage("Failed: " + path + ": " + e)
+          if (!ignoreErrors) {
+            if (runUIwait(dialogOkCancel("Error", "Synchronization Error. Press OK to continue ignoring errors, Cancel to abort.", s"File: $path:\n${e.getMessage}")) == true)
+              ignoreErrors = true
+            else
+              throw new Exception("Exception(s) during synchronize:\n" + syncLog)
+          }
           // many exceptions are very slow, problem is stacktrace: http://stackoverflow.com/a/569118. Impossible to disable ST via Runtime.getRuntime()
           Thread.sleep(600) // to keep sfsync responsive...
       }
@@ -217,20 +225,20 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
       debug("syncing state = " + state)
       state match {
         case 1 => // delete
-          Cache.cache.iterate((it, path, se) => {
+          Cache.cache.iterate((_, path, se) => {
             if (local.interrupted.get || remote.interrupted.get) throw new InterruptedException("profile: connections interrupted")
             if (se.relevant && List(A_RMBOTH, A_RMLOCAL, A_RMREMOTE).contains(se.action)) {
               dosync(path, se)
             }
           }, reversed = true)
         case _ => // put/get and others
-          Cache.cache.iterate((it, path, se) => {
+          Cache.cache.iterate((_, path, se) => {
             if (local.interrupted.get || remote.interrupted.get) throw new InterruptedException("profile: connections interrupted")
             if (se.relevant) dosync(path, se)
           })
       }
       // update cache: remove removed/cacheonly files
-      Cache.cache.iterate((it, path, se) => {
+      Cache.cache.iterate((it, _, se) => {
         if (se.delete) it.remove()
       })
     }
@@ -239,7 +247,7 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
 
   // init action to make local as remote
   def iniLocalAsRemote(): Unit = {
-    Cache.cache.iterate( (it, path, se) => {
+    Cache.cache.iterate( (_, _, se) => {
       if (se.relevant && se.action != A_ISEQUAL) {
         se.action = se.action match {
           case A_RMREMOTE => A_USEREMOTE
@@ -253,7 +261,7 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
 
   // init action to make local as remote
   def iniRemoteAsLocal(): Unit = {
-    Cache.cache.iterate( (it, path, se) => {
+    Cache.cache.iterate( (_, _, se) => {
       if (se.relevant && se.action != A_ISEQUAL) {
         se.action = se.action match {
           case A_RMLOCAL => A_USELOCAL
