@@ -29,7 +29,7 @@ object Helpers {
   }
 
   def isMac = System.getProperty("os.name").toLowerCase.contains("mac")
-  def isLinux = System.getProperty("os.name").toLowerCase.contains("nix")
+  def isLinux = System.getProperty("os.name").toLowerCase.matches("(.*nix)|(.*nux)")
   def isWin = System.getProperty("os.name").toLowerCase.contains("win")
 
   def createTempFile(prefix: String, suffix: String) = { // standard io.File.createTempFile points often to strange location
