@@ -2,6 +2,7 @@ package sfsync
 
 import java.net.URI
 
+import buildinfo.BuildInfo
 import sfsync.util.Logging
 import sfsync.store._
 import sfsync.synchro._

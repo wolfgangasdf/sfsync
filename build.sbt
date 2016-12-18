@@ -1,26 +1,46 @@
-import _root_.de.sciss.sbt.appbundle.AppBundlePlugin.appbundle
+import java.time.ZonedDateTime
 
-// sbt {run,packageJavaFX} don't work if only Build.scala is used
+name := "SFSync"
+organization := "sfsync"
+version := "0.9-SNAPSHOT"
+javaOptions ++= Seq("-Xms100m", "-Xmx300m")
+scalaVersion := "2.11.8"
+scalacOptions ++= Seq("-feature", "-unchecked", "-deprecation", "-encoding", "UTF-8")
+
+libraryDependencies ++= Seq(
+  "org.scalafx" %% "scalafx" % "8.0.102-R11",
+  "com.hierynomus" % "sshj" % "0.17.2" withSources() withJavadoc(),
+  "org.slf4j" % "slf4j-simple" % "1.7.21"
+)
+
+lazy val root = (project in file(".")).
+  enablePlugins(BuildInfoPlugin).
+  settings(
+    buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion,
+      BuildInfoKey.action("buildTime") { ZonedDateTime.now.toString }
+    ),
+    buildInfoPackage := "buildinfo",
+    buildInfoUsePackageAsPath := true
+  )
 
 ////////////////// sbt-javafx for packaging
 jfxSettings
-
+JFX.verbose := true
 JFX.mainClass := Some("sfsync.Main")
-
 JFX.devKit := JFX.jdk(System.getenv("JAVA_HOME"))
+JFX.pkgResourcesDir := baseDirectory.value + "/src/deploy"
+JFX.artifactBaseNameValue := "GmailAttachmentRemover"
 
 /////////////// mac app bundle via sbt-appbundle
-seq(appbundle.settings: _*)
-
+Seq(appbundle.settings: _*)
 appbundle.name := "Sfsync"
-
 appbundle.javaVersion := "1.8*"
-
 appbundle.icon := Some(file("src/deploy/macosx/sfsync.icns"))
-
 appbundle.mainClass := JFX.mainClass.value
-
 appbundle.executable := file("src/deploy/macosx/universalJavaApplicationStub")
+
+
+
 
 /////////////// task to zip the jar for win,linux
 lazy val tzip = TaskKey[Unit]("zip")
