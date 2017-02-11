@@ -203,10 +203,6 @@ abstract class ServerView(val config: Config) extends GridPane with Logging {
     spacing = 5
     alignment = Pos.CenterRight
     val tfID = new MyTextField("Cache ID: ",null, "just leave it") { tf.text <==> server.id }
-    val cbCantSetDate = new CheckBox("Server can't set date (Android)") {
-      tooltip = "E.g., un-rooted Android devices can't set file date via sftp, select this and I will keep track of times."
-      selected <==> server.cantSetDate
-    }
     val tfFilter = new MyTextField("Filter: ",null, "regex, e.g., (.*12)|(.*e2)") { tf.text <==> server.filterRegexp }
     val tfLocalFolder = new MyTextField(
       "Local root: ",
@@ -219,7 +215,7 @@ abstract class ServerView(val config: Config) extends GridPane with Logging {
       onAction = (_: ActionEvent) => { Cache.clearCacheFile(server.id.getValueSafe) }
       tooltip = "Clears the cache database for selected sync location"
     }
-    val clist = List(tfLocalFolder,cbCantSetDate,tfFilter,tfID,bClearCache)
+    val clist = List(tfLocalFolder,tfFilter,tfID,bClearCache)
     children = clist
   }
   var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer.value, () => serverChanged()) {
@@ -285,9 +281,14 @@ class ProtocolView(val server: Server) extends GridPane with Logging {
       tooltip = "Sets the others write flag to this on remote server"
       selected <==> protocol.remOthersWrite
     }
+    val cbCantSetDate = new CheckBox("Server can't set date (Android)") {
+      tooltip = "E.g., un-rooted Android devices can't set file date via sftp, select this and I will keep track of times."
+      selected <==> protocol.cantSetDate
+    }
     var tfExBefore = new MyTextField("Execute before: ", null, "use '#' to separate args") { tf.text <==> protocol.executeBefore }
     var tfExAfter = new MyTextField("Execute after: ", null, "use '#' to separate args") { tf.text <==> protocol.executeAfter }
-    children = List(tfURI, tfBaseFolder, new HBox { children = List(cbDoSetPermissions, cbSetGroupWrite, cbSetOthersWrite) }, tfExBefore, tfExAfter)
+    children = List(tfURI, tfBaseFolder,
+      new HBox { children = List(cbDoSetPermissions, cbSetGroupWrite, cbSetOthersWrite, cbCantSetDate) }, tfExBefore, tfExAfter)
   }
   var lvp = new MyListView[Protocol](() => new Protocol, server.protocols, server.currentProtocol.value, () => protocolChanged())
   lvp.margin = insetsstd

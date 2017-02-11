@@ -117,7 +117,6 @@ class MyList[T] extends ArrayBuffer[T] {
 
 class Server extends ListableThing {
   var id = StringProperty(new java.util.Date().getTime.toString)
-  var cantSetDate = BooleanProperty(false)
   var localFolder = StringProperty("")
   var filterRegexp = StringProperty("")
   var protocols = new sfxc.ObservableBuffer[Protocol]
@@ -133,6 +132,7 @@ class Protocol extends ListableThing {
   var doSetPermissions = BooleanProperty(false)
   var remGroupWrite = BooleanProperty(false)
   var remOthersWrite = BooleanProperty(false)
+  var cantSetDate = BooleanProperty(false)
   var executeBefore = StringProperty("")
   var executeAfter = StringProperty("")
   override def toString: String = name.getValueSafe
@@ -168,7 +168,6 @@ object Store extends Logging {
     for (server <- config.servers) {
       saveVal("server", server.name)
       saveVal("localfolder", server.localFolder)
-      saveVal("cantsetdate", server.cantSetDate)
       saveVal("filterregexp", server.filterRegexp)
       saveVal("id", server.id)
       saveVal("protocolcurr", server.currentProtocol)
@@ -179,6 +178,7 @@ object Store extends Logging {
         saveVal("protocoldosetpermissions", proto.doSetPermissions)
         saveVal("protocolremgroupwrite", proto.remGroupWrite)
         saveVal("protocolremotherswrite", proto.remOthersWrite)
+        saveVal("protocolcantsetdate", proto.cantSetDate)
         saveVal("protocolexbefore", proto.executeBefore)
         saveVal("protocolexafter", proto.executeAfter)
       }
@@ -219,7 +219,6 @@ object Store extends Logging {
             lastserver = new Server { name.value = sett(1) }
             config.servers += lastserver
           case "localfolder" => lastserver.localFolder.value = sett(1)
-          case "cantsetdate" => lastserver.cantSetDate.value = sett(1).toBoolean
           case "filterregexp" => lastserver.filterRegexp.value = sett(1)
           case "id" => lastserver.id.value = sett(1)
           case "protocolcurr" => lastserver.currentProtocol.value = sett(1).toInt
@@ -231,6 +230,7 @@ object Store extends Logging {
           case "protocoldosetpermissions" => lastprotocol.doSetPermissions.value = sett(1).toBoolean
           case "protocolremgroupwrite" => lastprotocol.remGroupWrite.value = sett(1).toBoolean
           case "protocolremotherswrite" => lastprotocol.remOthersWrite.value = sett(1).toBoolean
+          case "protocolcantsetdate" => lastprotocol.cantSetDate.value = sett(1).toBoolean
           case "protocolexbefore" => lastprotocol.executeBefore.value = sett(1)
           case "protocolexafter" => lastprotocol.executeAfter.value = sett(1)
           case "subfoldercurr" => lastserver.currentSubFolder.value = sett(1).toInt

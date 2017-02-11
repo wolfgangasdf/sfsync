@@ -9,8 +9,8 @@ scalacOptions ++= Seq("-feature", "-unchecked", "-deprecation", "-encoding", "UT
 
 libraryDependencies ++= Seq(
   "org.scalafx" %% "scalafx" % "8.0.102-R11",
-  "com.hierynomus" % "sshj" % "0.17.2" withSources() withJavadoc(),
-  "org.slf4j" % "slf4j-simple" % "1.7.21"
+  "com.hierynomus" % "sshj" % "0.20.0" withSources() withJavadoc(),
+  "org.slf4j" % "slf4j-simple" % "1.7.22"
 )
 
 lazy val root = (project in file(".")).

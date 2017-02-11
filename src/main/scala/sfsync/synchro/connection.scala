@@ -84,7 +84,7 @@ class VirtualFile(var path: String, var modTime: Long, var size: Long) extends O
   def compare(that: VirtualFile): Int = path.compare(that.path)
 }
 
-abstract class GeneralConnection(protocol: Protocol, isLocal: Boolean, cantSetDate: Boolean) extends Logging {
+abstract class GeneralConnection(protocol: Protocol, isLocal: Boolean) extends Logging {
   var localBasePath: String = ""
   var remoteBasePath: String = ""
   var filterregex: Regex = new Regex(""".*""")
@@ -97,6 +97,7 @@ abstract class GeneralConnection(protocol: Protocol, isLocal: Boolean, cantSetDa
   def deletefile(what: String, mtime: Long)
   def list(subfolder: String, filterregexp: String, action: (VirtualFile) => Unit, recursive: Boolean)
 
+  //noinspection ScalaUnusedSymbol
   var onProgress = (progressVal: Double, bytePerSecond: Double) => {}
 
   // return dir (most likely NOT absolute path but subfolder!) without trailing /
@@ -108,7 +109,7 @@ abstract class GeneralConnection(protocol: Protocol, isLocal: Boolean, cantSetDa
   def cleanUp() = {}
 }
 
-class LocalConnection(protocol: Protocol, isLocal: Boolean, cantSetDate: Boolean) extends GeneralConnection(protocol, isLocal, cantSetDate) {
+class LocalConnection(protocol: Protocol, isLocal: Boolean) extends GeneralConnection(protocol, isLocal) {
 
   def deletefile(what: String, mtime: Long) {
     val (cp, _) = checkIsDir(what)
@@ -191,7 +192,7 @@ class LocalConnection(protocol: Protocol, isLocal: Boolean, cantSetDate: Boolean
 }
 
 
-class SftpConnection(protocol: Protocol, isLocal: Boolean, cantSetDate: Boolean, var uri: MyURI) extends GeneralConnection(protocol, isLocal, cantSetDate) {
+class SftpConnection(protocol: Protocol, isLocal: Boolean, var uri: MyURI) extends GeneralConnection(protocol, isLocal) {
 
   class MyTransferListener(var relPath: String = "") extends TransferListener {
     var bytesTransferred: Long = 0
@@ -262,13 +263,16 @@ class SftpConnection(protocol: Protocol, isLocal: Boolean, cantSetDate: Boolean,
     val (cp, isdir) = checkIsDir(from)
     val rp = remoteBasePath + "/" + cp
 
-    def setPerms(): Unit = {
+    def setAttr(changeperms: Boolean): Unit = {
       val lf = new FileSystemFile(localBasePath + "/" + cp)
       val fab = new FileAttributes.Builder
-      val perms = FilePermission.fromMask(lf.getPermissions)
-      if (protocol.remGroupWrite.value) perms.add(FilePermission.GRP_W) else perms.remove(FilePermission.GRP_W)
-      if (protocol.remOthersWrite.value) perms.add(FilePermission.OTH_W) else perms.remove(FilePermission.OTH_W)
-      fab.withPermissions(perms)
+      if (changeperms) {
+        val perms = FilePermission.fromMask(lf.getPermissions)
+        if (protocol.remGroupWrite.value) perms.add(FilePermission.GRP_W) else perms.remove(FilePermission.GRP_W)
+        if (protocol.remOthersWrite.value) perms.add(FilePermission.OTH_W) else perms.remove(FilePermission.OTH_W)
+        fab.withPermissions(perms)
+      }
+      fab.withAtimeMtime(lf.getLastAccessTime, lf.getLastModifiedTime)
       sftpc.setattr(rp, fab.build())
     }
 
@@ -282,12 +286,13 @@ class SftpConnection(protocol: Protocol, isLocal: Boolean, cantSetDate: Boolean,
       }
       checkit(rp)
       sftpc.mkdir(rp)
-      if (protocol.doSetPermissions.value) setPerms()
+      if (protocol.doSetPermissions.value) setAttr(true)
       mtime // dirs don't need mtime
     } else {
       try {
-        sftpt.upload(localBasePath + "/" + cp, rp)
-        if (protocol.doSetPermissions.value) setPerms()
+        sftpt.upload(localBasePath + "/" + cp, rp) // use this in place of sftpc.put to not always set file attrs
+        if (protocol.doSetPermissions.value) setAttr(true)
+        else if (!protocol.cantSetDate.value) setAttr(false)
       } catch {
         case e: Exception =>
           debug(s"putfile: exception: $e")
@@ -299,7 +304,7 @@ class SftpConnection(protocol: Protocol, isLocal: Boolean, cantSetDate: Boolean,
       }
       if (transferListener.bytesTotal != transferListener.bytesTransferred)
         throw new IllegalStateException(s"filesize mismatch: ${transferListener.bytesTotal} <> ${transferListener.bytesTransferred}")
-      if (cantSetDate) {
+      if (protocol.cantSetDate.value) {
         sftpc.mtime(rp) * 1000
       } else {
         mtime

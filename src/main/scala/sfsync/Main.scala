@@ -12,6 +12,7 @@ import scalafx.application.JFXApp
 import scalafx.Includes._
 import scalafx.concurrent.WorkerStateEvent
 import scalafx.scene._
+import scalafx.scene.image.Image
 import scalafx.scene.control.Alert.AlertType
 import scalafx.stage._
 import scalafx.scene.layout._
@@ -23,8 +24,7 @@ import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.mutable.ArrayBuffer
 import scalafx.scene.control.MenuItem._
-
-import javafx.geometry. {Orientation=>jgo}
+import javafx.geometry.{Orientation => jgo}
 import javafx.{stage => jfxs}
 
 
@@ -105,6 +105,9 @@ object Main extends JFXApp with Logging {
     title = "xxx"
     width = 800
     height = 600
+    icons += new Image(getClass.getResource("/icons/icon_16x16.png").toExternalForm)
+    icons += new Image(getClass.getResource("/icons/icon_32x32.png").toExternalForm)
+    icons += new Image(getClass.getResource("/icons/icon_256x256.png").toExternalForm)
   }
 
   stage.show()
@@ -144,7 +147,7 @@ object Main extends JFXApp with Logging {
       menus = List(
         new Menu("SFSync") {
           items += new MenuItem("About") {
-            onAction = (ae: ActionEvent) => {
+            onAction = (_: ActionEvent) => {
               import java.awt.Desktop
               if (Desktop.isDesktopSupported) {
                 val desktop = Desktop.getDesktop
@@ -159,14 +162,14 @@ object Main extends JFXApp with Logging {
     }
 
     btSync = new Button("Synchronize") {
-      onAction = (ae: ActionEvent) => {
+      onAction = (_: ActionEvent) => {
         btCompare.setDisable(true)
         btSync.setDisable(true)
         runSynchronize()
       }
     }
     btCompare = new Button("Compare") {
-      onAction = (ae: ActionEvent) => {
+      onAction = (_: ActionEvent) => {
         runUI {
           btSync.setDisable(true)
           btCompare.setDisable(true)
@@ -185,7 +188,7 @@ object Main extends JFXApp with Logging {
         btCompare,
         btSync,
         new Button("test") {
-          onAction = (ae: ActionEvent) => {
+          onAction = (_: ActionEvent) => {
           }
         },
         lbInfo
@@ -299,7 +302,7 @@ object Main extends JFXApp with Logging {
     runUIwait {
       Main.Status.status.value = "Synchronize..."
     }
-    profile.taskSynchronize.onSucceeded = (wse: WorkerStateEvent) => {
+    profile.taskSynchronize.onSucceeded = (_: WorkerStateEvent) => {
       Main.Status.status.value = "Synchronization finished!"
       MyWorker.runTask(profile.taskCleanup)
       runUI {
