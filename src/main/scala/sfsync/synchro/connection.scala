@@ -433,7 +433,8 @@ class SftpConnection(protocol: Protocol, isLocal: Boolean, var uri: MyURI) exten
     case e: UserAuthException =>
       info("Public key auth failed: " + e)
       info("auth methods: " + ssh.getUserAuth.getAllowedMethods.mkString(","))
-      if (ssh.getUserAuth.getAllowedMethods.exists(s => s == "keyboard-interactive" || s == "password" )) {
+      // under win7 this doesn't work, try password in any case
+//      if (ssh.getUserAuth.getAllowedMethods.exists(s => s == "keyboard-interactive" || s == "password" )) {
         if (password == "") {
           val res = runUIwait(dialogInputString("SSH", s"Public key auth failed, require password. \nNote: to store the password: add to URI string, it will be encrypted", "Password:")).asInstanceOf[String]
           if (res != "") password = res
@@ -441,7 +442,7 @@ class SftpConnection(protocol: Protocol, isLocal: Boolean, var uri: MyURI) exten
         if (password != "") {
           ssh.authPassword(uri.username, password)
         } else throw new UserAuthException("No password")
-      }
+//      }
   }
 
   val sftpc = ssh.newSFTPClient

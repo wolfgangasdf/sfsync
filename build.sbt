@@ -9,7 +9,7 @@ scalacOptions ++= Seq("-feature", "-unchecked", "-deprecation", "-encoding", "UT
 
 libraryDependencies ++= Seq(
   "org.scalafx" %% "scalafx" % "8.0.102-R11",
-  "com.hierynomus" % "sshj" % "0.20.0" withSources() withJavadoc(),
+  "com.hierynomus" % "sshj" % "0.19.1" withSources() withJavadoc(),
   "org.slf4j" % "slf4j-simple" % "1.7.22"
 )
 
@@ -29,7 +29,7 @@ JFX.verbose := true
 JFX.mainClass := Some("sfsync.Main")
 JFX.devKit := JFX.jdk(System.getenv("JAVA_HOME"))
 JFX.pkgResourcesDir := baseDirectory.value + "/src/deploy"
-JFX.artifactBaseNameValue := "GmailAttachmentRemover"
+JFX.artifactBaseNameValue := "Sfsync"
 
 /////////////// mac app bundle via sbt-appbundle
 Seq(appbundle.settings: _*)
