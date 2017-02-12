@@ -160,15 +160,18 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
 
     var syncLog = ""
     val swUIupdate = new StopWatch
-    var iii = 0
-    Cache.cache.iterate((_, _, se) => if (se.relevant) iii += 1)
-    val tosync = iii
-    iii = 0
+    var totalTransferSize = 0.0
+    var transferredSize = 0.0
+    Cache.cache.iterate((_, _, se) => if (se.relevant) {
+      se.action match {
+        case A_USELOCAL => totalTransferSize += se.lSize
+        case A_USEREMOTE => totalTransferSize += se.rSize
+        case _ =>
+      }
+    })
     var ignoreErrors = false
 
     def dosync(path: String, se: SyncEntry) = {
-      iii += 1
-
       var showit = false
       val relevantSize = if (se.action == A_USELOCAL) se.lSize else if (se.action == A_USEREMOTE) se.rSize else 0
       if (relevantSize > 10000) showit = true
@@ -181,7 +184,7 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
 
       if (showit || swUIupdate.doit(UIUpdateInterval)) {
         msg = s" [${CF.amap(se.action)}]: $path..."
-        updateProgr(iii.toDouble, tosync, msg)
+        updateProgr(transferredSize, totalTransferSize, msg)
       }
 
       try {
@@ -193,8 +196,10 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
           case A_RMBOTH => local.deletefile(path, se.lTime); remote.deletefile(path, se.rTime); se.delete = true; se.relevant = false
           case A_USELOCAL => val nrt = remote.putfile(path, se.lTime)
             se.rTime = nrt; se.rSize = se.lSize; se.cSize = se.lSize; se.lcTime = se.lTime; se.rcTime = nrt; se.relevant = false
+            transferredSize += se.lSize
           case A_USEREMOTE => remote.getfile(path, se.rTime)
             se.lTime = se.rTime; se.lSize = se.rSize; se.cSize = se.rSize; se.rcTime = se.rTime; se.lcTime = se.rTime; se.relevant = false
+            transferredSize += se.rSize
           case A_ISEQUAL => se.cSize = se.rSize; se.lcTime = se.lTime; se.rcTime = se.rTime; se.relevant = false
           case A_SKIP =>
           case A_CACHEONLY => se.delete = true
