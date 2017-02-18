@@ -21,7 +21,7 @@ object Helpers {
 
   val insetsstd = scalafx.geometry.Insets(5)
 
-  val directoryFilter = if (isWin) ".:/.*" else "/.*"
+  val directoryFilter = "([a-zA-Z]:)?/.*" // not for sftp... if (isWin) ".:/.*" else "/.*"
 
   def toJavaPathSeparator(in: String) = {
     if (isWin) in.replaceAll("""\\""", "/")

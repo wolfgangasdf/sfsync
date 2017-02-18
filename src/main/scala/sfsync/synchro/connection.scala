@@ -440,10 +440,15 @@ class SftpConnection(protocol: Protocol, isLocal: Boolean, var uri: MyURI) exten
           if (res != "") password = res
         }
         if (password != "") {
+          info("Trying password login...")
           ssh.authPassword(uri.username, password)
         } else throw new UserAuthException("No password")
 //      }
   }
+  if (!ssh.isAuthenticated) {
+    throw new UserAuthException("Not authenticated!")
+  } else info("Authenticated!")
+
 
   val sftpc = ssh.newSFTPClient
   val sftpt = sftpc.getFileTransfer

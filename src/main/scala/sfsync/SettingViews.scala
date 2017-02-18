@@ -120,6 +120,7 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
     text = ""
     if (toolTip != "") tooltip = new Tooltip { text = toolTip }
     text.onChange({
+      if (text.getValueSafe.contains("\\")) text.value = text.getValueSafe.replaceAllLiterally("\\","/")
       if (filter != "") {
         if (!text.getValueSafe.matches(filter)) {
           style = "-fx-background-color: red;"
@@ -253,8 +254,10 @@ class ProtocolView(val server: Server) extends GridPane with Logging {
     margin = insetsstd
     spacing = 5
     var tfBaseFolder = new MyTextField("Base folder: ", null,
-      toolTip = "Remote base directory such as '/remotebasedir'",
-      filter = directoryFilter, canDropFile = true) { tf.text <==> protocol.protocolbasefolder }
+      toolTip = "Remote base directory such as '/remotebasedir or C:/remotebasedir'",
+      filter = directoryFilter, canDropFile = true) {
+      tf.text <==> protocol.protocolbasefolder
+    }
     var tfURI = new MyTextField("Protocol URI: ", null, "file:/// or sftp://user[:password]@host:port", "(file:///)|(sftp://\\S+@\\S+:\\S+)") {
       tf.onAction = (_: ActionEvent) => {
         val uri = new MyURI()

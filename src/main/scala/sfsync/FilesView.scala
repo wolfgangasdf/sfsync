@@ -288,7 +288,7 @@ class FilesView() extends Tab with Logging {
   var filterList = new sfxc.ObservableBuffer[String]()
   object F {
     val all="all"; val changes="changes"; val problems="problems"
-    def getAll = (all,changes,problems)
+    def getAll = (changes,all,problems)
   }
   filterList.addAll (F.all,F.changes,F.problems)
   val cFilter: ComboBox[String] = new ComboBox(filterList) {
