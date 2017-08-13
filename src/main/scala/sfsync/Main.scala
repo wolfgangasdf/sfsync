@@ -40,8 +40,8 @@ class MainView(filesView: FilesView) extends Tab with Logging {
       protocolView.prefWidth <== this.width - 10
       subfolderView = new SubFolderView(mainView, server)
       subfolderView.prefWidth <== this.width - 10
-      sp.items(1) = protocolView
-      sp.items(2) = subfolderView
+      sp.items.set(1, protocolView)
+      sp.items.set(2, subfolderView)
       if (server.currentProtocol.value > -1) {
         protocolView.protocolChanged()
       }

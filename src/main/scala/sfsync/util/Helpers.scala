@@ -9,6 +9,7 @@ import scalafx.scene.layout.{HBox, Priority, VBox}
 import scalafx.Includes._
 import scalafx.scene.control.Alert.AlertType
 import scalafx.scene.web.WebView
+import scalafx.stage.Screen
 
 object Helpers {
 
@@ -60,10 +61,8 @@ object Helpers {
 
   def runUI( f: => Unit ) {
     if (!scalafx.application.Platform.isFxApplicationThread) {
-      scalafx.application.Platform.runLater( new Runnable() {
-        def run() {
-          f
-        }
+      scalafx.application.Platform.runLater(() => {
+        f
       })
     } else {
       f
@@ -116,7 +115,7 @@ object Helpers {
       //if (stage.owner.nonEmpty) initOwner(stage)
       title = titletext
       headerText = header
-      var sp2 = new ScrollPane { // optional html message
+      val sp2 = new ScrollPane { // optional html message
         content = new WebView {
           engine.loadContent(htmlmsg)
         }
@@ -138,11 +137,14 @@ object Helpers {
           item.onChange({
             if (item.value != null) {
               val title = new Label {
+                wrapText = true
                 text <== item.value.titleProperty
-                maxWidth = Double.MaxValue
+                prefWidth <== lv.width - 180
                 hgrow = Priority.Always
               }
               val message = new Label {
+                wrapText = true
+                prefWidth <== lv.width - 30
                 text <== item.value.messageProperty
                 style = "-fx-font-size: 10"
               }
@@ -171,10 +173,11 @@ object Helpers {
       resizable = true
       dialogPane.value.content = new VBox { children ++= Seq(new Label("Tasks:"), taskListView) }
       dialogPane.value.getButtonTypes += ButtonType.Cancel
-      dialogPane.value.setPrefSize(480, 320)
+      val sb = Screen.primary.visualBounds
+      dialogPane.value.setPrefSize(sb.width/2.5, sb.height/3)
     }
 
-    al.onCloseRequest = (de: DialogEvent) => {
+    al.onCloseRequest = (_: DialogEvent) => {
       if (taskList.nonEmpty) {
         taskList.foreach(t => if (t.isRunning) t.cancel())
         println("cancelled all tasks!")
@@ -182,22 +185,20 @@ object Helpers {
     }
 
     var backgroundTimer: java.util.Timer = _ // just to clean up finished tasks
-    al.showing.onChange{ (_, oldv, newv) =>
+    al.showing.onChange{ (_, _, newv) =>
       if (newv) {
         val ttask = new java.util.TimerTask {
           override def run(): Unit = {
-            if (taskList.nonEmpty) scalafx.application.Platform.runLater( new Runnable() {
-              def run() {
-                var iii = 0
-                while (iii < taskList.length) {
-                  if (taskList.get(iii).isDone || taskList.get(iii).isCancelled)
-                    taskList.remove(iii)
-                  else
-                    iii += 1
-                }
-                if (taskList.isEmpty) {
-                  al.close()
-                }
+            if (taskList.nonEmpty) scalafx.application.Platform.runLater(() => {
+              var iii = 0
+              while (iii < taskList.length) {
+                if (taskList.get(iii).isDone || taskList.get(iii).isCancelled)
+                  taskList.remove(iii)
+                else
+                  iii += 1
+              }
+              if (taskList.isEmpty) {
+                al.close()
               }
             })
           }
@@ -210,15 +211,13 @@ object Helpers {
     }
 
     def runTask(atask: myTask): Unit = {
-      scalafx.application.Platform.runLater( new Runnable() {
-        def run() {
-          if (!al.showing.value) al.show()
-          taskList.add(atask)
-          println("added task " + atask)
-          val th = new Thread(atask)
-          th.setDaemon(true)
-          th.start()
-        }
+      scalafx.application.Platform.runLater(() => {
+        if (!al.showing.value) al.show()
+        taskList.add(atask)
+        println("added task " + atask)
+        val th = new Thread(atask)
+        th.setDaemon(true)
+        th.start()
       })
     }
   }

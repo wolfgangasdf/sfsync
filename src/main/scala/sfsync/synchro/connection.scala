@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.common.StreamCopier.Listener
-import net.schmizz.sshj.common.{KeyType, SecurityUtils, StreamCopier}
+import net.schmizz.sshj.common.{KeyType, SecurityUtils}
 import net.schmizz.sshj.sftp.Response.StatusCode
 import net.schmizz.sshj.sftp.{FileAttributes, FileMode, RemoteResourceInfo, SFTPException}
 import net.schmizz.sshj.transport.verification.OpenSSHKnownHosts
@@ -20,7 +20,7 @@ import sfsync.util.Helpers._
 import sfsync.util.{Helpers, Logging}
 
 import scala.Predef._
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.collection.mutable._
 import scala.util.matching.Regex
 
@@ -118,7 +118,7 @@ class LocalConnection(protocol: Protocol, isLocal: Boolean) extends GeneralConne
       Files.delete(fp)
     } catch {
       case _: java.nio.file.DirectoryNotEmptyException =>
-        val dir = Files.newDirectoryStream(fp).toList
+        val dir = Files.newDirectoryStream(fp).asScala.toList
         if (runUIwait(dialogOkCancel("Warning", s"Directory \n $cp \n not empty, DELETE ALL?", "Content:\n" + dir.map(a => a.toFile.getName).mkString("\n"))) == true) {
           dir.foreach(f => Files.delete(f) )
           Files.delete(fp)
@@ -169,11 +169,11 @@ class LocalConnection(protocol: Protocol, isLocal: Boolean) extends GeneralConne
       if (Files.isDirectory(cc) && strippedPath != "/") strippedPath += "/"
       val vf = new VirtualFile(strippedPath, Files.getLastModifiedTime(cc).toMillis, Files.size(cc))
       if ( !vf.fileName.matches(filterregexp)) {
-        if (debugslow) Thread.sleep(100)
+        if (debugslow) Thread.sleep(500)
         action(vf)
         if (Files.isDirectory(cc) && goDeeper ) {
           val dir = Files.newDirectoryStream(cc)
-          for (cc1 <- dir) parseContent(cc1, goDeeper = recursive)
+          for (cc1 <- dir.asScala) parseContent(cc1, goDeeper = recursive)
           dir.close()
         }
       }
@@ -209,17 +209,15 @@ class SftpConnection(protocol: Protocol, isLocal: Boolean, var uri: MyURI) exten
       bytesTransferred = 0
       lastBytesTransferred = 0
       lastTime = System.nanoTime
-      new StreamCopier.Listener() {
-        def reportProgress(transferred: Long) {
-          bytesTransferred = transferred
-          if (interrupted.get) throw new InterruptedException("sftp connection interrupted")
-          val tnow = System.nanoTime
-          if ((tnow - lastTime) / 1.0e9 > 0.5) {
-            val byps = (bytesTransferred - lastBytesTransferred) / ((tnow - lastTime) / 1.0e9)
-            lastTime = tnow
-            lastBytesTransferred = bytesTransferred
-            onProgress(bytesTransferred.toDouble/bytesTotal, byps)
-          }
+      (transferred: Long) => {
+        bytesTransferred = transferred
+        if (interrupted.get) throw new InterruptedException("sftp connection interrupted")
+        val tnow = System.nanoTime
+        if ((tnow - lastTime) / 1.0e9 > 0.5) {
+          val byps = (bytesTransferred - lastBytesTransferred) / ((tnow - lastTime) / 1.0e9)
+          lastTime = tnow
+          lastBytesTransferred = bytesTransferred
+          onProgress(bytesTransferred.toDouble / bytesTotal, byps)
         }
       }
     }
@@ -238,7 +236,7 @@ class SftpConnection(protocol: Protocol, isLocal: Boolean, var uri: MyURI) exten
         sftpc.rmdir(remoteBasePath + "/" + cp)
       } catch {
         case _: IOException => // unfortunately only "Failure" ; checking for content would be slow
-          val xx = sftpc.ls(remoteBasePath + "/" + cp)
+          val xx = sftpc.ls(remoteBasePath + "/" + cp).asScala
           if (xx.nonEmpty) {
             val tmp = new ListBuffer[RemoteResourceInfo]
             for (obj <- xx ) {
@@ -362,9 +360,9 @@ class SftpConnection(protocol: Protocol, isLocal: Boolean, var uri: MyURI) exten
     }
     def parseContent(folder: String) {
       if (Helpers.failat == 3) throw new UnsupportedOperationException("fail 3")
-      val rris = sftpc.ls(folder)
+      val rris = sftpc.ls(folder).asScala
       val ord = new Ordering[RemoteResourceInfo]() { def compare(l: RemoteResourceInfo, r: RemoteResourceInfo) = l.getName compare r.getName }
-      for (rri <- rris.sorted(ord) ) {
+      for (rri <- rris.sorted(ord)) {
         // if (stopRequested) return
         if (!rri.getName.equals(".") && !rri.getName.equals("..")) {
           val vf = VFfromSftp(rri.getPath, rri.getAttributes)
@@ -432,7 +430,7 @@ class SftpConnection(protocol: Protocol, isLocal: Boolean, var uri: MyURI) exten
   } catch {
     case e: UserAuthException =>
       info("Public key auth failed: " + e)
-      info("auth methods: " + ssh.getUserAuth.getAllowedMethods.mkString(","))
+      info("auth methods: " + ssh.getUserAuth.getAllowedMethods.asScala.mkString(","))
       // under win7 this doesn't work, try password in any case
 //      if (ssh.getUserAuth.getAllowedMethods.exists(s => s == "keyboard-interactive" || s == "password" )) {
         if (password == "") {

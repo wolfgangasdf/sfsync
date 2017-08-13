@@ -4,13 +4,13 @@ name := "SFSync"
 organization := "sfsync"
 version := "0.9-SNAPSHOT"
 javaOptions ++= Seq("-Xms100m", "-Xmx300m")
-scalaVersion := "2.11.8"
+scalaVersion := "2.12.3"
 scalacOptions ++= Seq("-feature", "-unchecked", "-deprecation", "-encoding", "UTF-8")
 
 libraryDependencies ++= Seq(
   "org.scalafx" %% "scalafx" % "8.0.102-R11",
-  "com.hierynomus" % "sshj" % "0.19.1" withSources() withJavadoc(),
-  "org.slf4j" % "slf4j-simple" % "1.7.22"
+  "com.hierynomus" % "sshj" % "0.21.1" withSources() withJavadoc(),
+  "org.slf4j" % "slf4j-simple" % "1.7.25"
 )
 
 lazy val root = (project in file(".")).

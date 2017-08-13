@@ -12,7 +12,7 @@ import scalafx.{collections => sfxc}
 import scalafx.beans.property._
 import scala.collection.mutable.ArrayBuffer
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 import java.nio.file._
 
@@ -96,18 +96,18 @@ class JavaCryptoEncryption(algorithmName: String) {
 
 class Config {
   var servers = new sfxc.ObservableBuffer[Server]
-  var currentServer = IntegerProperty(-1)
-  var currentFilter = IntegerProperty(0)
-  var width = IntegerProperty(800)
-  var height = IntegerProperty(600)
-  var x = IntegerProperty (100)
-  var y = IntegerProperty(100)
+  val currentServer = IntegerProperty(-1)
+  val currentFilter = IntegerProperty(0)
+  val width = IntegerProperty(800)
+  val height = IntegerProperty(600)
+  val x = IntegerProperty(100)
+  val y = IntegerProperty(100)
   var dividerPositions = new ArrayBuffer[Double]
   var cryptoSecret = ""
 }
 
 class ListableThing extends Ordered[ListableThing] {
-  var name = StringProperty("<new>")
+  val name = StringProperty("<new>")
   def compare(that: ListableThing): Int = this.name.getValueSafe.compareTo(that.name.getValueSafe)
 }
 
@@ -116,25 +116,25 @@ class MyList[T] extends ArrayBuffer[T] {
 }
 
 class Server extends ListableThing {
-  var id = StringProperty(new java.util.Date().getTime.toString)
-  var localFolder = StringProperty("")
-  var filterRegexp = StringProperty("")
+  val id = StringProperty(new java.util.Date().getTime.toString)
+  val localFolder = StringProperty("")
+  val filterRegexp = StringProperty("(/._.*)|(.DS_Store)|(.AppleDouble)")
   var protocols = new sfxc.ObservableBuffer[Protocol]
-  var currentProtocol = IntegerProperty(-1)
+  val currentProtocol = IntegerProperty(-1)
   var subfolders = new sfxc.ObservableBuffer[SubFolder]
-  var currentSubFolder = IntegerProperty(-1)
+  val currentSubFolder = IntegerProperty(-1)
   override def toString: String = name.getValueSafe // used for listview
 }
 
 class Protocol extends ListableThing {
-  var protocoluri = StringProperty("file:///")
-  var protocolbasefolder = StringProperty("")
-  var doSetPermissions = BooleanProperty(false)
-  var remGroupWrite = BooleanProperty(false)
-  var remOthersWrite = BooleanProperty(false)
-  var cantSetDate = BooleanProperty(false)
-  var executeBefore = StringProperty("")
-  var executeAfter = StringProperty("")
+  val protocoluri = StringProperty("file:///")
+  val protocolbasefolder = StringProperty("")
+  val doSetPermissions = BooleanProperty(false)
+  val remGroupWrite = BooleanProperty(false)
+  val remOthersWrite = BooleanProperty(false)
+  val cantSetDate = BooleanProperty(false)
+  val executeBefore = StringProperty("")
+  val executeAfter = StringProperty("")
   override def toString: String = name.getValueSafe
 }
 
@@ -391,9 +391,9 @@ object Cache extends Logging {
   observableList.onChange( // automatically update treemap from UI changes
     (_: ObservableBuffer[SyncEntry2], changes: Seq[Change[SyncEntry2]]) => {
       if (!observableListSleep) changes.foreach {
-        case Update(from, to) => observableList.subList(from, to).foreach(se2 => {
+        case Update(from, to) => observableList.subList(from, to).asScala.foreach(se2 => {
           debug("changed se2: " + se2.toStringNice)
-          cache.update(se2.path, se2.se)
+          cache.put(se2.path, se2.se)
         })
         case _ => throw new NotImplementedError("obslist wants to do something else! ")
       }
@@ -454,7 +454,7 @@ object Cache extends Logging {
     if (fff.exists) fff.delete()
     val out = new java.io.BufferedWriter(new java.io.FileWriter(fff),1000000)
     out.write(CACHEVERSION + "\n")
-    for ((path, cf: SyncEntry) <- cache) {
+    for ((path, cf: SyncEntry) <- cache.asScala) {
       out.write("" + cf.lcTime + "," + cf.rcTime + "," + cf.cSize + "," + path + "\n")
     }
     out.close()
@@ -490,7 +490,7 @@ object Cache extends Logging {
   }
 
   def canSync: Boolean = {
-    for ( (_, se:SyncEntry) <- cache) {
+    for ( (_, se:SyncEntry) <- cache.asScala) {
       if (se.relevant && se.action == A_UNKNOWN) return false
     }
     true

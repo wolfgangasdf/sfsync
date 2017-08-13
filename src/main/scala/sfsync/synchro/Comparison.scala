@@ -32,7 +32,7 @@ object Comparison extends Logging {
 
     // to avoid first full sync: mark all folders that are subfolders of already synced folder
     // update hasCachedParent for all folders not in cache and check if it has parent folder that has been synced before in current set
-    Cache.cache.iterate((it, path, se) => {
+    Cache.cache.iterate((_, path, se) => {
       if (se.relevant && se.isDir) {
         var tmpf = path
         var haveCachedParentDir = false
@@ -53,7 +53,7 @@ object Comparison extends Logging {
     debug("TTT a took = " + swse.getTimeRestart)
 
     // iterate over all folders that are cacheed
-    Cache.cache.iterate((it, path, se) => {
+    Cache.cache.iterate((_, _, se) => {
       if (se.relevant && se.isDir && se.cSize != -1) {
         se.hasCachedParent = true
         se.compareSetAction(newcache = false) // compare
@@ -62,7 +62,7 @@ object Comparison extends Logging {
     debug("TTT b took = " + swse.getTimeRestart)
 
     // iterate over the rest: all files.
-    Cache.cache.iterate((it, path, se) => {
+    Cache.cache.iterate((_, path, se) => {
       if (se.relevant && !se.isDir) {
         if (se.cSize == -1) { // only get parent folder for unknown files, faster!
         val parent = getParentFolder(path)
@@ -79,16 +79,16 @@ object Comparison extends Logging {
     debug("TTT c took = " + swse.getTimeRestart)
 
     // iterate over all folders that will be deleted: check that other side is not modified below
-    Cache.cache.iterate((it, path, se) => {
+    Cache.cache.iterate((_, path, se) => {
       if (se.relevant && se.isDir && List(A_RMLOCAL, A_RMREMOTE).contains(se.action)) {
         var fishy = false
-        Cache.cache.iterate((it2, path2, se2) => {
+        Cache.cache.iterate((_, path2, se2) => {
           if (se.relevant && path2.startsWith(path) && se2.action != se.action) {
             fishy = true
           }
         })
         if (fishy) {
-          Cache.cache.iterate((it2, path2, se2) => {
+          Cache.cache.iterate((_, path2, se2) => {
             if (se.relevant && path2.startsWith(path)) {
               se2.action = A_UNKNOWN
             }
@@ -100,7 +100,7 @@ object Comparison extends Logging {
 
     // return true if changes
     var res = false
-    Cache.cache.iterate((it, path, se) => if (se.relevant && se.action != A_ISEQUAL) res = true)
+    Cache.cache.iterate((_, _, se) => if (se.relevant && se.action != A_ISEQUAL) res = true)
     debug("TTT e took = " + swse.getTimeRestart)
     res
   }

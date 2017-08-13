@@ -6,7 +6,7 @@ import sfsync.store._
 import sfsync.util.Helpers._
 import sfsync.synchro.{GeneralConnection, MyURI, Profile, VirtualFile}
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 import scalafx.Includes._
 import scalafx.scene._
@@ -22,7 +22,6 @@ import scalafx.geometry.Pos
 import scalafx.collections.ObservableBuffer
 import java.net.URLDecoder
 import java.text.Normalizer
-import javafx.{event => jfxe}
 import javafx.scene.{control => jfxsc}
 import javafx.{stage => jfxs}
 
@@ -131,15 +130,15 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
     })
     if (canDropFile) {
       onDragDropped = (event: input.DragEvent) => {
-        if (event.dragboard.getFiles.length == 1) {
-          val f = SVHelpers.getDroppedFile(event.dragboard.getFiles.head)
+        if (event.dragboard.getFiles.size == 1) {
+          val f = SVHelpers.getDroppedFile(event.dragboard.getFiles.get(0))
           text = toJavaPathSeparator(f.getPath)
         }
         event.consume()
       }
       onDragOver = (event: input.DragEvent) => {
         if (event.dragboard.hasFiles) {
-          if (event.dragboard.getFiles.length == 1) event.acceptTransferModes(scalafx.scene.input.TransferMode.Copy)
+          if (event.dragboard.getFiles.size == 1) event.acceptTransferModes(scalafx.scene.input.TransferMode.Copy)
         } else {
           event.consume()
         }
@@ -204,7 +203,7 @@ abstract class ServerView(val config: Config) extends GridPane with Logging {
     spacing = 5
     alignment = Pos.CenterRight
     val tfID = new MyTextField("Cache ID: ",null, "just leave it") { tf.text <==> server.id }
-    val tfFilter = new MyTextField("Filter: ",null, "regex, e.g., (.*12)|(.*e2)") { tf.text <==> server.filterRegexp }
+    val tfFilter = new MyTextField("Filter: ",null, "regex, e.g., (/._.*)|(.DS_Store)|(.AppleDouble)") { tf.text <==> server.filterRegexp }
     val tfLocalFolder = new MyTextField(
       "Local root: ",
       () => fcLocalDir(server.localFolder),
@@ -335,25 +334,23 @@ class MyFileChooser(server: Server, protocol: Protocol, localremote: Boolean) ex
 
     if (isDir) getChildren += new FilePathTreeItem("", "dummy") // add dummy, if expanded will read
 
-    addEventHandler(jfxsc.TreeItem.branchExpandedEvent, new jfxe.EventHandler[jfxsc.TreeItem.TreeModificationEvent[Nothing]]() {
-      override def handle(e: jfxsc.TreeItem.TreeModificationEvent[Nothing]) {
-        val source = e.getSource.asInstanceOf[FilePathTreeItem]
-        debug("EEEEEEEEEEEEEEE branchExpandedEvent in " + path + " isdir=" + isDir + " isexpanded=" + e.getSource.isExpanded + " sclass=" + source.getClass)
-        var haveread = false
-        if (isDir) if (!getChildren.head.asInstanceOf[FilePathTreeItem].isDummy) haveread = true // important... but why?
-        if (isDir && !haveread) {
-          getChildren.clear()
-          val fixedPath = Normalizer.normalize(path, Normalizer.Form.NFC)
-          val strippedPath: String = if (fixedPath == rootPath) "/" else fixedPath.substring(rootPath.length - 1)
-          val subfolderpath = strippedPath.replaceAll("^/","").replaceAll("/$","")
-          val list = new ArrayBuffer[VirtualFile]
-          myConn.list(subfolderpath, server.filterRegexp.getValueSafe, (vf) => list.append(vf), recursive = false)
-          list.foreach(vf => {
-            val newPath = (rootPath + vf.path).replaceAllLiterally("//","/")
-            val newFpti = new FilePathTreeItem(newPath, vf.fileName)
-            if (path != newPath) getChildren += newFpti
-          })
-        }
+    addEventHandler(jfxsc.TreeItem.branchExpandedEvent, (e: jfxsc.TreeItem.TreeModificationEvent[Nothing]) => {
+      val source = e.getSource.asInstanceOf[FilePathTreeItem]
+      debug("EEEEEEEEEEEEEEE branchExpandedEvent in " + path + " isdir=" + isDir + " isexpanded=" + e.getSource.isExpanded + " sclass=" + source.getClass)
+      var haveread = false
+      if (isDir) if (!getChildren.head.asInstanceOf[FilePathTreeItem].isDummy) haveread = true // important... but why?
+      if (isDir && !haveread) {
+        getChildren.clear()
+        val fixedPath = Normalizer.normalize(path, Normalizer.Form.NFC)
+        val strippedPath: String = if (fixedPath == rootPath) "/" else fixedPath.substring(rootPath.length - 1)
+        val subfolderpath = strippedPath.replaceAll("^/", "").replaceAll("/$", "")
+        val list = new ArrayBuffer[VirtualFile]
+        myConn.list(subfolderpath, server.filterRegexp.getValueSafe, (vf) => list.append(vf), recursive = false)
+        list.foreach(vf => {
+          val newPath = (rootPath + vf.path).replaceAllLiterally("//", "/")
+          val newFpti = new FilePathTreeItem(newPath, vf.fileName)
+          if (path != newPath) getChildren += newFpti
+        })
       }
     })
 
@@ -508,7 +505,7 @@ class SubFolderView(val mainView: MainView, val server: Server) extends GridPane
       items = subfolder.subfolders
       cellFactory = TextFieldListCell.forListView()
       onDragDropped = (event: input.DragEvent) => {
-        for (f <- event.dragboard.getFiles) {
+        for (f <- event.dragboard.getFiles.asScala) {
           val sd = PathToSubdir(f)
           if (sd != "") subfolder.subfolders.add(sd)
         }

@@ -22,7 +22,7 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
   var cache: ListBuffer[VirtualFile] = _
   var local: GeneralConnection = _
   var remote: GeneralConnection = _
-  var UIUpdateInterval = 0.5
+  val UIUpdateInterval = 0.5
   var profileInitialized = false
 
   class ProfileAbortedException(message: String = null, cause: Throwable = null) extends RuntimeException(message, cause)
@@ -94,15 +94,15 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
         new SyncEntry(A_UNCHECKED, if (isloc) vf.modTime else 0, if (isloc) vf.size else -1,
                                    if (!isloc) vf.modTime else 0, if (!isloc) vf.size else -1,
           0, 0, -1, vf.path.endsWith("/"), true),
-        new java.util.function.BiFunction[SyncEntry, SyncEntry, SyncEntry] {
-          override def apply(ov: SyncEntry, nv: SyncEntry): SyncEntry = {
-            if (isloc) {
-              ov.lTime = vf.modTime ; ov.lSize = vf.size
-            } else {
-              ov.rTime = vf.modTime ; ov.rSize = vf.size
-            }
-            ov
+        (ov: SyncEntry, _: SyncEntry) => {
+          if (isloc) {
+            ov.lTime = vf.modTime
+            ov.lSize = vf.size
+          } else {
+            ov.rTime = vf.modTime
+            ov.rSize = vf.size
           }
+          ov
         }
       )
     }
