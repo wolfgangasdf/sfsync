@@ -17,7 +17,6 @@ import scalafx.event.ActionEvent
 import scalafx.beans.property.StringProperty
 import scalafx.scene.control.cell.TextFieldTableCell
 
-import javafx.{util => jfxu}
 import javafx.scene.{control => jfxsc}
 
 import diffmatchpatch.diff_match_patch
@@ -40,11 +39,11 @@ object CF {
     A_SYNCERROR -> "SE!",
     A_SKIP -> "skip"
   )
-  def stringToAction(actionString: String) = {
+  def stringToAction(actionString: String): Int = {
     val x = amap.map(_.swap)
     x(actionString)
   }
-  def stringToColor(actionString: String) = {
+  def stringToColor(actionString: String): String = {
     val cmap = Map( // http://docs.oracle.com/javafx/2/api/javafx/scene/doc-files/cssref.html#typecolor
       A_MERGE -> "salmon",
       A_ISEQUAL -> "white",
@@ -71,12 +70,12 @@ class FilesView() extends Tab with Logging {
   var profile: Profile = _
   private var syncEnabled = false
 
-  val colPath = new TableColumn[SyncEntry2, String]("Path") {
+  private val colPath = new TableColumn[SyncEntry2, String]("Path") {
     cellValueFactory = (xx) => { StringProperty(xx.value.path) }
     cellFactory = (xx: TableColumn[SyncEntry2, String]) => { // tooltip
     val x = new TextFieldTableCell[SyncEntry2, String] {
         // must set tooltip only after cell created! can't override updateItem, do it here...
-        onMouseEntered = (event: scalafx.scene.input.MouseEvent) => {
+        onMouseEntered = (_: scalafx.scene.input.MouseEvent) => {
           if (tooltip.value == null) {
             if (xx.tableView().getItems.size > tableRow.value.getIndex) {
               val se = xx.tableView().getItems.get(tableRow.value.getIndex)
@@ -95,38 +94,36 @@ class FilesView() extends Tab with Logging {
     }
   }
 
-  val colStatus = new TableColumn[SyncEntry2, String]("Status") {
+  private val colStatus = new TableColumn[SyncEntry2, String]("Status") {
     prefWidth=50
     cellValueFactory = (xx) => {
       StringProperty(xx.value.se.status.getValueSafe)
     }
   }
-  colStatus.setCellFactory(new jfxu.Callback[jfxsc.TableColumn[SyncEntry2, String],jfxsc.TableCell[SyncEntry2, String]] {
-    def call(param: jfxsc.TableColumn[SyncEntry2, String]): jfxsc.TableCell[SyncEntry2, String] = {
-      val x = new jfxsc.cell.TextFieldTableCell[SyncEntry2, String]() {
-        override def updateItem(f: String, empty: Boolean) {
-          super.updateItem(f, empty)
-          if (!empty)
-            setStyle("-fx-background-color: " + CF.stringToColor(f) + ";")
-          else
-            setStyle("")
-        }
+  colStatus.setCellFactory((_: jfxsc.TableColumn[SyncEntry2, String]) => {
+    val x = new jfxsc.cell.TextFieldTableCell[SyncEntry2, String]() {
+      override def updateItem(f: String, empty: Boolean) {
+        super.updateItem(f, empty)
+        if (!empty)
+          setStyle("-fx-background-color: " + CF.stringToColor(f) + ";")
+        else
+          setStyle("")
       }
-      x
     }
+    x
   })
-  val colDetailsLocal = new TableColumn[SyncEntry2, String]("Local") {
+  private val colDetailsLocal = new TableColumn[SyncEntry2, String]("Local") {
     prefWidth=200
     cellValueFactory = (xx) => {
       StringProperty(xx.value.se.detailsLocal.getValueSafe)
     }
   }
-  val colDetailsRemote = new TableColumn[SyncEntry2, String]("Remote") {
+  private val colDetailsRemote = new TableColumn[SyncEntry2, String]("Remote") {
     prefWidth=200
     cellValueFactory = (xx) => { StringProperty(xx.value.se.detailsRemote.getValueSafe) }
   }
 
-  var tv = new TableView[SyncEntry2](Cache.observableList) { // only string-listview is properly updated!
+  private val tv = new TableView[SyncEntry2](Cache.observableList) { // only string-listview is properly updated!
     // columns ++= List(col1) // doesn't work
     delegate.getColumns.addAll(
       colDetailsLocal.delegate, colStatus.delegate, colDetailsRemote.delegate, colPath.delegate
@@ -153,18 +150,19 @@ class FilesView() extends Tab with Logging {
     }
   }
 
+  //noinspection TypeAnnotation
   object advActions extends Enumeration {
-//    type action = Value
+    //    type action = Value
     val debug = Value("Debug info")
     val asRemote = Value("Make local as remote")
     val asLocal = Value("Make remote as local")
     val revealLocal = Value("Reveal local file")
   }
-  val cbAdvanced = new ComboBox[String] {
+  private val cbAdvanced = new ComboBox[String] {
     maxWidth = 200
     promptText = "Advanced..."
     items = ObservableBuffer(advActions.values.map(x => x.toString).toList)
-    onAction = (ae: ActionEvent) => {
+    onAction = (_: ActionEvent) => {
       if (value.value != null) {
         advActions.withName(value.value) match {
           case advActions.debug => debug("SE: " + tv.selectionModel().getSelectedItem)
@@ -187,12 +185,12 @@ class FilesView() extends Tab with Logging {
     }
   }
 
-  def readFileToString(fn: Path) = {
+  private def readFileToString(fn: Path) = {
     val enc = Files.readAllBytes(fn)
     StandardCharsets.UTF_8.decode(ByteBuffer.wrap(enc)).toString
   }
-  val btDiff = new Button("Quick diff") {
-    onAction = (ae: ActionEvent) => {
+  private val btDiff = new Button("Quick diff") {
+    onAction = (_: ActionEvent) => {
       if (profile != null) if (profile.profileInitialized) {
         val se2 = tv.selectionModel().getSelectedItem
         if (se2 != null) {
@@ -204,7 +202,7 @@ class FilesView() extends Tab with Logging {
             val lfc = readFileToString(lf)
             val rfc = readFileToString(rf)
             val diff = new diff_match_patch {
-              Diff_Timeout = 0
+              Diff_Timeout = 10
             }
             // debug("lfc:\n" + lfc)
             // debug("rfc:\n" + rfc)
@@ -223,7 +221,7 @@ class FilesView() extends Tab with Logging {
 
   def createActionButton(lab: String, action: Int): Button = {
     new Button(lab) {
-      onAction = (ae: ActionEvent) => {
+      onAction = (_: ActionEvent) => {
         for (idx <- tv.selectionModel().getSelectedItems) {
           idx.se.action = action
           tv.refresh() // TODO bug: have to do this to refresh status col! (albeit event is emitted!)
@@ -235,13 +233,14 @@ class FilesView() extends Tab with Logging {
       }
     }
   }
-  var btUseLocal = createActionButton("Use local",  A_USELOCAL)
-  var btUseRemote = createActionButton("Use remote", A_USEREMOTE)
-  var btRmLocal = createActionButton("Delete local", A_RMLOCAL)
-  var btRmRemote = createActionButton("Delete remote", A_RMREMOTE)
-  var btMerge = createActionButton("Merge", A_MERGE)
-  var btSkip = createActionButton("Skip", A_SKIP)
-  var btRmBoth = createActionButton("Delete both", A_RMBOTH)
+
+  private val btUseLocal = createActionButton("Use local", A_USELOCAL)
+  private val btUseRemote = createActionButton("Use remote", A_USEREMOTE)
+  private val btRmLocal = createActionButton("Delete local", A_RMLOCAL)
+  private val btRmRemote = createActionButton("Delete remote", A_RMREMOTE)
+  private val btMerge = createActionButton("Merge", A_MERGE)
+  private val btSkip = createActionButton("Skip", A_SKIP)
+  private val btRmBoth = createActionButton("Delete both", A_RMBOTH)
   List(btRmLocal, btUseLocal, btMerge, btSkip, btRmBoth, btUseRemote, btRmRemote).foreach(bb => bb.setDisable(true))
 
   def updateSyncButton(allow: Boolean): Boolean = {
@@ -249,9 +248,10 @@ class FilesView() extends Tab with Logging {
     updateSyncButton()
   }
   // returns true if can synchronize
-  def updateSyncButton() = {
+  private def updateSyncButton() = {
     debug("update sync button")
     val canSync = if (syncEnabled) Cache.canSync else false
+    //noinspection FieldFromDelayedInit
     Main.btSync.setDisable(!canSync)
     canSync
   }
@@ -285,14 +285,14 @@ class FilesView() extends Tab with Logging {
     }
   }
 
-  var filterList = new sfxc.ObservableBuffer[String]()
+  val filterList = new sfxc.ObservableBuffer[String]()
   object F {
     val all="all"; val changes="changes"; val problems="problems"
-    def getAll = (changes,all,problems)
+    def getAll: (String, String, String) = (changes,all,problems)
   }
   filterList.addAll (F.all,F.changes,F.problems)
   val cFilter: ComboBox[String] = new ComboBox(filterList) {
-    onAction = (ae: ActionEvent) => {
+    onAction = (_: ActionEvent) => {
       Store.config.currentFilter.value = cFilter.selectionModel().getSelectedIndex
       Cache.filterActions = getFilter
       debug("setting filter to " + getFilter.mkString(","))
@@ -302,7 +302,7 @@ class FilesView() extends Tab with Logging {
     Cache.filterActions = getFilter2(filterList.get(Store.config.currentFilter.value))
   }
 
-  var bv = new HBox { children = List(cFilter,btRmLocal, btUseLocal, btMerge,
+  private val bv = new HBox { children = List(cFilter,btRmLocal, btUseLocal, btMerge,
     btSkip, btRmBoth, btUseRemote, btRmRemote, btDiff, cbAdvanced)
   }
 
@@ -320,7 +320,7 @@ class FilesView() extends Tab with Logging {
 
   // init
   debug("FilesView() in thread " + Thread.currentThread().getId)
-  val vb = new VBox {
+  private val vb = new VBox {
     children = List(tv,bv)
   }
 

@@ -1,5 +1,7 @@
 package sfsync
 
+import java.io.File
+
 import sfsync.util.Helpers.MyWorker
 import sfsync.util._
 import sfsync.store._
@@ -26,7 +28,7 @@ import javafx.scene.{control => jfxsc}
 import javafx.{stage => jfxs}
 
 object SVHelpers extends Logging {
-  def getDroppedFile(file: java.io.File) = {
+  def getDroppedFile(file: java.io.File): File = {
     // bug in javafx: filename is url-encoded string, .exists() = false
     val path = URLDecoder.decode(file.getPath,"UTF-8")
     debug("getdrfile=" + path)
@@ -48,8 +50,8 @@ class MyListView[T <: ListableThing](
 
   sortit()
 
-  var oldidx = -1
-  var lvs = new control.ListView[T]() {
+  private var oldidx = -1
+  val lvs: ListView[T] = new control.ListView[T]() {
     editable = true
     items = obsBuffer
     selectionModel().clearSelection()
@@ -79,7 +81,7 @@ class MyListView[T <: ListableThing](
 
   def beforeDelete(what: T) = true
 
-  val buttons = new HBox {
+  val buttons: HBox = new HBox {
     children = List(
       new Button("add") {
         onAction = (_: ActionEvent) => {
@@ -114,8 +116,7 @@ class MyListView[T <: ListableThing](
 
 class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: String = "", filter: String = "", canDropFile: Boolean = false) extends HBox {
   alignment = Pos.CenterRight
-  val bwidth = if (onButtonClick != null) 60 else 0
-  var tf = new TextField() {
+  val tf: TextField = new TextField() {
     text = ""
     if (toolTip != "") tooltip = new Tooltip { text = toolTip }
     text.onChange({
@@ -145,7 +146,7 @@ class MyTextField(labelText: String, val onButtonClick: () => Unit, toolTip: Str
       }
     }
   }
-  var lb = new Label() {
+  private val lb = new Label() {
     prefWidth = 150
     text = labelText
     alignment = Pos.CenterRight
@@ -202,24 +203,24 @@ abstract class ServerView(val config: Config) extends GridPane with Logging {
     margin = insetsstd
     spacing = 5
     alignment = Pos.CenterRight
-    val tfID = new MyTextField("Cache ID: ",null, "just leave it") { tf.text <==> server.id }
-    val tfFilter = new MyTextField("Filter: ",null, "regex, e.g., (/._.*)|(.DS_Store)|(.AppleDouble)") { tf.text <==> server.filterRegexp }
-    val tfLocalFolder = new MyTextField(
+    private val tfID = new MyTextField("Cache ID: ",null, "just leave it") { tf.text <==> server.id }
+    private val tfFilter = new MyTextField("Filter: ",null, "regex, e.g., (/._.*)|(.DS_Store)|(.AppleDouble)") { tf.text <==> server.filterRegexp }
+    private val tfLocalFolder = new MyTextField(
       "Local root: ",
       () => fcLocalDir(server.localFolder),
       toolTip = "Local base folder such as '/localdir'",
       filter = directoryFilter,
       canDropFile = true
     ) { tf.text <==> server.localFolder }
-    var bClearCache = new Button("Clear cache") {
-      onAction = (_: ActionEvent) => { Cache.clearCacheFile(server.id.getValueSafe) }
+    private val bClearCache = new Button("Clear cache") {
+      onAction = (_: ActionEvent) => {Cache.clearCacheFile(server.id.getValueSafe) }
       tooltip = "Clears the cache database for selected sync location"
     }
     val clist = List(tfLocalFolder,tfFilter,tfID,bClearCache)
     children = clist
   }
-  var lvs = new MyListView[Server](() => new Server, config.servers, config.currentServer.value, () => serverChanged()) {
-    override def beforeDelete(what: Server) = {
+  val lvs: MyListView[Server] = new MyListView[Server](() => new Server, config.servers, config.currentServer.value, () => serverChanged()) {
+    override def beforeDelete(what: Server): Boolean = {
       if (dialogOkCancel("Delete server", "Delete server (only settings & cached data)", "Really delete server " + what)) {
         Cache.clearCacheFile(what.id.getValueSafe)
         true
@@ -252,12 +253,12 @@ class ProtocolView(val server: Server) extends GridPane with Logging {
   class ProtocolDetailView extends VBox with Logging {
     margin = insetsstd
     spacing = 5
-    var tfBaseFolder = new MyTextField("Base folder: ", null,
+    private val tfBaseFolder = new MyTextField("Base folder: ", null,
       toolTip = "Remote base directory such as '/remotebasedir or C:/remotebasedir'",
       filter = directoryFilter, canDropFile = true) {
       tf.text <==> protocol.protocolbasefolder
     }
-    var tfURI = new MyTextField("Protocol URI: ", null, "file:/// or sftp://user[:password]@host:port", "(file:///)|(sftp://\\S+@\\S+:\\S+)") {
+    private val tfURI = new MyTextField("Protocol URI: ", null, "file:/// or sftp://user[:password]@host:port", "(file:///)|(sftp://\\S+@\\S+:\\S+)") {
       tf.onAction = (_: ActionEvent) => {
         val uri = new MyURI()
         if (uri.parseString(tf.text.value)) {
@@ -271,28 +272,28 @@ class ProtocolView(val server: Server) extends GridPane with Logging {
       }
       tf.text <==> protocol.protocoluri
     }
-    val cbDoSetPermissions = new CheckBox("Set permissions (remote)") {
+    private val cbDoSetPermissions = new CheckBox("Set permissions (remote)") {
       tooltip = "Set permissions on files/directories on remote server?"
       selected <==> protocol.doSetPermissions
     }
-    val cbSetGroupWrite = new CheckBox("Group write (remote)") {
+    private val cbSetGroupWrite = new CheckBox("Group write (remote)") {
       tooltip = "Sets the group write flag to this on remote server"
       selected <==> protocol.remGroupWrite
     }
-    val cbSetOthersWrite = new CheckBox("Others write (remote)") {
+    private val cbSetOthersWrite = new CheckBox("Others write (remote)") {
       tooltip = "Sets the others write flag to this on remote server"
       selected <==> protocol.remOthersWrite
     }
-    val cbCantSetDate = new CheckBox("Server can't set date (Android)") {
+    private val cbCantSetDate = new CheckBox("Server can't set date (Android)") {
       tooltip = "E.g., un-rooted Android devices can't set file date via sftp, select this and I will keep track of times."
       selected <==> protocol.cantSetDate
     }
-    var tfExBefore = new MyTextField("Execute before: ", null, "use '#' to separate args") { tf.text <==> protocol.executeBefore }
-    var tfExAfter = new MyTextField("Execute after: ", null, "use '#' to separate args") { tf.text <==> protocol.executeAfter }
+    private val tfExBefore = new MyTextField("Execute before: ", null, "use '#' to separate args") {tf.text <==> protocol.executeBefore}
+    private val tfExAfter = new MyTextField("Execute after: ", null, "use '#' to separate args") {tf.text <==> protocol.executeAfter}
     children = List(tfURI, tfBaseFolder,
       new HBox { children = List(cbDoSetPermissions, cbSetGroupWrite, cbSetOthersWrite, cbCantSetDate) }, tfExBefore, tfExAfter)
   }
-  var lvp = new MyListView[Protocol](() => new Protocol, server.protocols, server.currentProtocol.value, () => protocolChanged())
+  val lvp = new MyListView[Protocol](() => new Protocol, server.protocols, server.currentProtocol.value, () => protocolChanged())
   lvp.margin = insetsstd
   add(new Label() { text = "Protocols:" ; style = "-fx-font-weight: bold" }, 0, 0)
   add(lvp, 0, 1)
@@ -309,9 +310,9 @@ class MyFileChooser(server: Server, protocol: Protocol, localremote: Boolean) ex
   var folders: ObservableBuffer[String] = _
   var folder = new StringProperty("")
 
-  var rootPath = "/" // subfolders (for conn.list) are named "subf/subsubf" while the paths are "/subf/subsubf/" ... confusing
+  val rootPath = "/" // subfolders (for conn.list) are named "subf/subsubf" while the paths are "/subf/subsubf/" ... confusing
 
-  val dstage = new Stage(jfxs.StageStyle.UTILITY) {
+  private val dstage = new Stage(jfxs.StageStyle.UTILITY) {
     initOwner(Main.stage)
     initModality(jfxs.Modality.APPLICATION_MODAL)
     width = 700
@@ -330,7 +331,7 @@ class MyFileChooser(server: Server, protocol: Protocol, localremote: Boolean) ex
 
   class FilePathTreeItem(var path: String, var filename: String) extends jfxsc.TreeItem[String](filename) {
     val (_, isDir) = myConn.checkIsDir(path)
-    val isDummy = path == "" && filename == "dummy"
+    private val isDummy = path == "" && filename == "dummy"
 
     if (isDir) getChildren += new FilePathTreeItem("", "dummy") // add dummy, if expanded will read
 
@@ -433,7 +434,7 @@ class SubFolderView(val mainView: MainView, val server: Server) extends GridPane
   alignment = Pos.CenterRight
   gridLinesVisible = false
   var subfolder: SubFolder= _
-  var lvp = new MyListView[SubFolder](() => new SubFolder,server.subfolders, server.currentSubFolder.value, () => subfolderChanged())
+  val lvp = new MyListView[SubFolder](() => new SubFolder,server.subfolders, server.currentSubFolder.value, () => subfolderChanged())
   import scalafx.scene.control.Button._
   lvp.buttons.children += new Button("Add <Allfiles>") {
     tooltip = "Adds a subset that will synchronize all files"
@@ -473,21 +474,21 @@ class SubFolderView(val mainView: MainView, val server: Server) extends GridPane
   class SubFolderDetailView extends VBox with Logging {
     margin = insetsstd
     spacing = 5
-    def fcSubfolder(basedir: String, inisf: String) = {
-      var ressf: String = ""
-      val fileChooser = new DirectoryChooser
-      val jf = new java.io.File(basedir + inisf)
-      if (jf.exists() && jf.canRead) {
-        fileChooser.delegate.setInitialDirectory(jf)
-      }
-      val res = fileChooser.showDialog(Main.stage)
-      if (res != null) {
-        ressf = PathToSubdir(res)
-      }
-      ressf
-    }
+//    def fcSubfolder(basedir: String, inisf: String) = {
+//      var ressf: String = ""
+//      val fileChooser = new DirectoryChooser
+//      val jf = new java.io.File(basedir + inisf)
+//      if (jf.exists() && jf.canRead) {
+//        fileChooser.delegate.setInitialDirectory(jf)
+//      }
+//      val res = fileChooser.showDialog(Main.stage)
+//      if (res != null) {
+//        ressf = PathToSubdir(res)
+//      }
+//      ressf
+//    }
 
-    def PathToSubdir(file: java.io.File) = {
+    private def PathToSubdir(file: java.io.File) = {
       var ressf = ""
       val realfile = SVHelpers.getDroppedFile(file)
       debug("ptsd: " + realfile.getCanonicalPath + " " + realfile.exists() + " " + realfile.getPath.startsWith(server.localFolder.getValueSafe))
@@ -499,7 +500,7 @@ class SubFolderView(val mainView: MainView, val server: Server) extends GridPane
       ressf
     }
 
-    var lvs = new control.ListView[String]() {
+    private val lvs = new control.ListView[String]() {
       editable = true
       tooltip = "Add or drag'n'drop folders..."
       items = subfolder.subfolders
@@ -520,7 +521,7 @@ class SubFolderView(val mainView: MainView, val server: Server) extends GridPane
       }
     }
 
-    var controls = new HBox {
+    private val controls = new HBox {
       children = List(
         new Button("Add (local)") {
           onAction = (_: ActionEvent) => {

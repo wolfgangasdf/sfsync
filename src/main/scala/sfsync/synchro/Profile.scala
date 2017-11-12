@@ -27,7 +27,7 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
 
   class ProfileAbortedException(message: String = null, cause: Throwable = null) extends RuntimeException(message, cause)
 
-  val taskIni = new myTask { override def call(): Unit = {
+  val taskIni: myTask = new myTask { override def call(): Unit = {
     updateTitle("Initialize connections...")
     Cache.loadCache(server.id.getValueSafe)
 
@@ -60,7 +60,7 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
   } }
 
 
-  val taskCompFiles = new myTask { override def call(): Unit = {
+  val taskCompFiles: myTask = new myTask { override def call(): Unit = {
     updateTitle("CompareFiles...")
     val sw = new StopWatch // for timing meas
 
@@ -153,7 +153,7 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
     updateProgr(100, 100, "done")
   } }
 
-  val taskSynchronize = new myTask { override def call(): Unit = {
+  val taskSynchronize: myTask = new myTask { override def call(): Unit = {
     info("*********************** synchronize")
     updateTitle("Synchronize")
     updateProgr(0, 100, "startup...")
@@ -171,7 +171,7 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
     })
     var ignoreErrors = false
 
-    def dosync(path: String, se: SyncEntry) = {
+    def dosync(path: String, se: SyncEntry): Unit = {
       var showit = false
       val relevantSize = if (se.action == A_USELOCAL) se.lSize else if (se.action == A_USEREMOTE) se.rSize else 0
       if (relevantSize > 10000) showit = true
@@ -279,7 +279,7 @@ class Profile(server: Server, protocol: Protocol, subfolder: SubFolder) extends 
   }
 
   // cleanup (transfers must be stopped before)
-  val taskCleanup = new myTask { override def call(): Unit = {
+  val taskCleanup: myTask = new myTask { override def call(): Unit = {
     updateTitle("Cleanup profile...")
     updateProgr(1, 100, "Save cache...")
     Cache.saveCache(server.id.getValueSafe)

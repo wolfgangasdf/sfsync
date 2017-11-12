@@ -31,9 +31,9 @@ import javafx.{stage => jfxs}
 class MainView(filesView: FilesView) extends Tab with Logging {
   this.text = "Settings"
   closable = false
-  val mainView = this
+  private val mainView = this
 
-  var serverView = new ServerView(Store.config) {
+  val serverView: ServerView = new ServerView(Store.config) {
     def onServerChange() {
       val tmpdp =  ArrayBuffer(sp.dividerPositions: _*)
       protocolView = new ProtocolView(server)
@@ -65,13 +65,13 @@ object Main extends JFXApp with Logging {
   import java.io
 
   // redirect console output, must happen on top of this object!
-  val oldOut = System.out
-  val oldErr = System.err
+  private val oldOut = System.out
+  private val oldErr = System.err
   var logps: io.FileOutputStream = _
   System.setOut(new io.PrintStream(new MyConsole(false), true))
   System.setErr(new io.PrintStream(new MyConsole(true), true))
 
-  val logfile = createTempFile("sfsynclog",".txt")
+  private val logfile = createTempFile("sfsynclog",".txt")
   logps = new io.FileOutputStream(logfile)
 
   class MyConsole(errchan: Boolean) extends io.OutputStream {
@@ -82,10 +82,9 @@ object Main extends JFXApp with Logging {
     }
   }
 
-  val VERSION = BuildInfo.version
-  val APPNAME = BuildInfo.name
-  val resv = getClass.getResource("/sfsync/HGVERSION.txt")
-  val version = VERSION + (if (resv != null) " (" + scala.io.Source.fromURL(resv).mkString.trim + ")" else "")
+  private val VERSION = BuildInfo.version
+  private val resv = getClass.getResource("/sfsync/HGVERSION.txt")
+  private val version = VERSION + (if (resv != null) " (" + scala.io.Source.fromURL(resv).mkString.trim + ")" else "")
 
   var settingsView: MainView = _
   var filesView: FilesView = _
@@ -280,7 +279,7 @@ object Main extends JFXApp with Logging {
   }
 
 
-  def handleFailed(task: myTask) = {
+  private def handleFailed(task: myTask) = {
     runUIwait {
       Main.Status.status.value = "Failed!"
       dialogMessage(AlertType.Error, "Error", task.getTitle, task.getException.toString)
@@ -289,7 +288,7 @@ object Main extends JFXApp with Logging {
       doCleanup()
     }
   }
-  def handleCancelled() = {
+  private def handleCancelled() = {
     runUIwait {
       Main.Status.status.value = "Cancelled!"
       Cache.updateObservableBuffer()
@@ -319,7 +318,7 @@ object Main extends JFXApp with Logging {
     MyWorker.runTask(profile.taskSynchronize)
   }
 
-  def runCompare() = {
+  private def runCompare() = {
     Main.Status.status.value = "Compare..."
     doCleanup()
     val sane = settingsView.serverView.server != null && settingsView.serverView.server.localFolder.value != "" &&
@@ -374,23 +373,24 @@ object Main extends JFXApp with Logging {
 // a scalafx splashscreen: implement from main SFX routine, then call showProgress() or close() from any thread
 class Splash extends Logging {
   val maxProgress = 6
+  //noinspection VarCouldBeVal
   var progress = 0
 
-  val sstage = new Stage(jfxs.StageStyle.UNDECORATED) {
+  private val sstage = new Stage(jfxs.StageStyle.UNDECORATED) {
     initOwner(Main.stage)
     initModality(jfxs.Modality.APPLICATION_MODAL)
     width = 500
     height = 300
   }
 
-  val logo = new TextField {
+  private val logo = new TextField {
     text = "SFSync"
     prefHeight = 250
     style = "-fx-background-color: lightblue;-fx-font: 100px Tahoma;"
     alignment = Pos.Center
     editable = false
   }
-  val cont = logo
+  private val cont = logo
 
   sstage.scene = new Scene {
     content = cont

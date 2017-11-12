@@ -10,20 +10,20 @@ class StopWatch {
       true
     } else false
   }
-  def getTime = (System.nanoTime - startNanos)/1e9
-  def getTimeRestart = {
+  def getTime: Double = (System.nanoTime - startNanos)/1e9
+  def getTimeRestart: Double = {
     val x = getTime
     restart()
     x
   }
-  def stopGetTimeString = { // a little overhead... 0.13s
+  def stopGetTimeString: String = { // a little overhead... 0.13s
     if (deltaSecs == 0) stop()
     "%g s" format deltaSecs
   }
-  def stopPrintTime(msg: String) = {
+  def stopPrintTime(msg: String): Unit = {
     println(msg + stopGetTimeString)
   }
-  def printLapTime(msg: String) = {
+  def printLapTime(msg: String): Unit = {
     println(msg + getTime)
   }
   def restart() {
@@ -36,7 +36,7 @@ class StopWatch {
 }
 
 object StopWatch extends StopWatch {
-  def timed[T](msg: String)(body: =>T) = { // for use via timed("time=") { body }
+  def timed[T](msg: String)(body: =>T): T = { // for use via timed("time=") { body }
   val startNanos = System.nanoTime
     val r = body
     val stopNanos = System.nanoTime

@@ -19,7 +19,6 @@ import sfsync.store.{DBSettings, Protocol, Tools}
 import sfsync.util.Helpers._
 import sfsync.util.{Helpers, Logging}
 
-import scala.Predef._
 import scala.collection.JavaConverters._
 import scala.collection.mutable._
 import scala.util.matching.Regex
@@ -46,15 +45,15 @@ class MyURI(var protocol: String, var username: String, var password: String, va
       case _ => false
     }
   }
-  def toURIString = {
+  def toURIString: String = {
     protocol + "://" + username + ":" + password + "@" + host + ":" + port
   }
-  override def toString = {
+  override def toString: String = {
     s"$protocol,$username,$host,$port"
   }
 }
 object MyURI {
-  def apply(s: String) = {
+  def apply(s: String): MyURI = {
     val u = new MyURI()
     if (!u.parseString(s))
       throw new RuntimeException("URI in wrong format: " + s)
@@ -72,12 +71,12 @@ class VirtualFile(var path: String, var modTime: Long, var size: Long) extends O
   def fileName : String = if (path == "/") "/" else path.split("/").last
   override def toString: String = "["+path+"]:"+modTime+","+size
 
-  def isDir = { path.endsWith("/") }
+  def isDir: Boolean = { path.endsWith("/") }
 
   override def equals(that: Any): Boolean = {
     that.isInstanceOf[VirtualFile] && (this.hashCode() == that.asInstanceOf[VirtualFile].hashCode())
   }
-  override def hashCode = {
+  override def hashCode: Int = {
     path.hashCode + modTime.hashCode + size.hashCode
   }
 
@@ -98,15 +97,15 @@ abstract class GeneralConnection(protocol: Protocol, isLocal: Boolean) extends L
   def list(subfolder: String, filterregexp: String, action: (VirtualFile) => Unit, recursive: Boolean)
 
   //noinspection ScalaUnusedSymbol
-  var onProgress = (progressVal: Double, bytePerSecond: Double) => {}
+  var onProgress: (Double, Double) => Unit = (progressVal: Double, bytePerSecond: Double) => {}
 
   // return dir (most likely NOT absolute path but subfolder!) without trailing /
-  def checkIsDir(path: String) = {
+  def checkIsDir(path: String): (String, Boolean) = {
     val isdir = path.endsWith("/")
     val resp = if (isdir) path.substring(0, path.length-1) else path
     (resp, isdir)
   }
-  def cleanUp() = {}
+  def cleanUp(): Unit = {}
 }
 
 class LocalConnection(protocol: Protocol, isLocal: Boolean) extends GeneralConnection(protocol, isLocal) {
@@ -186,7 +185,7 @@ class LocalConnection(protocol: Protocol, isLocal: Boolean) extends GeneralConne
     debug(s"listrec DONE (rbp=$remoteBasePath sf=$subfolder rec=$recursive) in thread ${Thread.currentThread().getId}")
   }
 
-  def mkdirrec(absolutePath: String) = {
+  def mkdirrec(absolutePath: String): Unit = {
     Files.createDirectories(Paths.get(absolutePath))
   }
 }
@@ -223,7 +222,7 @@ class SftpConnection(protocol: Protocol, isLocal: Boolean, var uri: MyURI) exten
     }
   }
 
-  def isDirectoryx(fa: FileAttributes) = {
+  def isDirectoryx(fa: FileAttributes): Boolean = {
     (fa.getType.toMask & FileMode.Type.DIRECTORY.toMask) > 0
   }
 
@@ -288,6 +287,7 @@ class SftpConnection(protocol: Protocol, isLocal: Boolean, var uri: MyURI) exten
       mtime // dirs don't need mtime
     } else {
       try {
+        if (!Files.isReadable(Paths.get(localBasePath + "/" + cp))) throw new IllegalStateException("can't read file " + cp)
         sftpt.upload(localBasePath + "/" + cp, rp) // use this in place of sftpc.put to not always set file attrs
         if (protocol.doSetPermissions.value) setAttr(true)
         else if (!protocol.cantSetDate.value) setAttr(false)
@@ -316,13 +316,13 @@ class SftpConnection(protocol: Protocol, isLocal: Boolean, var uri: MyURI) exten
       Files.setLastModifiedTime(Paths.get(to), FileTime.fromMillis(mtime))
     } else {
       try {
-        sftpt.download(remoteBasePath + "/" + cp, to)
+        // sftpt.download erases local file if it exists also if remote file can't be read
+        val tmpf = createTempFile("sfsync-tempfile", ".dat")
+        sftpt.download(remoteBasePath + "/" + cp, tmpf.getAbsolutePath)
+        Files.move(tmpf.toPath, Paths.get(to), StandardCopyOption.REPLACE_EXISTING)
       } catch {
         case e: Exception =>
           debug("getfile: exception " + e)
-          if (transferListener.bytesTransferred > 0) // file may be corrupted, but don't delete if nothing transferred
-            Files.delete(Paths.get(to)) // file may be corrupted
-
           throw e
       }
       if (transferListener.bytesTotal != transferListener.bytesTransferred)
@@ -361,7 +361,7 @@ class SftpConnection(protocol: Protocol, isLocal: Boolean, var uri: MyURI) exten
     def parseContent(folder: String) {
       if (Helpers.failat == 3) throw new UnsupportedOperationException("fail 3")
       val rris = sftpc.ls(folder).asScala
-      val ord = new Ordering[RemoteResourceInfo]() { def compare(l: RemoteResourceInfo, r: RemoteResourceInfo) = l.getName compare r.getName }
+      val ord = new Ordering[RemoteResourceInfo]() { def compare(l: RemoteResourceInfo, r: RemoteResourceInfo): Int = l.getName compare r.getName }
       for (rri <- rris.sorted(ord)) {
         // if (stopRequested) return
         if (!rri.getName.equals(".") && !rri.getName.equals("..")) {
@@ -421,7 +421,7 @@ class SftpConnection(protocol: Protocol, isLocal: Boolean, var uri: MyURI) exten
   ssh.addHostKeyVerifier(new MyHostKeyVerifier)
   ssh.connect(uri.host, uri.port.toInt)
 
-  var password = uri.password
+  private var password = uri.password
   if (password.startsWith("##"))
     password = Tools.crypto.decrypt(password.substring(2)) // decode password
 
@@ -448,8 +448,8 @@ class SftpConnection(protocol: Protocol, isLocal: Boolean, var uri: MyURI) exten
   } else info("Authenticated!")
 
 
-  val sftpc = ssh.newSFTPClient
-  val sftpt = sftpc.getFileTransfer
+  private val sftpc = ssh.newSFTPClient
+  private val sftpt = sftpc.getFileTransfer
 
   transferListener = new MyTransferListener()
   sftpt.setTransferListener(transferListener)

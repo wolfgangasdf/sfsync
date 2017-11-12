@@ -6,8 +6,8 @@ import sfsync.synchro.Actions._
 
 
 object Actions {
-  val A_UNCHECKED = -99
-  val A_UNKNOWN = -1
+  val A_UNCHECKED: Int = -99
+  val A_UNKNOWN: Int = -1
   val A_ISEQUAL = 0
   val A_USELOCAL = 1
   val A_USEREMOTE = 2
@@ -22,7 +22,7 @@ object Actions {
 }
 
 object Comparison extends Logging {
-  def getParentFolder(path: String) = {
+  def getParentFolder(path: String): String = {
     path.split("/").dropRight(1).mkString("/") + "/"
   }
   // compare, update database entries only.

@@ -1,5 +1,7 @@
 package sfsync.util
 
+import java.io.File
+import java.nio.charset.Charset
 import java.nio.{charset => jnc}
 import java.util.{concurrent => juc}
 
@@ -7,6 +9,7 @@ import scalafx.collections.ObservableBuffer
 import scalafx.scene.control.{ButtonType, DialogEvent, _}
 import scalafx.scene.layout.{HBox, Priority, VBox}
 import scalafx.Includes._
+import scalafx.geometry.Rectangle2D
 import scalafx.scene.control.Alert.AlertType
 import scalafx.scene.web.WebView
 import scalafx.stage.Screen
@@ -18,22 +21,22 @@ object Helpers {
   // after MyWorker etc changes, test all if exceptions propagate as intended!
   val failat = 0 // 0..5 currently
 
-  val filecharset = jnc.Charset.forName("UTF-8")
+  val filecharset: Charset = jnc.Charset.forName("UTF-8")
 
   val insetsstd = scalafx.geometry.Insets(5)
 
   val directoryFilter = "([a-zA-Z]:)?/.*" // not for sftp... if (isWin) ".:/.*" else "/.*"
 
-  def toJavaPathSeparator(in: String) = {
+  def toJavaPathSeparator(in: String): String = {
     if (isWin) in.replaceAll("""\\""", "/")
     else in
   }
 
-  def isMac = System.getProperty("os.name").toLowerCase.contains("mac")
-  def isLinux = System.getProperty("os.name").toLowerCase.matches("(.*nix)|(.*nux)")
-  def isWin = System.getProperty("os.name").toLowerCase.contains("win")
+  def isMac: Boolean = System.getProperty("os.name").toLowerCase.contains("mac")
+  def isLinux: Boolean = System.getProperty("os.name").toLowerCase.matches("(.*nix)|(.*nux)")
+  def isWin: Boolean = System.getProperty("os.name").toLowerCase.contains("win")
 
-  def createTempFile(prefix: String, suffix: String) = { // standard io.File.createTempFile points often to strange location
+  def createTempFile(prefix: String, suffix: String): File = { // standard io.File.createTempFile points often to strange location
   val tag = System.currentTimeMillis().toString
     var dir = System.getProperty("java.io.tmpdir")
     if (Helpers.isLinux || Helpers.isMac) if (new java.io.File("/tmp").isDirectory)
@@ -41,11 +44,11 @@ object Helpers {
     new java.io.File(dir + "/" + prefix + "-" + tag + suffix)
   }
 
-  def toHexString(s: String, encoding: String) = {
+  def toHexString(s: String, encoding: String): String = {
     s.getBytes(encoding).map("%02x " format _).mkString
   }
 
-  def tokMGTPE(d: Double) = {
+  def tokMGTPE(d: Double): String = {
     var num = d
     var ext = ""
     val expo = math.min((Math.log(d) / Math.log(1000)).floor.toInt, 6)
@@ -115,7 +118,7 @@ object Helpers {
       //if (stage.owner.nonEmpty) initOwner(stage)
       title = titletext
       headerText = header
-      val sp2 = new ScrollPane { // optional html message
+      private val sp2 = new ScrollPane { // optional html message
         content = new WebView {
           engine.loadContent(htmlmsg)
         }
@@ -130,7 +133,7 @@ object Helpers {
 
   object MyWorker {
     val taskList = new ObservableBuffer[myTask]()
-    val taskListView = new ListView[myTask] {
+    private val taskListView = new ListView[myTask] {
       items = taskList
       cellFactory = {lv =>
         new ListCell[myTask] {
@@ -167,13 +170,13 @@ object Helpers {
         }
       }
     }
-    val al = new Dialog[javafx.scene.control.ButtonType] {
+    private val al = new Dialog[javafx.scene.control.ButtonType] {
       // not needed? initOwner(Main.stage)
       title = "Progress"
       resizable = true
       dialogPane.value.content = new VBox { children ++= Seq(new Label("Tasks:"), taskListView) }
       dialogPane.value.getButtonTypes += ButtonType.Cancel
-      val sb = Screen.primary.visualBounds
+      val sb: Rectangle2D = Screen.primary.visualBounds
       dialogPane.value.setPrefSize(sb.width/2.5, sb.height/3)
     }
 

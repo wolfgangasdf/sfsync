@@ -11,10 +11,9 @@ import scalafx.collections.ObservableBuffer._
 import scalafx.{collections => sfxc}
 import scalafx.beans.property._
 import scala.collection.mutable.ArrayBuffer
-
 import scala.collection.JavaConverters._
-
 import java.nio.file._
+import java.util.Base64
 
 
 object DBSettings extends Logging {
@@ -36,22 +35,22 @@ object DBSettings extends Logging {
   val knownHostsFile = new java.io.File(settpath + "/known_hosts")
   knownHostsFile.createNewFile()
 
-  def dbpath(name: String) = dbdir + "/" + name
+  def dbpath(name: String): String = dbdir + "/" + name
 
-  def getSettingPath = settpath + "/sfsyncsettings" + ".txt"
+  def getSettingPath: String = settpath + "/sfsyncsettings" + ".txt"
 
-  def getLock = lockFile.createNewFile()
+  def getLock: Boolean = lockFile.createNewFile()
 
-  def releaseLock() = lockFile.delete()
+  def releaseLock(): Boolean = lockFile.delete()
 
-  def getLines = {
+  def getLines: Array[String] = {
     val fff = Paths.get(getSettingPath)
     if (!Files.exists(fff)) {
       info("creating setting file " + fff.toString)
       Files.createDirectories(fff.getParent)
       Files.createFile(fff)
     }
-    Files.readAllLines(fff, filecharset).toArray
+    Files.readAllLines(fff, filecharset).asScala.toArray
   }
 }
 
@@ -70,9 +69,9 @@ object Tools {
 class JavaCryptoEncryption(algorithmName: String) {
   import javax.crypto.spec.SecretKeySpec
   import javax.crypto.Cipher
-  val b64enc = new sun.misc.BASE64Encoder()
-  val b64dec = new sun.misc.BASE64Decoder()
-  def getNewSecret = {
+  private val b64enc = Base64.getMimeEncoder
+  private val b64dec = Base64.getMimeDecoder
+  def getNewSecret: String = {
     val random = new scala.util.Random(new java.security.SecureRandom())
     random.alphanumeric.take(8).mkString
   }
@@ -81,7 +80,7 @@ class JavaCryptoEncryption(algorithmName: String) {
     val encipher = Cipher.getInstance(algorithmName + "/ECB/PKCS5Padding")
     encipher.init(Cipher.ENCRYPT_MODE, secretKey)
     val res = encipher.doFinal(bytes.getBytes("UTF-8"))
-    b64enc.encode(res).replaceAll("/", "-")
+    b64enc.encode(res).toString.replaceAll("/", "-")
   }
 
   def decrypt(bytes: String): String = {
@@ -89,7 +88,7 @@ class JavaCryptoEncryption(algorithmName: String) {
     val encipher = Cipher.getInstance(algorithmName + "/ECB/PKCS5Padding")
     encipher.init(Cipher.DECRYPT_MODE, secretKey)
     val bytes2 = bytes.replaceAll("-","/")
-    val res = encipher.doFinal(b64dec.decodeBuffer(bytes2))
+    val res = encipher.doFinal(b64dec.decode(bytes2))
     new String(res, "UTF-8")
   }
 }
@@ -112,7 +111,7 @@ class ListableThing extends Ordered[ListableThing] {
 }
 
 class MyList[T] extends ArrayBuffer[T] {
-  def add(what: T) = { this += what}
+  def add(what: T): MyList[T] = { this += what}
 }
 
 class Server extends ListableThing {
@@ -260,8 +259,8 @@ object Store extends Logging {
 }
 
 class SyncEntry2(var path: String, var se: SyncEntry) {
-  override def toString = {s"[path=$path action=[${CF.amap(se.action)}] lTime=${se.lTime} lSize=${se.lSize} rTime=${se.rTime} rSize=${se.rSize} lcTime=${se.lcTime} rcTime=${se.rcTime} cSize=${se.cSize} rel=${se.relevant}"}
-  def toStringNice = {
+  override def toString: String = {s"[path=$path action=[${CF.amap(se.action)}] lTime=${se.lTime} lSize=${se.lSize} rTime=${se.rTime} rSize=${se.rSize} lcTime=${se.lcTime} rcTime=${se.rcTime} cSize=${se.cSize} rel=${se.relevant}"}
+  def toStringNice: String = {
     s"""
      |Path: TODO
      |Local : ${se.detailsLocal.value}
@@ -284,7 +283,7 @@ class SyncEntry(var action: Int,
                 var delete: Boolean = false
                  ) {
   var hasCachedParent = false // only used for folders!
-  def sameTime(t1: Long, t2: Long) = Math.abs(t1 - t2) < 2000 // in milliseconds
+  def sameTime(t1: Long, t2: Long): Boolean = Math.abs(t1 - t2) < 2000 // in milliseconds
 
   def status = new StringProperty(this, "status", CF.amap(action))
   def dformat = new java.text.SimpleDateFormat("dd-MM-yyyy HH:mm:ss")
@@ -297,21 +296,21 @@ class SyncEntry(var action: Int,
   def detailsLCache = new StringProperty(this, "detailslc",
     if (cSize != -1) dformat.format(new java.util.Date(lcTime)) + "(" + cSize + ")" else "none")
 //  def isDir = path.endsWith("/")
-  def isEqual = {
+  def isEqual: Boolean = {
     if (isDir) {
       if (lSize != -1 && rSize != -1) true else false
     } else {
       if (lSize != -1 && lSize == rSize && sameTime(lTime, rTime)) true else false
     }
   }
-  def isLeqC = {
+  def isLeqC: Boolean = {
     if (isDir) {
       if (lSize != -1 && cSize != -1) true else false
     } else {
       if (lSize != -1 && lSize == cSize && sameTime(lTime, lcTime)) true else false
     }
   }
-  def isReqC = {
+  def isReqC: Boolean = {
     if (isDir) {
       if (rSize != -1 && cSize != -1) true else false
     } else {
@@ -319,7 +318,7 @@ class SyncEntry(var action: Int,
     }
   }
 
-  def compareSetAction(newcache: Boolean) = {
+  def compareSetAction(newcache: Boolean): SyncEntry = {
     import sfsync.synchro.Actions._
     action = -9
     if (lSize == -1 && rSize == -1) { // cache only?
@@ -356,7 +355,7 @@ class SyncEntry(var action: Int,
 // must be synchronized: better ConcurrentSkipListMap as synchronizedSortedMap(TreeMap) locks whole thing
 class MyTreeMap[K, V] extends java.util.concurrent.ConcurrentSkipListMap[K, V] {
   // old with treemap: this is 10x faster than foreach, can do it.remove(), return false to stop (or true/Unit for continue)
-  def iterate(fun: ( java.util.Iterator[java.util.Map.Entry[K, V]], K, V ) => Any, reversed: Boolean = false) = {
+  def iterate(fun: ( java.util.Iterator[java.util.Map.Entry[K, V]], K, V ) => Any, reversed: Boolean = false): Unit = {
     val it = if (reversed)
       this.descendingMap().entrySet().iterator()
     else
@@ -400,22 +399,22 @@ object Cache extends Logging {
     }
   )
 
-  def dumpAll() = {
+  def dumpAll(): Unit = {
     cache.iterate( (_, path, se) => println(path + ": " + se.toString))
   }
 
-  def getCacheFilename(name: String) = {
+  def getCacheFilename(name: String): String = {
     "" + DBSettings.dbpath(name) + "-cache.txt"
   }
 
-  def iniCache() = {
+  def iniCache(): Unit = {
     cache = new MyTreeMap[String, SyncEntry]()
     observableListSleep = true
     observableList.clear()
     observableListSleep = false
   }
 
-  def loadCache(name: String) = {
+  def loadCache(name: String): Unit = {
     info("load cache database..." + name)
     iniCache()
 
