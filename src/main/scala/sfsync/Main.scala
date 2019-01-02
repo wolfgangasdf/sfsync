@@ -83,8 +83,6 @@ object Main extends JFXApp with Logging {
   }
 
   private val VERSION = BuildInfo.version
-  private val resv = getClass.getResource("/sfsync/HGVERSION.txt")
-  private val version = VERSION + (if (resv != null) " (" + scala.io.Source.fromURL(resv).mkString.trim + ")" else "")
 
   var settingsView: MainView = _
   var filesView: FilesView = _
@@ -128,7 +126,7 @@ object Main extends JFXApp with Logging {
   def initit(myStage: Stage) {
     Checks.CheckComparedFile()
 
-    info("sfsync version = " + version)
+    info("sfsync version = " + VERSION)
     info("java.version = " + System.getProperty("java.version"))
     info("scala version = " + scala.util.Properties.versionString)
     info("javafx.runtime.version = " + System.getProperty("javafx.runtime.version"))
@@ -151,7 +149,7 @@ object Main extends JFXApp with Logging {
               if (Desktop.isDesktopSupported) {
                 val desktop = Desktop.getDesktop
                 if (desktop.isSupported(Desktop.Action.BROWSE)) {
-                  desktop.browse(new URI("https://bitbucket.org/wolfgang/sfsynctest"))
+                  desktop.browse(new URI("https://github.com/wolfgangasdf/sfsync"))
                 }
               }
             }
@@ -195,7 +193,7 @@ object Main extends JFXApp with Logging {
     }
     statusBar = new ToolBar {
       statusLabel = new Label() {
-        text = "Sfsync Version " + Main.version
+        text = "Sfsync Version " + Main.VERSION
       }
       content = List(statusLabel)
     }

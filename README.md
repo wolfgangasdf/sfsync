@@ -31,7 +31,7 @@ File synchronization is a delicate thing. However, if you keep the Files list-vi
 ### How to use ###
 
 * Get the [Java JRE](http://www.oracle.com/technetwork/java/javase/downloads/index.html) >= 8u101. Don't forget to untick the [crapware](https://www.google.com/search?q=java+crapware) installer, and/or [disable it permanently](https://www.java.com/en/download/faq/disable_offers.xml)!
-* [Download the zip](https://bitbucket.org/wolfgang/sfsync/downloads) for Mac or (Windows, Linux), extract it somewhere and double-click the app (Mac) or
+* [Download the zip](https://github.com/wolfgangasdf/sfsync/releases) for Mac or (Windows, Linux), extract it somewhere and double-click the app (Mac) or
   jar file (Windows, Linux).
 
 Everything should be self-explanatory (watch out for tooltips).
@@ -39,7 +39,7 @@ Everything should be self-explanatory (watch out for tooltips).
 ### How to develop, compile & package ###
 
 * Get Java JDK >= 8u101
-* check out the code (`hg clone ...` or download a zip)
+* Clone the repository
 * I use the free community version of [IntelliJ IDEA](https://www.jetbrains.com/idea/download/) with the scala
 plugin for development, just import the project to get started.
 
